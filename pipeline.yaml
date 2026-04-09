@@ -1,0 +1,57 @@
+name: Harness Control Plane
+version: 2.0.0
+description: Feishu -> Claude Code CLI -> Review -> QA -> Gerrit 的长运行 harness 编排配置
+stages:
+- id: intake
+  name: Request Intake
+  agent: planner
+- id: requirements
+  name: Requirements
+  agent: requirements-analyst
+- id: design
+  name: System Design
+  agent: system-architect
+- id: development
+  name: Implementation
+  agent: developer
+- id: code_review
+  name: Code Review
+  agent: code-reviewer
+- id: delivery
+  name: Gerrit Delivery
+  agent: delivery-manager
+loop_control:
+  poll_interval_seconds: 2
+  max_parallel_tasks: 1
+  allow_resume_after_restart: true
+human_intervention_rules:
+  force_pause:
+  - condition: 需求包含安全、权限、支付、生产变更
+    pause_stage: design
+    message: 高风险需求，需要人工确认后继续
+  - condition: review 或 testing 明确返回 NEED_HUMAN
+    pause_stage: '*'
+    message: 模型要求人工介入
+  - condition: 阶段重试耗尽
+    pause_stage: '*'
+    message: 自动恢复失败，需要人工接管
+observability:
+  sse_endpoint: /api/stream
+  runtime_endpoint: /api/runtime
+  keep_latest_events: 200
+  keep_task_history: 20
+integrations:
+  feishu:
+    webhook_endpoint: /api/feishu/webhook
+    notify_on:
+    - task_completed
+    - task_failed
+    - approval_required
+  gerrit:
+    strategy: push refs/for/<branch>%topic=<task_id>
+  claude_code_cli:
+    output_format: stream-json
+    expected_verdicts:
+    - PASS
+    - FAIL
+    - NEED_HUMAN

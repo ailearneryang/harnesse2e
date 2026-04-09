@@ -1,0 +1,13 @@
+{
+  "change_id": "CHG-20260408152127",
+  "timestamp": "2026-04-08T15:21:27.679582",
+  "change_description": "music， wechat 支持",
+  "affected_requirements": [],
+  "affected_designs": [],
+  "affected_code_modules": [],
+  "affected_test_cases": [],
+  "stages_to_rerun": [
+    "requirements"
+  ],
+  "impact_level": "low"
+}

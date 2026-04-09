@@ -1,0 +1,242 @@
+{
+  "timestamp": "2026-04-08T17:34:39.820733",
+  "checks": {
+    "req_design": {
+      "check_name": "需求-设计一致性",
+      "status": "warning",
+      "issues": [
+        {
+          "check_name": "需求-设计一致性",
+          "severity": "major",
+          "source_artifact": "requirements_spec.md",
+          "target_artifact": "design/",
+          "description": "以下需求在设计文档中未被引用: F009, F002, F006, F005, F003, F007, F008, F004, F010, F001",
+          "suggestion": "确保设计文档中每个功能模块标注对应的需求编号（如 [REQ-F001]）",
+          "auto_fixable": false
+        }
+      ],
+      "stats": {
+        "total_requirements": 10,
+        "referenced_in_design": 0,
+        "missing_in_design": 10,
+        "extra_in_design": 0
+      }
+    },
+    "design_code": {
+      "check_name": "设计-代码一致性",
+      "status": "warning",
+      "issues": [
+        {
+          "check_name": "设计-代码一致性",
+          "severity": "major",
+          "source_artifact": "api_design.md",
+          "target_artifact": "src/",
+          "description": "设计中定义但代码未实现的 API: /api/requests, /api/stream, /api/approvals/{taskId}/{approvalId}/resolve, /api/feishu/webhook",
+          "suggestion": "确认这些 API 是否需要实现，或在设计文档中标记为未实现",
+          "auto_fixable": false
+        }
+      ],
+      "stats": {
+        "design_apis": 4,
+        "code_apis": 0,
+        "matched": 0,
+        "only_in_design": 4,
+        "only_in_code": 0
+      }
+    },
+    "req_test": {
+      "check_name": "需求-测试一致性",
+      "status": "fail",
+      "issues": [
+        {
+          "check_name": "需求-测试一致性",
+          "severity": "major",
+          "source_artifact": "requirements_spec.md",
+          "target_artifact": "tests/",
+          "description": "以下需求缺少测试覆盖: F001, F002, F003, F004, F005, F006, F007, F008, F009, F010",
+          "suggestion": "为未覆盖的需求功能点添加测试用例",
+          "auto_fixable": false
+        }
+      ],
+      "stats": {
+        "total_requirements": 10,
+        "tested": 0,
+        "covered": 0,
+        "not_covered": 10,
+        "coverage_rate": 0.0
+      }
+    }
+  },
+  "issues": [
+    {
+      "check_name": "需求-设计一致性",
+      "severity": "major",
+      "source_artifact": "requirements_spec.md",
+      "target_artifact": "design/",
+      "description": "以下需求在设计文档中未被引用: F009, F002, F006, F005, F003, F007, F008, F004, F010, F001",
+      "suggestion": "确保设计文档中每个功能模块标注对应的需求编号（如 [REQ-F001]）",
+      "auto_fixable": false
+    },
+    {
+      "check_name": "设计-代码一致性",
+      "severity": "major",
+      "source_artifact": "api_design.md",
+      "target_artifact": "src/",
+      "description": "设计中定义但代码未实现的 API: /api/requests, /api/stream, /api/approvals/{taskId}/{approvalId}/resolve, /api/feishu/webhook",
+      "suggestion": "确认这些 API 是否需要实现，或在设计文档中标记为未实现",
+      "auto_fixable": false
+    },
+    {
+      "check_name": "需求-测试一致性",
+      "severity": "major",
+      "source_artifact": "requirements_spec.md",
+      "target_artifact": "tests/",
+      "description": "以下需求缺少测试覆盖: F001, F002, F003, F004, F005, F006, F007, F008, F009, F010",
+      "suggestion": "为未覆盖的需求功能点添加测试用例",
+      "auto_fixable": false
+    }
+  ],
+  "traceability_matrix": [
+    {
+      "requirement": "F001",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F002",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F003",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F004",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F005",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F006",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F007",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F008",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F009",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F010",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F001",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F002",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F003",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F004",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F005",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F006",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F007",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F008",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F009",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    },
+    {
+      "requirement": "F010",
+      "design": null,
+      "code": null,
+      "test": null,
+      "coverage": "none"
+    }
+  ],
+  "overall_status": "warning"
+}

@@ -1,0 +1,18 @@
+{
+  "stage": "testing",
+  "original_size": 3859,
+  "distilled_size": 343,
+  "compression_ratio": 0.91,
+  "key_decisions": [],
+  "api_summary": [],
+  "data_entities": [],
+  "unresolved_issues": [
+    "| **50 / 0** |",
+    "| **0** |",
+    "| **50 / 0** |",
+    "| **0** |"
+  ],
+  "quality_score": null,
+  "handoff_summary": "通过率: 未知\n失败项: 4\n",
+  "created_at": "2026-04-08T18:40:00.793156"
+}

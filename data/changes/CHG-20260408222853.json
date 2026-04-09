@@ -1,0 +1,20 @@
+{
+  "change_id": "CHG-20260408222853",
+  "timestamp": "2026-04-08T22:28:53.444347",
+  "change_description": "贪吃蛇",
+  "affected_requirements": [
+    "F001"
+  ],
+  "affected_designs": [],
+  "affected_code_modules": [],
+  "affected_test_cases": [
+    "conftest.py",
+    "test_bubble_sort.py",
+    "cases/test_cases_bubble_sort.md",
+    "reports/test_report.md"
+  ],
+  "stages_to_rerun": [
+    "testing"
+  ],
+  "impact_level": "medium"
+}

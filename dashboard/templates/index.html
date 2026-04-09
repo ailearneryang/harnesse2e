@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harness Console</title>
+    <style>
+        :root {
+            --bg-base: #0a0e1a;
+            --bg-surface: #111827;
+            --bg-elevated: #1a2236;
+            --bg-hover: #1e2a42;
+            --border: rgba(148,163,184,0.10);
+            --border-strong: rgba(148,163,184,0.20);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #06b6d4;
+            --accent-soft: rgba(6,182,212,0.12);
+            --accent-glow: rgba(6,182,212,0.25);
+            --green: #22c55e;
+            --green-soft: rgba(34,197,94,0.12);
+            --amber: #f59e0b;
+            --amber-soft: rgba(245,158,11,0.12);
+            --rose: #f43f5e;
+            --rose-soft: rgba(244,63,94,0.12);
+            --blue: #3b82f6;
+            --blue-soft: rgba(59,130,246,0.12);
+            --purple: #a78bfa;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+            --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { color-scheme: dark; scroll-behavior: smooth; }
+
+        body {
+            min-height: 100vh;
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            background: var(--bg-base);
+        }
+
+        h1,h2,h3,h4 { font-weight: 600; letter-spacing: -0.01em; }
+        button,input,textarea,select { font: inherit; }
+        a { color: inherit; text-decoration: none; }
+
+        /* ── Layout Shell ── */
+        .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            position: sticky; top: 0; height: 100vh;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            overflow-y: auto;
+        }
+        .sidebar-header {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent), var(--blue));
+            display: grid; place-items: center;
+            font-weight: 800; font-size: 15px; color: #fff;
+        }
+        .logo-text { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+        .logo-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+        .runner-widget {
+            margin: 16px 16px 0;
+            padding: 14px;
+            border-radius: var(--radius-md);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+        }
+        .runner-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+        .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
+        .dot.paused { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+        .runner-label { font-size: 13px; font-weight: 600; }
+        .runner-detail { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+        .runner-btns { display: flex; gap: 8px; }
+
+        .nav-section { padding: 16px; }
+        .nav-label {
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text-muted);
+            padding: 0 8px; margin-bottom: 6px;
+        }
+        .nav-link {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 9px 12px; border-radius: var(--radius-sm);
+            color: var(--text-secondary); cursor: pointer;
+            transition: all var(--transition);
+        }
+        .nav-link:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .nav-link.active { background: var(--accent-soft); color: var(--accent); }
+        .nav-link .count {
+            font-size: 11px; padding: 2px 7px; border-radius: 99px;
+            background: rgba(255,255,255,0.06); color: var(--text-muted);
+        }
+        .nav-link.active .count { background: var(--accent-soft); color: var(--accent); }
+
+        .sidebar-footer {
+            margin-top: auto; padding: 16px;
+            border-top: 1px solid var(--border);
+            font-size: 12px; color: var(--text-muted);
+        }
+        .sidebar-footer .info-row { display: flex; justify-content: space-between; padding: 4px 0; }
+        .sidebar-footer .info-val { color: var(--text-secondary); }
+
+        /* ── Main Content ── */
+        .main { padding: 24px 28px; overflow-x: hidden; }
+
+        /* ── Metric Cards ── */
+        .metrics { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-bottom: 24px; }
+        .metric-card {
+            padding: 16px 18px;
+            border-radius: var(--radius-lg);
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            transition: border-color var(--transition);
+        }
+        .metric-card:hover { border-color: var(--border-strong); }
+        .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 8px; }
+        .metric-value { font-size: 28px; font-weight: 700; line-height: 1; }
+        .metric-value.total { color: var(--blue); }
+        .metric-value.running { color: var(--accent); }
+        .metric-value.waiting { color: var(--amber); }
+        .metric-value.done { color: var(--green); }
+        .metric-value.failed { color: var(--rose); }
+        .metric-hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+        /* ── Section Panel ── */
+        .section {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            margin-bottom: 20px;
+        }
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--border);
+        }
+        .section-title { font-size: 16px; font-weight: 700; }
+        .section-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .section-body { padding: 18px 22px; }
+
+        /* ── Pipeline Stepper ── */
+        .pipeline { display: flex; gap: 0; overflow-x: auto; padding: 4px 0; }
+        .stage-step {
+            flex: 1; min-width: 110px; position: relative;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 14px 8px; text-align: center;
+        }
+        .stage-step::after {
+            content: ''; position: absolute; top: 24px; left: 50%; width: 100%; height: 2px;
+            background: var(--border); z-index: 0;
+        }
+        .stage-step:last-child::after { display: none; }
+        .stage-num {
+            width: 32px; height: 32px; border-radius: 50%;
+            display: grid; place-items: center;
+            font-size: 12px; font-weight: 700;
+            background: var(--bg-elevated); border: 2px solid var(--border-strong);
+            color: var(--text-muted); position: relative; z-index: 1;
+            transition: all var(--transition);
+        }
+        .stage-step.passed .stage-num,
+        .stage-step.completed .stage-num { background: var(--green-soft); border-color: var(--green); color: var(--green); }
+        .stage-step.running .stage-num { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); animation: pulse 2s infinite; }
+        .stage-step.failed .stage-num { background: var(--rose-soft); border-color: var(--rose); color: var(--rose); }
+        .stage-step.waiting_human .stage-num { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+        .stage-step.passed::after,
+        .stage-step.completed::after { background: var(--green); opacity: 0.4; }
+        .stage-step.running::after { background: var(--accent); opacity: 0.4; }
+        .stage-name { font-size: 11px; font-weight: 600; margin-top: 8px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+        .stage-step.running .stage-name { color: var(--accent); }
+        .stage-step.passed .stage-name,
+        .stage-step.completed .stage-name { color: var(--green); }
+        .stage-status-tag {
+            font-size: 10px; margin-top: 4px; padding: 2px 8px;
+            border-radius: 99px; background: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+        }
+        .stage-step.running .stage-status-tag { background: var(--accent-soft); color: var(--accent); }
+        .stage-step.passed .stage-status-tag,
+        .stage-step.completed .stage-status-tag { background: var(--green-soft); color: var(--green); }
+        .stage-step.failed .stage-status-tag { background: var(--rose-soft); color: var(--rose); }
+        .stage-step.waiting_human .stage-status-tag { background: var(--amber-soft); color: var(--amber); }
+
+        /* ── Focus Card (Active Task) ── */
+        .focus-grid { display: grid; grid-template-columns: 1fr 320px; gap: 18px; margin-bottom: 18px; }
+        .focus-card {
+            padding: 18px; border-radius: var(--radius-lg);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+        }
+        .focus-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 6px; }
+        .focus-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+        .focus-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 14px; max-height: 60px; overflow: hidden; }
+        .focus-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .focus-meta-item {
+            padding: 10px 12px; border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+        }
+        .focus-meta-item .fm-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .focus-meta-item .fm-value { font-size: 13px; font-weight: 600; margin-top: 3px; }
+
+        .health-card {
+            padding: 18px; border-radius: var(--radius-lg);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            display: flex; flex-direction: column; gap: 14px;
+        }
+        .health-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+        .health-big { font-size: 42px; font-weight: 800; line-height: 1; color: var(--accent); }
+        .progress-track { width: 100%; height: 6px; border-radius: 99px; background: rgba(255,255,255,0.06); overflow: hidden; }
+        .progress-bar { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--blue)); transition: width 0.4s ease; }
+        .health-rows { display: grid; gap: 8px; }
+        .health-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+        .health-row strong { color: var(--text-primary); }
+
+        /* ── Two Column Layout ── */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+        /* ── Agent Grid ── */
+        .agent-grid { display: grid; grid-template-columns: 1fr; gap: 10px; max-height: 360px; overflow-y: auto; }
+        .agent-card {
+            padding: 14px; border-radius: var(--radius-md);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            transition: border-color var(--transition);
+        }
+        .agent-card:hover { border-color: var(--border-strong); }
+        .agent-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+        .agent-name { font-size: 13px; font-weight: 700; }
+        .agent-model { font-size: 11px; color: var(--text-muted); }
+        .agent-role { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+        .agent-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 9px; border-radius: 99px;
+            font-size: 11px; font-weight: 600;
+            background: rgba(255,255,255,0.06); color: var(--text-muted);
+        }
+        .badge.running { background: var(--accent-soft); color: var(--accent); }
+        .badge.passed,.badge.completed { background: var(--green-soft); color: var(--green); }
+        .badge.failed,.badge.error { background: var(--rose-soft); color: var(--rose); }
+        .badge.waiting_human { background: var(--amber-soft); color: var(--amber); }
+        .badge.idle { background: rgba(255,255,255,0.04); color: var(--text-muted); }
+        .badge.queued { background: var(--blue-soft); color: var(--blue); }
+
+        /* ── Buttons ── */
+        .btn {
+            appearance: none; border: none; border-radius: var(--radius-sm);
+            padding: 8px 14px; font-size: 12px; font-weight: 600;
+            cursor: pointer; color: var(--text-primary);
+            background: rgba(255,255,255,0.07);
+            transition: all var(--transition);
+        }
+        .btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-1px); }
+        .btn.primary { background: var(--accent); color: #fff; }
+        .btn.primary:hover { background: #0891b2; }
+        .btn.warn { background: var(--amber); color: #1a0d00; }
+        .btn.warn:hover { background: #d97706; }
+        .btn.danger { background: var(--rose); color: #fff; }
+        .btn.ghost { background: transparent; border: 1px solid var(--border); }
+        .btn.sm { padding: 5px 10px; font-size: 11px; }
+
+        /* ── Request Composer ── */
+        .composer { display: grid; gap: 12px; }
+        .composer-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .field-group { display: grid; gap: 4px; }
+        .field-group.full { grid-column: 1 / -1; }
+        .field-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        input, textarea, select {
+            width: 100%; padding: 10px 14px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-base); color: var(--text-primary);
+            transition: border-color var(--transition);
+        }
+        input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+        textarea { min-height: 100px; resize: vertical; }
+        .composer-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+        /* ── Task Board (Kanban) ── */
+        .kanban { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; max-height: 420px; overflow-y: auto; }
+        .kanban-col {
+            min-height: 160px; max-height: 400px; overflow-y: auto; padding: 12px;
+            border-radius: var(--radius-lg);
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+        }
+        .kanban-col-head {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 10px; margin-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .kanban-col-title { font-size: 13px; font-weight: 700; }
+        .kanban-col-count {
+            font-size: 11px; padding: 2px 8px; border-radius: 99px;
+            background: rgba(255,255,255,0.06); color: var(--text-muted);
+        }
+        .kanban-col.progress { border-top: 2px solid var(--accent); }
+        .kanban-col.review { border-top: 2px solid var(--amber); }
+        .kanban-col.done { border-top: 2px solid var(--green); }
+        .kanban-col.attention { border-top: 2px solid var(--rose); }
+        .kanban-cards { display: grid; gap: 10px; }
+
+        .task-card {
+            padding: 14px; border-radius: var(--radius-md);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            border-left: 3px solid var(--text-muted);
+            transition: border-color var(--transition);
+        }
+        .task-card:hover { border-color: var(--border-strong); }
+        .task-card.running { border-left-color: var(--accent); }
+        .task-card.waiting_human { border-left-color: var(--amber); }
+        .task-card.completed,.task-card.passed { border-left-color: var(--green); }
+        .task-card.failed { border-left-color: var(--rose); }
+        .task-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+        .task-card-title { font-size: 13px; font-weight: 700; }
+        .task-card-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .task-card-body { font-size: 12px; color: var(--text-secondary); margin: 8px 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .task-card-progress { margin-top: 8px; }
+        .task-card-progress-top { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+        .task-microbar { height: 4px; border-radius: 99px; background: rgba(255,255,255,0.06); overflow: hidden; }
+        .task-microbar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--blue)); }
+        .task-card-badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+
+        /* ── Approval Cards ── */
+        .approval-card {
+            padding: 16px; border-radius: var(--radius-md);
+            background: var(--bg-elevated); border: 1px solid var(--amber-soft);
+            border-left: 3px solid var(--amber);
+        }
+        .approval-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .approval-title { font-size: 14px; font-weight: 700; }
+        .approval-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .approval-reason { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+        .approval-actions { display: flex; gap: 8px; }
+
+        /* ── Event Feed ── */
+        .feed { max-height: 400px; overflow-y: auto; display: grid; gap: 6px; }
+        .feed-item {
+            padding: 10px 14px; border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.02);
+            border: 1px solid transparent;
+            transition: background var(--transition);
+        }
+        .feed-item:hover { background: rgba(255,255,255,0.04); }
+        .feed-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .feed-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted); }
+        .feed-dot.info { background: var(--blue); }
+        .feed-dot.success { background: var(--green); }
+        .feed-dot.warning { background: var(--amber); }
+        .feed-dot.error { background: var(--rose); }
+        .feed-time { font-size: 11px; color: var(--text-muted); }
+        .feed-source { font-size: 11px; color: var(--text-muted); }
+        .feed-stage-tag { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: rgba(255,255,255,0.05); color: var(--text-muted); }
+        .feed-msg { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+        .feed-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+        .feed-filter .btn { font-size: 11px; padding: 4px 10px; }
+        .feed-filter .btn.active { background: var(--accent-soft); color: var(--accent); }
+
+        /* ── Empty State ── */
+        .empty {
+            padding: 24px; text-align: center;
+            border: 1px dashed var(--border-strong);
+            border-radius: var(--radius-md);
+            color: var(--text-muted); font-size: 13px;
+        }
+
+        /* ── Artifact Panel ── */
+        .artifact-stages { display: grid; gap: 14px; max-height: 500px; overflow-y: auto; }
+        .artifact-stage-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; border-radius: var(--radius-sm);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            cursor: pointer; user-select: none;
+            transition: background var(--transition);
+        }
+        .artifact-stage-header:hover { background: var(--bg-hover); }
+        .artifact-stage-name { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+        .artifact-stage-count { font-size: 11px; color: var(--text-muted); }
+        .artifact-files { display: grid; gap: 8px; padding: 8px 0 0 0; }
+        .artifact-file {
+            border: 1px solid var(--border); border-radius: var(--radius-md);
+            overflow: hidden;
+        }
+        .artifact-file-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px;
+            background: var(--bg-elevated);
+            cursor: pointer; user-select: none;
+        }
+        .artifact-file-header:hover { background: var(--bg-hover); }
+        .artifact-file-name { font-size: 12px; font-weight: 600; font-family: "SF Mono", "Fira Code", monospace; }
+        .artifact-file-path { font-size: 10px; color: var(--text-muted); margin-top: 2px; word-break: break-all; }
+        .artifact-file-toggle { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+        .artifact-content {
+            display: none; padding: 14px;
+            background: var(--bg-base);
+            border-top: 1px solid var(--border);
+            max-height: 400px; overflow: auto;
+        }
+        .artifact-content.open { display: block; }
+        .artifact-content pre {
+            margin: 0; font-size: 12px; line-height: 1.6;
+            font-family: "SF Mono", "Fira Code", monospace;
+            white-space: pre-wrap; word-break: break-word;
+            color: var(--text-secondary);
+        }
+        .artifact-task-select {
+            padding: 6px 12px; border-radius: var(--radius-sm);
+            background: var(--bg-base); border: 1px solid var(--border);
+            color: var(--text-primary); font-size: 12px;
+        }
+
+        /* ── Pipeline Editor ── */
+        .pipe-editor { display: grid; gap: 8px; }
+        .pipe-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-radius: var(--radius-sm);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            cursor: grab; user-select: none;
+        }
+        .pipe-item:active { cursor: grabbing; }
+        .pipe-item.dragging { opacity: 0.4; }
+        .pipe-item.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+        .pipe-item .pipe-num {
+            width: 24px; height: 24px; border-radius: 50%;
+            display: grid; place-items: center;
+            font-size: 11px; font-weight: 700;
+            background: rgba(255,255,255,0.06); color: var(--text-muted); flex-shrink: 0;
+        }
+        .pipe-item .pipe-name { font-size: 13px; font-weight: 600; flex: 1; }
+        .pipe-item .pipe-agent { font-size: 11px; color: var(--text-muted); }
+        .pipe-item .pipe-remove {
+            width: 24px; height: 24px; border-radius: 50%;
+            display: grid; place-items: center;
+            background: transparent; border: 1px solid var(--border);
+            color: var(--text-muted); cursor: pointer; font-size: 14px;
+            transition: all var(--transition); flex-shrink: 0;
+        }
+        .pipe-item .pipe-remove:hover { background: var(--rose-soft); color: var(--rose); border-color: var(--rose); }
+        .pipe-add-row { display: flex; gap: 8px; margin-top: 8px; }
+        .pipe-add-select { flex: 1; }
+
+        /* ── Tabs ── */
+        .tabs { display: flex; gap: 2px; margin-bottom: 16px; }
+        .tab {
+            padding: 8px 16px; border-radius: var(--radius-sm);
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            color: var(--text-muted); background: transparent;
+            border: none; transition: all var(--transition);
+        }
+        .tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.04); }
+        .tab.active { color: var(--accent); background: var(--accent-soft); }
+
+        /* ── Animations ── */
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+        /* ── Responsive ── */
+        @media (max-width: 1400px) {
+            .metrics { grid-template-columns: repeat(3,1fr); }
+            .two-col { grid-template-columns: 1fr; }
+            .three-col { grid-template-columns: 1fr 1fr; }
+            .kanban { grid-template-columns: repeat(2,1fr); }
+            .focus-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 1100px) {
+            .shell { grid-template-columns: 1fr; }
+            .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; }
+            .sidebar-footer { margin-top: 0; }
+            .three-col { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .main { padding: 16px; }
+            .metrics { grid-template-columns: repeat(2,1fr); }
+            .kanban { grid-template-columns: 1fr; }
+            .agent-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div id="app" class="shell"></div>
+<script>
+/* ── State ── */
+let runtime = null;
+let eventSource = null;
+let latestEvents = [];
+let activeNav = 'overview';
+let feedFilter = 'all';
+let artifactTaskId = '';
+let artifactCache = {};
+let openArtifacts = new Set();
+
+/* ── Helpers ── */
+const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const humanStage = s => String(s||'pending').replace(/_/g,' ');
+const DEFAULT_STAGES = ['intake','planning','requirements','design','development','code_review','security_review','testing','delivery'];
+let STAGES = DEFAULT_STAGES;
+
+function statusCls(s) { return s || 'pending'; }
+function completedCount(task) { return Object.values(task?.stages||{}).filter(s=>['passed','completed'].includes(s.status)).length; }
+function taskPct(task) {
+    if (!task) return 0;
+    const total = Math.max(Object.keys(task.stages||{}).length, STAGES.length, 1);
+    return Math.min(100, Math.round(completedCount(task) / total * 100));
+}
+function classifyTask(t) {
+    const s = (t?.status||'').toLowerCase(), st = (t?.current_stage||'').toLowerCase();
+    if (s==='completed'||s==='done') return 'done';
+    if (s==='failed'||s==='error') return 'attention';
+    if (s==='waiting_human'||st.includes('review')||st==='testing'||st==='delivery') return 'review';
+    return 'progress';
+}
+function fmtTime(ts) {
+    if (!ts) return '-';
+    try { const d = new Date(ts); return d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); } catch(e) { return ts; }
+}
+
+/* ── API ── */
+async function fetchRuntime() {
+    const r = await fetch('/api/runtime');
+    runtime = await r.json();
+    if (!latestEvents.length) latestEvents = runtime.events || [];
+    // Fetch pipeline config only once
+    if (!pipelineFetched) {
+        try {
+            const pr = await fetch('/api/pipeline');
+            const pd = await pr.json();
+            pipelineIsCustom = pd.is_custom ?? false;
+            pipelineFetched = true;
+        } catch(e) {}
+    }
+    render();
+}
+async function submitRequest() {
+    const title = document.getElementById('req-title').value.trim();
+    const text = document.getElementById('req-text').value.trim();
+    const source = document.getElementById('req-source').value.trim() || 'web';
+    if (!text) { alert('请输入需求内容'); return; }
+    await fetch('/api/requests', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title,text,source}) });
+    document.getElementById('req-title').value = '';
+    document.getElementById('req-text').value = '';
+    await fetchRuntime();
+}
+async function controlRunner(action) { await fetch(`/api/control/${action}`,{method:'POST'}); await fetchRuntime(); }
+async function resolveApproval(taskId, approvalId, resolution) {
+    await fetch(`/api/approvals/${taskId}/${approvalId}/resolve`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({resolution}) });
+    await fetchRuntime();
+}
+async function retryTask(taskId) {
+    await fetch(`/api/tasks/${taskId}/retry`, { method:'POST' });
+    await fetchRuntime();
+}
+async function deleteTask(taskId) {
+    if (!confirm('确定删除这个任务？')) return;
+    await fetch(`/api/tasks/${taskId}`, { method:'DELETE' });
+    await fetchRuntime();
+}
+
+/* ── Navigation ── */
+function setNav(id) {
+    activeNav = id;
+    render();
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+/* ── Render ── */
+function render() {
+    if (!runtime) return;
+    const app = document.getElementById('app');
+    const tasks = runtime.tasks || [];
+    const approvals = runtime.approvals || [];
+    const agents = runtime.agents || [];
+    const stats = runtime.stats || {};
+    const runner = runtime.runner || {};
+    const settings = runtime.settings || {};
+    STAGES = runtime.pipeline_order || DEFAULT_STAGES;
+    const activeTask = tasks.find(t => t.id === runner.current_task_id) || tasks[0];
+    const pct = taskPct(activeTask);
+    const isLive = runner.running && !runner.paused;
+    const isPaused = runner.paused;
+
+    /* Preserve input values across re-renders */
+    const savedTitle = document.getElementById('req-title')?.value ?? '';
+    const savedText = document.getElementById('req-text')?.value ?? '';
+    const savedSource = document.getElementById('req-source')?.value ?? 'web';
+    const titleFocused = document.activeElement?.id === 'req-title';
+    const textFocused = document.activeElement?.id === 'req-text';
+    const sourceFocused = document.activeElement?.id === 'req-source';
+
+    app.innerHTML = `
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">H</div>
+                <div>
+                    <div class="logo-text">HARNESS</div>
+                    <div class="logo-sub">Mission Console</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="runner-widget">
+            <div class="runner-row">
+                <span class="dot ${isLive?'live':(isPaused?'paused':'')}"></span>
+                <span class="runner-label">${isPaused?'Runner Paused':(isLive?'Runner Live':'Runner Stopped')}</span>
+            </div>
+            <div class="runner-detail">${activeTask ? esc(activeTask.title||'Untitled') : '暂无活动任务'}</div>
+            <div class="runner-btns">
+                <button class="btn primary sm" onclick="controlRunner('resume')">恢复</button>
+                <button class="btn warn sm" onclick="controlRunner('pause')">暂停</button>
+            </div>
+        </div>
+
+        <nav class="nav-section">
+            <div class="nav-label">导航</div>
+            ${[
+                {id:'overview', label:'总览', count:''},
+                {id:'request', label:'提交请求', count:''},
+                {id:'pipeline-editor', label:'Pipeline 编排', count:''},
+                {id:'tasks', label:'任务看板', count:tasks.length},
+                {id:'approvals', label:'审批中心', count:approvals.length},
+                {id:'agents', label:'Agent 团队', count:agents.length},
+                {id:'artifacts', label:'产物查看', count:''},
+                {id:'feed', label:'事件流', count:latestEvents.length},
+            ].map(n => `
+                <a class="nav-link ${activeNav===n.id?'active':''}" onclick="setNav('${n.id}')">
+                    <span>${n.label}</span>
+                    ${n.count!==''?`<span class="count">${n.count}</span>`:''}
+                </a>
+            `).join('')}
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="info-row"><span>Target Repo</span><span class="info-val">${esc(settings.target_repo||'-')}</span></div>
+            <div class="info-row"><span>Claude</span><span class="info-val">${settings.claude?.simulate?'Simulation':'CLI'}</span></div>
+            <div class="info-row"><span>Updated</span><span class="info-val">${fmtTime(runner.updated_at)}</span></div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+        <!-- Metrics -->
+        <div class="metrics">
+            <div class="metric-card"><div class="metric-label">总任务</div><div class="metric-value total">${stats.total||0}</div><div class="metric-hint">所有接入的请求</div></div>
+            <div class="metric-card"><div class="metric-label">进行中</div><div class="metric-value running">${stats.running||0}</div><div class="metric-hint">正在经过 pipeline</div></div>
+            <div class="metric-card"><div class="metric-label">等待人工</div><div class="metric-value waiting">${stats.waiting_human||0}</div><div class="metric-hint">需要人工处理</div></div>
+            <div class="metric-card"><div class="metric-label">已交付</div><div class="metric-value done">${stats.completed||0}</div><div class="metric-hint">完成 delivery</div></div>
+            <div class="metric-card"><div class="metric-label">失败</div><div class="metric-value failed">${stats.failed||0}</div><div class="metric-hint">需要关注</div></div>
+        </div>
+
+        <!-- Mission Center -->
+        <section id="overview" class="section">
+            <div class="section-header">
+                <div><div class="section-title">Mission Center</div><div class="section-desc">当前任务主线与 Pipeline 推进状态</div></div>
+                <button class="btn ghost sm" onclick="fetchRuntime()">刷新</button>
+            </div>
+            <div class="section-body">
+                <div class="focus-grid">
+                    <div class="focus-card">
+                        <div class="focus-label">当前任务</div>
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                            <div class="focus-name">${esc(activeTask?.title||'No active task')}</div>
+                            <span class="badge ${statusCls(activeTask?.status)}">${esc(activeTask?.status||'idle')}</span>
+                        </div>
+                        <div class="focus-desc">${esc(activeTask?.request_text||'等待新请求，或者从飞书、API、Web 提交需求。')}</div>
+                        <div class="focus-meta">
+                            <div class="focus-meta-item"><div class="fm-label">Stage</div><div class="fm-value">${esc(humanStage(activeTask?.current_stage||'idle'))}</div></div>
+                            <div class="focus-meta-item"><div class="fm-label">Progress</div><div class="fm-value">${completedCount(activeTask||{})} / ${STAGES.length}</div></div>
+                            <div class="focus-meta-item"><div class="fm-label">Total Time</div><div class="fm-value">${taskDuration(activeTask)}</div></div>
+                            <div class="focus-meta-item"><div class="fm-label">Source</div><div class="fm-value">${esc(activeTask?.source||'-')}</div></div>
+                            <div class="focus-meta-item"><div class="fm-label">Task ID</div><div class="fm-value" style="font-size:11px;word-break:break-all">${esc(activeTask?.id||'-')}</div></div>
+                        </div>
+                    </div>
+                    <div class="health-card">
+                        <div class="health-title">Pipeline Completion</div>
+                        <div class="health-big">${pct}%</div>
+                        <div class="progress-track"><div class="progress-bar" style="width:${pct}%"></div></div>
+                        <div class="health-rows">
+                            <div class="health-row"><span>Failed Tasks</span><strong>${stats.failed||0}</strong></div>
+                            <div class="health-row"><span>Latest Event</span><strong>${esc(latestEvents.length?latestEvents[latestEvents.length-1].source:'—')}</strong></div>
+                            <div class="health-row"><span>Event Volume</span><strong>${latestEvents.length}</strong></div>
+                        </div>
+                    </div>
+                </div>
+                ${renderPipeline(activeTask)}
+            </div>
+        </section>
+
+        <!-- Request Composer -->
+        <section id="request" class="section">
+            <div class="section-header">
+                <div><div class="section-title">Request Intake</div><div class="section-desc">提交新的需求请求</div></div>
+            </div>
+            <div class="section-body">
+                <div class="composer">
+                    <div class="composer-row">
+                        <div class="field-group"><div class="field-label">标题</div><input id="req-title" placeholder="例如：重构控制台布局" /></div>
+                        <div class="field-group"><div class="field-label">来源</div><input id="req-source" value="web" placeholder="web / feishu / api" /></div>
+                    </div>
+                    <div class="field-group full"><div class="field-label">需求描述</div><textarea id="req-text" placeholder="输入需求背景、目标仓库、验收条件等"></textarea></div>
+                    <div class="composer-actions">
+                        <button class="btn primary" onclick="submitRequest()">提交请求</button>
+                        <button class="btn ghost" onclick="fetchRuntime()">同步状态</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pipeline Editor -->
+        <section id="pipeline-editor" class="section">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Pipeline Editor</div>
+                    <div class="section-desc">拖拽排序、增删 stage，保存后立即生效 · <span id="pipe-mode-tag" style="color:var(--text-muted)"></span></div>
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button class="btn ghost sm" onclick="resetPipelineEditor()">撤销编辑</button>
+                    <button class="btn ghost sm" onclick="restoreDefaultPipeline()" id="pipe-restore-btn" style="display:none">恢复系统默认</button>
+                    <button class="btn primary sm" onclick="savePipeline()">保存</button>
+                </div>
+            </div>
+            <div class="section-body" id="pipe-editor-body"></div>
+        </section>
+
+        <!-- Task Board -->
+        <section id="tasks" class="section">
+            <div class="section-header">
+                <div><div class="section-title">Task Board</div><div class="section-desc">按状态分栏展示所有任务</div></div>
+            </div>
+            <div class="section-body">${renderKanban(tasks)}</div>
+        </section>
+
+        <!-- Artifacts (not rebuilt by render, updated independently) -->
+        <section id="artifacts" class="section">
+            <div class="section-header">
+                <div><div class="section-title">Artifacts</div><div class="section-desc">各阶段产物文件，按 stage 分组</div></div>
+                <select class="artifact-task-select" id="artifact-select" onchange="loadArtifacts(this.value)">
+                    <option value="">选择任务</option>
+                    ${tasks.filter(t=>t.status==='completed'||t.status==='failed'||t.status==='running').map(t=>`<option value="${esc(t.id)}" ${t.id===artifactTaskId?'selected':''}>${esc(t.title||t.id)} (${esc(t.status)})</option>`).join('')}
+                </select>
+            </div>
+            <div class="section-body" id="artifact-body"></div>
+        </section>
+
+        <!-- Three Column: Approvals + Agents + Feed -->
+        <div class="three-col">
+            <section id="approvals" class="section">
+                <div class="section-header">
+                    <div><div class="section-title">Approval Center</div><div class="section-desc">待处理的人工审批</div></div>
+                </div>
+                <div class="section-body" style="max-height:360px;overflow-y:auto">${renderApprovals(approvals)}</div>
+            </section>
+
+            <section id="agents" class="section">
+                <div class="section-header">
+                    <div><div class="section-title">Agent Team</div><div class="section-desc">各 Agent 当前状态</div></div>
+                </div>
+                <div class="section-body">${renderAgents(agents)}</div>
+            </section>
+
+            <section id="feed" class="section">
+                <div class="section-header">
+                    <div><div class="section-title">Live Feed</div><div class="section-desc">实时事件流</div></div>
+                    <div class="feed-filter">
+                        ${['all','info','success','warning','error'].map(f => `<button class="btn sm ${feedFilter===f?'active':''}" onclick="feedFilter='${f}';render()">${f}</button>`).join('')}
+                    </div>
+                </div>
+                <div class="section-body">${renderFeed(latestEvents)}</div>
+            </section>
+        </div>
+    </main>`;
+
+    /* Restore input values */
+    const ti = document.getElementById('req-title');
+    const tx = document.getElementById('req-text');
+    const sr = document.getElementById('req-source');
+    if (ti) ti.value = savedTitle;
+    if (tx) tx.value = savedText;
+    if (sr) sr.value = savedSource;
+    if (titleFocused && ti) ti.focus();
+    if (textFocused && tx) tx.focus();
+    if (sourceFocused && sr) sr.focus();
+
+    /* Render artifact body only if it's empty (first load) or no task selected yet */
+    const ab = document.getElementById('artifact-body');
+    if (ab && !ab.hasChildNodes()) {
+        ab.innerHTML = artifactCache[artifactTaskId]
+            ? renderArtifacts(artifactCache[artifactTaskId])
+            : '<div class="empty">选择一个任务查看产物</div>';
+    }
+
+    /* Init pipeline editor (only writes DOM on first load) */
+    initPipelineEditor();
+}
+
+/* ── Sub-renderers ── */
+function fmtDuration(startStr, endStr) {
+    if (!startStr) return '';
+    const start = new Date(startStr);
+    const end = endStr ? new Date(endStr) : new Date();
+    const sec = Math.round((end - start) / 1000);
+    if (sec < 60) return `${sec}s`;
+    const min = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (min < 60) return `${min}m${s}s`;
+    return `${Math.floor(min/60)}h${min%60}m`;
+}
+function taskDuration(task) {
+    if (!task) return '-';
+    const stages = task.stages || {};
+    let earliest = null, latest = null;
+    for (const s of Object.values(stages)) {
+        if (s.started_at) { const d = new Date(s.started_at); if (!earliest || d < earliest) earliest = d; }
+        if (s.ended_at) { const d = new Date(s.ended_at); if (!latest || d > latest) latest = d; }
+    }
+    if (!earliest) return '-';
+    if (!latest && task.status === 'running') latest = new Date();
+    if (!latest) return '-';
+    return fmtDuration(earliest.toISOString(), latest.toISOString());
+}
+
+function renderPipeline(task) {
+    if (!task) return '<div class="empty">暂无活动任务</div>';
+    const stageMap = task.stages || {};
+    return `<div class="pipeline">${STAGES.map((s,i) => {
+        const item = stageMap[s] || {status:'pending'};
+        const dur = (item.started_at && item.status !== 'pending') ? fmtDuration(item.started_at, item.ended_at) : '';
+        return `<div class="stage-step ${statusCls(item.status)} ${item.status==='running'?'pulse':''}">
+            <div class="stage-num">${i+1}</div>
+            <div class="stage-name">${esc(humanStage(s))}</div>
+            <div class="stage-status-tag">${esc(item.status||'pending')}${dur ? ' · '+dur : ''}</div>
+        </div>`;
+    }).join('')}</div>`;
+}
+
+function renderKanban(tasks) {
+    if (!tasks.length) return '<div class="empty">还没有任务。先提交一个请求。</div>';
+    const cols = [
+        {key:'progress',title:'In Progress',cls:'progress'},
+        {key:'review',title:'In Review',cls:'review'},
+        {key:'done',title:'Done',cls:'done'},
+        {key:'attention',title:'Needs Attention',cls:'attention'}
+    ];
+    const grouped = {}; cols.forEach(c=>grouped[c.key]=[]);
+    tasks.forEach(t=>grouped[classifyTask(t)].push(t));
+    return `<div class="kanban">${cols.map(col => {
+        const items = grouped[col.key];
+        return `<div class="kanban-col ${col.cls}">
+            <div class="kanban-col-head"><span class="kanban-col-title">${col.title}</span><span class="kanban-col-count">${items.length}</span></div>
+            <div class="kanban-cards">${items.length ? items.map(t => {
+                const p = taskPct(t);
+                const badges = Object.entries(t.stages||{}).filter(([,v])=>v.status&&v.status!=='pending').slice(-3).map(([s,v])=>`<span class="badge ${statusCls(v.status)}">${esc(humanStage(s))}</span>`).join('');
+                return `<div class="task-card ${statusCls(t.status)}">
+                    <div class="task-card-head"><div><div class="task-card-title">${esc(t.title||'Untitled')}</div><div class="task-card-sub">${esc(t.source||'unknown')} · ${esc(humanStage(t.current_stage||'queued'))}</div></div><span class="badge ${statusCls(t.status)}">${esc(t.status||'queued')}</span></div>
+                    <div class="task-card-body">${esc(t.request_text||'')}</div>
+                    <div class="task-card-progress"><div class="task-card-progress-top"><span>${esc(t.id||'-')}</span><span>${p}%</span></div><div class="task-microbar"><span style="width:${p}%"></span></div></div>
+                    <div class="task-card-badges">${badges||'<span class="badge queued">queued</span>'}${t.status==='failed'?`<button class="btn danger sm" style="margin-left:auto" onclick="retryTask('${esc(t.id)}')">从失败处继续</button><button class="btn ghost sm" onclick="deleteTask('${esc(t.id)}')">删除</button>`:(t.status==='completed'?`<button class="btn ghost sm" style="margin-left:auto" onclick="deleteTask('${esc(t.id)}')">删除</button>`:'')}</div>
+                </div>`;
+            }).join('') : '<div class="empty">无</div>'}</div>
+        </div>`;
+    }).join('')}</div>`;
+}
+
+function renderApprovals(approvals) {
+    if (!approvals.length) return '<div class="empty">当前没有待处理审批</div>';
+    return `<div style="display:grid;gap:12px">${approvals.map(a => {
+        const tid = JSON.stringify(String(a.task_id||''));
+        const aid = JSON.stringify(String(a.id||''));
+        return `<div class="approval-card">
+            <div class="approval-head"><div><div class="approval-title">${esc(a.task_title||'Pending')}</div><div class="approval-sub">${esc(humanStage(a.stage))} · ${esc(a.id||'-')}</div></div><span class="badge waiting_human">pending</span></div>
+            <div class="approval-reason">${esc(a.reason||'Approval required')}</div>
+            <div class="approval-actions">
+                <button class="btn primary sm" onclick='resolveApproval(${tid},${aid},"approved")'>批准</button>
+                <button class="btn danger sm" onclick='resolveApproval(${tid},${aid},"rejected")'>拒绝</button>
+            </div>
+        </div>`;
+    }).join('')}</div>`;
+}
+
+function renderAgents(agents) {
+    if (!agents.length) return '<div class="empty">暂无 Agent 状态</div>';
+    return `<div class="agent-grid">${agents.map(a => `
+        <div class="agent-card">
+            <div class="agent-top"><div><div class="agent-name">${esc(a.name||'Agent')}</div><div class="agent-model">${esc(a.model||'-')}</div></div><span class="badge ${statusCls(a.status)}">${esc(a.status||'idle')}</span></div>
+            <div class="agent-role">${esc(a.role||'')}</div>
+            <div class="agent-badges"><span class="badge">done ${esc(a.completed_tasks||0)}</span><span class="badge">${esc(humanStage(a.last_stage||'-'))}</span></div>
+        </div>
+    `).join('')}</div>`;
+}
+
+async function loadArtifacts(taskId) {
+    artifactTaskId = taskId;
+    openArtifacts.clear();
+    const ab = document.getElementById('artifact-body');
+    if (!taskId) {
+        if (ab) ab.innerHTML = '<div class="empty">选择一个任务查看产物</div>';
+        return;
+    }
+    if (ab) ab.innerHTML = '<div class="empty">加载中...</div>';
+    if (!artifactCache[taskId]) {
+        const r = await fetch(`/api/tasks/${taskId}/artifacts`);
+        artifactCache[taskId] = await r.json();
+    }
+    if (ab) ab.innerHTML = renderArtifacts(artifactCache[taskId]);
+}
+
+function toggleArtifact(id) {
+    if (openArtifacts.has(id)) openArtifacts.delete(id);
+    else openArtifacts.add(id);
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('open');
+}
+
+function downloadArtifact(name, content) {
+    const blob = new Blob([content], {type: 'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+}
+
+function renderArtifacts(data) {
+    if (!data || !Object.keys(data).length) return '<div class="empty">该任务暂无产物</div>';
+    let counter = 0;
+    return `<div class="artifact-stages">${STAGES.map(stage => {
+        const files = data[stage];
+        if (!files || !files.length) return '';
+        return `<div>
+            <div class="artifact-stage-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+                <span class="artifact-stage-name">${esc(humanStage(stage))}</span>
+                <span class="artifact-stage-count">${files.length} file${files.length>1?'s':''}</span>
+            </div>
+            <div class="artifact-files" style="display:none">${files.map(f => {
+                const id = 'af-' + (counter++);
+                const isJson = f.name.endsWith('.json');
+                const display = isJson ? (()=>{ try { return JSON.stringify(JSON.parse(f.content),null,2); } catch(e) { return f.content; } })() : f.content;
+                const isOpen = openArtifacts.has(id);
+                return `<div class="artifact-file">
+                    <div class="artifact-file-header" onclick="toggleArtifact('${id}')">
+                        <div>
+                            <div class="artifact-file-name">${esc(f.name)}</div>
+                            <div class="artifact-file-path">${esc(f.path)}</div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <button class="btn ghost sm" onclick="event.stopPropagation();downloadArtifact('${esc(f.name)}',artifactCache['${esc(artifactTaskId)}']['${esc(stage)}'][${files.indexOf(f)}].content)">下载</button>
+                            <span class="artifact-file-toggle">${isOpen?'▲':'▼'}</span>
+                        </div>
+                    </div>
+                    <div class="artifact-content ${isOpen?'open':''}" id="${id}"><pre>${esc(display)}</pre></div>
+                </div>`;
+            }).join('')}</div>
+        </div>`;
+    }).join('')}</div>`;
+}
+
+function renderFeed(events) {
+    let filtered = [...events].reverse().slice(0,150);
+    if (feedFilter !== 'all') filtered = filtered.filter(e => e.level === feedFilter);
+    if (!filtered.length) return '<div class="empty">暂无事件</div>';
+    return `<div class="feed">${filtered.map(e => `
+        <div class="feed-item">
+            <div class="feed-top">
+                <span class="feed-dot ${esc(e.level||'info')}"></span>
+                <span class="feed-time">${fmtTime(e.timestamp)}</span>
+                <span class="feed-source">${esc(e.source||'system')}</span>
+                ${e.stage?`<span class="feed-stage-tag">${esc(humanStage(e.stage))}</span>`:''}
+            </div>
+            <div class="feed-msg">${esc(e.message||'')}</div>
+        </div>
+    `).join('')}</div>`;
+}
+
+/* ── Pipeline Editor ── */
+const ALL_STAGES = [
+    {id:'intake', name:'Request Intake', agent:'planner'},
+    {id:'planning', name:'Sprint Planning', agent:'planner'},
+    {id:'requirements', name:'Requirements', agent:'requirements-analyst'},
+    {id:'design', name:'System Design', agent:'system-architect'},
+    {id:'development', name:'Implementation', agent:'developer'},
+    {id:'code_review', name:'Code Review', agent:'code-reviewer'},
+    {id:'security_review', name:'Security Review', agent:'security-reviewer'},
+    {id:'testing', name:'QA Testing', agent:'qa-engineer'},
+    {id:'delivery', name:'Gerrit Delivery', agent:'delivery-manager'},
+];
+let editorStages = [];
+let editorLoaded = false;
+let dragIdx = null;
+let pipelineIsCustom = false;
+let pipelineFetched = false;
+let renderThrottleTimer = null;
+
+function initPipelineEditor() {
+    if (!editorLoaded) {
+        editorStages = STAGES.map(id => ALL_STAGES.find(s=>s.id===id) || {id, name:id, agent:'-'});
+        editorLoaded = true;
+    }
+    // Update mode tag and restore button
+    const tag = document.getElementById('pipe-mode-tag');
+    const btn = document.getElementById('pipe-restore-btn');
+    if (tag) tag.textContent = pipelineIsCustom ? '当前: 自定义' : '当前: 系统默认';
+    if (btn) btn.style.display = pipelineIsCustom ? '' : 'none';
+    renderPipelineEditor();
+}
+
+function renderPipelineEditor() {
+    const body = document.getElementById('pipe-editor-body');
+    if (!body) return;
+    const usedIds = new Set(editorStages.map(s=>s.id));
+    const available = ALL_STAGES.filter(s=>!usedIds.has(s.id));
+    body.innerHTML = `
+        <div class="pipe-editor" id="pipe-sortable">
+            ${editorStages.map((s,i) => `
+                <div class="pipe-item" draggable="true" data-idx="${i}"
+                     ondragstart="pipeDragStart(event,${i})" ondragover="pipeDragOver(event,${i})"
+                     ondragleave="pipeDragLeave(event)" ondrop="pipeDrop(event,${i})" ondragend="pipeDragEnd(event)">
+                    <span class="pipe-num">${i+1}</span>
+                    <span class="pipe-name">${esc(s.name)}</span>
+                    <span class="pipe-agent">${esc(s.agent)}</span>
+                    <span class="pipe-remove" onclick="pipeRemove(${i})">×</span>
+                </div>
+            `).join('')}
+        </div>
+        <div class="pipe-add-row">
+            <select class="artifact-task-select pipe-add-select" id="pipe-add-select">
+                <option value="">添加 stage...</option>
+                ${available.map(s=>`<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.agent)})</option>`).join('')}
+            </select>
+            <button class="btn ghost sm" onclick="pipeAdd()">添加</button>
+        </div>`;
+}
+
+function pipeDragStart(e, idx) { dragIdx = idx; e.target.classList.add('dragging'); }
+function pipeDragOver(e, idx) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function pipeDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function pipeDragEnd(e) { e.target.classList.remove('dragging'); document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over')); }
+function pipeDrop(e, toIdx) {
+    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+    if (dragIdx === null || dragIdx === toIdx) return;
+    const item = editorStages.splice(dragIdx, 1)[0];
+    editorStages.splice(toIdx, 0, item);
+    dragIdx = null;
+    renderPipelineEditor();
+}
+function pipeRemove(idx) { editorStages.splice(idx, 1); renderPipelineEditor(); }
+function pipeAdd() {
+    const sel = document.getElementById('pipe-add-select');
+    if (!sel || !sel.value) return;
+    const stage = ALL_STAGES.find(s=>s.id===sel.value);
+    if (stage) { editorStages.push(stage); renderPipelineEditor(); }
+}
+function resetPipelineEditor() {
+    editorStages = STAGES.map(id => ALL_STAGES.find(s=>s.id===id) || {id, name:id, agent:'-'});
+    renderPipelineEditor();
+}
+async function savePipeline() {
+    const stages = editorStages.map(s => ({id: s.id, name: s.name, agent: s.agent}));
+    const r = await fetch('/api/pipeline', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({stages})
+    });
+    const data = await r.json();
+    pipelineIsCustom = data.is_custom ?? true;
+    pipelineFetched = true;
+    await fetchRuntime();
+    editorLoaded = false;
+    initPipelineEditor();
+}
+async function restoreDefaultPipeline() {
+    await fetch('/api/pipeline/reset', {method:'POST'});
+    pipelineIsCustom = false;
+    pipelineFetched = true;
+    await fetchRuntime();
+    editorLoaded = false;
+    initPipelineEditor();
+}
+
+/* ── SSE ── */
+function connectStream() {
+    if (eventSource) eventSource.close();
+    eventSource = new EventSource('/api/stream');
+    eventSource.onmessage = (msg) => {
+        const ev = JSON.parse(msg.data);
+        latestEvents.push(ev);
+        latestEvents = latestEvents.slice(-200);
+        // Throttle: batch SSE events, refresh at most every 2s
+        if (!renderThrottleTimer) {
+            renderThrottleTimer = setTimeout(async () => {
+                renderThrottleTimer = null;
+                await fetchRuntime();
+            }, 2000);
+        }
+    };
+    eventSource.onerror = () => setTimeout(connectStream, 3000);
+}
+
+/* ── Boot ── */
+fetchRuntime().then(connectStream);
+setInterval(fetchRuntime, 15000);
+</script>
+</body>
+</html>

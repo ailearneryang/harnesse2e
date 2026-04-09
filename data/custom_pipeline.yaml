@@ -1,0 +1,16 @@
+stages:
+- id: intake
+  name: Request Intake
+  agent: planner
+- id: requirements
+  name: Requirements
+  agent: requirements-analyst
+- id: development
+  name: Implementation
+  agent: developer
+- id: code_review
+  name: Code Review
+  agent: code-reviewer
+- id: delivery
+  name: Gerrit Delivery
+  agent: delivery-manager

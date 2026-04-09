@@ -1,0 +1,37 @@
+{
+  "task_id": "task-20260408152127-4223c8",
+  "stage": "code_review",
+  "command": [
+    "claude",
+    "--simulate"
+  ],
+  "return_code": 0,
+  "success": true,
+  "verdict": "PASS",
+  "output_text": "code-reviewer completed checks for code_review.\nFindings are within tolerance.\nVERDICT: PASS",
+  "error": null,
+  "duration_seconds": 1.0,
+  "transcript": [
+    {
+      "type": "simulation",
+      "agent_id": "code-reviewer",
+      "stage": "code_review",
+      "message": "code-reviewer accepted the task.",
+      "text": "code-reviewer accepted the task."
+    },
+    {
+      "type": "simulation",
+      "agent_id": "code-reviewer",
+      "stage": "code_review",
+      "message": "code-reviewer is working on code_review.",
+      "text": "code-reviewer is working on code_review."
+    },
+    {
+      "type": "simulation",
+      "agent_id": "code-reviewer",
+      "stage": "code_review",
+      "message": "code-reviewer finished code_review.",
+      "text": "code-reviewer finished code_review."
+    }
+  ]
+}

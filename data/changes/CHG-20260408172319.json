@@ -1,0 +1,15 @@
+{
+  "change_id": "CHG-20260408172319",
+  "timestamp": "2026-04-08T17:23:19.059128",
+  "change_description": "冒泡算法",
+  "affected_requirements": [
+    "F001"
+  ],
+  "affected_designs": [],
+  "affected_code_modules": [],
+  "affected_test_cases": [],
+  "stages_to_rerun": [
+    "requirements"
+  ],
+  "impact_level": "low"
+}

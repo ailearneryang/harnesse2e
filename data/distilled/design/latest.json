@@ -1,0 +1,16 @@
+{
+  "stage": "design",
+  "original_size": 3018,
+  "distilled_size": 432,
+  "compression_ratio": 0.86,
+  "key_decisions": [],
+  "api_summary": [],
+  "data_entities": [],
+  "unresolved_issues": [
+    "**：触屏手势冲突、localStorage 不可用、AudioContext 限制、高 DPI 模糊、500 行限制、网格占满等",
+    "**：触屏手势冲突、localStorage 不可用、AudioContext 限制、高 DPI 模糊、500 行限制、网格占满等"
+  ],
+  "quality_score": null,
+  "handoff_summary": "API 接口数: 0\n数据实体: \n需求追溯点: 4个\n",
+  "created_at": "2026-04-08T23:02:38.075187"
+}

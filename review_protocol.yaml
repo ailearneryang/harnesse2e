@@ -1,0 +1,164 @@
+# ============================================================
+# 产物评审协议（Artifact Review Protocol）
+# 独立于产出者之外的评审规则
+# ============================================================
+
+# 通用评审配置
+default_review:
+  pass_threshold: 80           # 0-100 分，低于此分打回重做
+  auto_repair: true            # 是否允许评审 Agent 自动修复小问题
+  max_auto_repairs: 2          # 最大自动修复次数
+
+# --------------------------------------------------
+# 各阶段评审标准
+# --------------------------------------------------
+stage_reviews:
+
+  requirements:
+    reviewer: review-agent
+    description: "评审需求规格说明书的质量"
+    criteria:
+      # P0 - 必须满足
+      - id: REQ-C01
+        name: 功能完整性
+        description: "所有功能点均已识别并记录"
+        weight: 25
+        check: "每个功能点有独立编号（F001, F002...）"
+      - id: REQ-C02
+        name: 验收标准
+        description: "每个功能点有明确的验收标准"
+        weight: 25
+        check: "AC 以 Given/When/Then 格式编写"
+      - id: REQ-C03
+        name: 无歧义性
+        description: "不存在模糊描述词"
+        weight: 20
+        check: "不包含 '可能/也许/大概/合适' 等词"
+      - id: REQ-C04
+        name: 非功能需求
+        description: "非功能需求已量化"
+        weight: 15
+        check: "性能指标包含具体数值（如 响应 < 500ms）"
+      - id: REQ-C05
+        name: 优先级分类
+        description: "功能点优先级明确"
+        weight: 15
+        check: "每个功能标注 P0/P1/P2/P3"
+
+  design:
+    reviewer: review-agent
+    description: "评审设计文档的质量"
+    criteria:
+      - id: DES-C01
+        name: 架构清晰度
+        description: "系统架构分层清晰，组件职责明确"
+        weight: 20
+        check: "包含架构图（C4 或类似格式）"
+      - id: DES-C02
+        name: 接口定义完整
+        description: "所有 API 接口已定义"
+        weight: 25
+        check: "每个接口有 Request/Response 格式 + 错误码"
+      - id: DES-C03
+        name: 需求追溯性
+        description: "设计决策可追溯到需求"
+        weight: 20
+        check: "每个设计决策标注对应的 REQ-xxx 编号"
+      - id: DES-C04
+        name: 数据模型完整
+        description: "实体关系和字段定义完整"
+        weight: 20
+        check: "包含 ER 图和字段类型定义"
+      - id: DES-C05
+        name: 技术可行性
+        description: "技术选型合理，无已知死胡同"
+        weight: 15
+        check: "关键技术有风险评估"
+
+  development:
+    reviewer: review-agent
+    description: "评审代码实现质量"
+    criteria:
+      - id: DEV-C01
+        name: 代码规范
+        description: "代码风格统一，符合项目规范"
+        weight: 15
+        check: "通过 Lint 检查（0 error）"
+      - id: DEV-C02
+        name: 设计一致性
+        description: "代码实现与设计文档一致"
+        weight: 30
+        check: "API 路径、数据结构、命名与设计文档对齐"
+      - id: DEV-C03
+        name: 错误处理
+        description: "异常和边界情况有合理处理"
+        weight: 20
+        check: "关键路径有 try-catch / 错误码返回"
+      - id: DEV-C04
+        name: 单元测试
+        description: "关键逻辑有单元测试覆盖"
+        weight: 20
+        check: "核心模块测试覆盖率 ≥ 80%"
+      - id: DEV-C05
+        name: 可维护性
+        description: "代码结构清晰，有必要的注释"
+        weight: 15
+        check: "复杂函数有注释，模块职责单一"
+
+  testing:
+    reviewer: review-agent
+    description: "评审测试覆盖度和质量"
+    criteria:
+      - id: TST-C01
+        name: 需求覆盖
+        description: "所有需求功能点都有对应测试用例"
+        weight: 30
+        check: "F001~Fxxx 每个功能至少一个测试用例"
+      - id: TST-C02
+        name: 场景覆盖
+        description: "覆盖正常流程、异常流程、边界条件"
+        weight: 25
+        check: "每个功能至少有 happy/sad/boundary 三种用例"
+      - id: TST-C03
+        name: 用例质量
+        description: "测试步骤清晰，预期结果明确"
+        weight: 20
+        check: "用例包含 前置条件/步骤/预期结果"
+      - id: TST-C04
+        name: 数据驱动
+        description: "使用参数化测试覆盖多场景"
+        weight: 15
+        check: "等价类/边界值有数据驱动用例"
+      - id: TST-C05
+        name: 自动化可行
+        description: "用例描述足够具体，可转化为自动化脚本"
+        weight: 10
+        check: "测试步骤可直接映射为代码操作"
+
+# --------------------------------------------------
+# 一致性交叉检查（跨阶段）
+# --------------------------------------------------
+cross_stage_checks:
+  - name: 需求-设计一致性
+    source: requirements/requirements_spec.md
+    target: design/
+    checks:
+      - "设计中的每个功能模块都能追溯到需求编号"
+      - "设计中没有超出需求范围的功能"
+      - "需求中的非功能指标在设计中有对应方案"
+
+  - name: 设计-代码一致性
+    source: design/
+    target: src/
+    checks:
+      - "API 路径与设计文档完全一致"
+      - "数据模型字段与 ER 图一致"
+      - "架构分层与设计文档一致"
+
+  - name: 需求-测试一致性
+    source: requirements/requirements_spec.md
+    target: tests/
+    checks:
+      - "每个需求功能点至少有一个测试用例"
+      - "测试用例的验收标准与需求 AC 一致"
+      - "P0 需求的测试用例有 P0 标记"

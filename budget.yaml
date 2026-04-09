@@ -1,0 +1,59 @@
+# ============================================================
+# 预算与资源控制配置
+# ============================================================
+
+budget:
+  # 每个 Feature 的 Token 限制
+  max_tokens_per_feature: 500000
+  
+  # 单个阶段的 Token 限制
+  max_tokens_per_stage:
+    requirements: 80000
+    design: 120000
+    development: 200000
+    testing: 100000
+  
+  # 重试预算
+  max_retries_per_stage: 3
+  max_total_retries: 10
+  
+  # 时间预算
+  max_time_per_feature_minutes: 120
+  max_time_per_stage_minutes:
+    requirements: 10
+    design: 20
+    development: 60
+    testing: 30
+
+  # 预算告警阈值
+  alert_threshold_percent: 80    # 使用超过 80% 发出警告
+  hard_stop_threshold_percent: 95 # 使用超过 95% 强制暂停
+
+# 成本参考（按实际模型定价调整）
+cost_reference:
+  model: "gpt-4 / claude-3.5-sonnet"
+  input_per_1k_tokens: 0.003    # USD
+  output_per_1k_tokens: 0.015   # USD
+  estimated_cost_per_feature: 1.5  # USD
+
+# 预算耗尽时的行为
+on_budget_exceeded: "pause_and_notify"
+on_time_exceeded: "save_progress_and_pause"
+
+# --------------------------------------------------
+# 上下文管理策略
+# --------------------------------------------------
+context_management:
+  # 上下文蒸馏阈值：产物超过此大小触发自动摘要
+  distill_threshold_chars: 10000
+  
+  # 摘要保留比例
+  summary_retention_ratio: 0.3
+  
+  # 传递给下一阶段的内容
+  handoff_content:
+    - 关键决策列表（decisions.md）
+    - 接口契约摘要（api_summary.md）
+    - 变更 diff
+    - 上一阶段质量评分
+    - 未解决争议列表
