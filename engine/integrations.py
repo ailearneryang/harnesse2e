@@ -101,6 +101,7 @@ class ClaudeCLIAdapter:
         output_lines: List[str] = []
         total_usage = 0
         hard_timeout_seconds = int(self.settings.get("hard_timeout_seconds", 900))
+        idle_timeout_seconds = int(self.settings.get("idle_timeout_seconds", 300))
         budget_limit = max_tokens if max_tokens is not None else int(self.settings.get("max_tokens_per_run", 0) or 0)
 
         process = subprocess.Popen(
@@ -116,10 +117,16 @@ class ClaudeCLIAdapter:
         assert process.stdout is not None
         budget_exceeded = False
         timeout_exceeded = False
+        idle_timeout_exceeded = False
         start_monotonic = time.monotonic()
+        last_output_monotonic = start_monotonic
         while True:
             if hard_timeout_seconds and time.monotonic() - start_monotonic > hard_timeout_seconds:
                 timeout_exceeded = True
+                process.kill()
+                break
+            if idle_timeout_seconds and time.monotonic() - last_output_monotonic > idle_timeout_seconds:
+                idle_timeout_exceeded = True
                 process.kill()
                 break
 
@@ -130,6 +137,7 @@ class ClaudeCLIAdapter:
                     if process.poll() is not None:
                         break
                     continue
+                last_output_monotonic = time.monotonic()
                 line = raw_line.rstrip("\n")
                 if not line:
                     continue
@@ -166,6 +174,20 @@ class ClaudeCLIAdapter:
                 command=cli_command,
                 return_code=process.returncode or -9,
                 error=f"Claude CLI exceeded hard timeout of {hard_timeout_seconds}s",
+                verdict=verdict,
+                tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
+                duration_seconds=duration,
+                usage=usage,
+            )
+
+        if idle_timeout_exceeded:
+            return AgentRunResult(
+                success=False,
+                output_text=output_text,
+                transcript=transcript,
+                command=cli_command,
+                return_code=process.returncode or -9,
+                error=f"Claude CLI exceeded idle timeout of {idle_timeout_seconds}s without output",
                 verdict=verdict,
                 tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
                 duration_seconds=duration,

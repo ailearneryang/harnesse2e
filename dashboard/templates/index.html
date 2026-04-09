@@ -6,62 +6,66 @@
     <title>Harness Console</title>
     <style>
         :root {
-            /* Harness Enterprise Purple Theme */
-            --bg-base: #0d0d14;
-            --bg-surface: #16161f;
-            --bg-elevated: #1e1e2a;
-            --bg-hover: #262636;
-            --bg-active: #2d2d40;
-            --border: rgba(139, 92, 246, 0.12);
-            --border-strong: rgba(139, 92, 246, 0.24);
-            --border-focus: rgba(139, 92, 246, 0.5);
-            --text-primary: #f4f4f5;
-            --text-secondary: #a1a1aa;
-            --text-muted: #71717a;
-            /* Harness Brand Purple */
-            --accent: #8b5cf6;
-            --accent-hover: #a78bfa;
-            --accent-soft: rgba(139, 92, 246, 0.15);
-            --accent-glow: rgba(139, 92, 246, 0.35);
-            /* Status Colors */
-            --green: #10b981;
-            --green-soft: rgba(16, 185, 129, 0.15);
-            --green-glow: rgba(16, 185, 129, 0.3);
-            --amber: #f59e0b;
-            --amber-soft: rgba(245, 158, 11, 0.15);
-            --amber-glow: rgba(245, 158, 11, 0.3);
-            --rose: #ef4444;
-            --rose-soft: rgba(239, 68, 68, 0.15);
-            --rose-glow: rgba(239, 68, 68, 0.3);
-            --blue: #6366f1;
-            --blue-soft: rgba(99, 102, 241, 0.15);
-            --blue-glow: rgba(99, 102, 241, 0.3);
-            --purple: #a78bfa;
-            --purple-soft: rgba(167, 139, 250, 0.15);
-            --cyan: #06b6d4;
-            --cyan-soft: rgba(6, 182, 212, 0.15);
+            /* Modern Dark Theme - Brighter & Comfortable */
+            --bg-base: #1e2128;
+            --bg-surface: #262a33;
+            --bg-elevated: #2e333d;
+            --bg-hover: #363c48;
+            --bg-active: #3f4654;
+            --border: rgba(255, 255, 255, 0.1);
+            --border-strong: rgba(255, 255, 255, 0.18);
+            --border-focus: rgba(96, 165, 250, 0.6);
+            --text-primary: #f0f2f5;
+            --text-secondary: #b0b8c4;
+            --text-muted: #8892a2;
+            /* Accent - Bright Blue */
+            --accent: #60a5fa;
+            --accent-hover: #93c5fd;
+            --accent-soft: rgba(96, 165, 250, 0.15);
+            --accent-glow: rgba(96, 165, 250, 0.3);
+            /* Status Colors - Vibrant */
+            --green: #34d399;
+            --green-soft: rgba(52, 211, 153, 0.15);
+            --green-glow: rgba(52, 211, 153, 0.25);
+            --amber: #fbbf24;
+            --amber-soft: rgba(251, 191, 36, 0.15);
+            --amber-glow: rgba(251, 191, 36, 0.25);
+            --rose: #fb7185;
+            --rose-soft: rgba(251, 113, 133, 0.15);
+            --rose-glow: rgba(251, 113, 133, 0.25);
+            --blue: #60a5fa;
+            --blue-soft: rgba(96, 165, 250, 0.15);
+            --blue-glow: rgba(96, 165, 250, 0.25);
+            --purple: #c4b5fd;
+            --purple-soft: rgba(196, 181, 253, 0.15);
+            --cyan: #67e8f9;
+            --cyan-soft: rgba(103, 232, 249, 0.15);
             /* Radii */
             --radius-xs: 4px;
             --radius-sm: 6px;
-            --radius-md: 10px;
-            --radius-lg: 14px;
-            --radius-xl: 18px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
             /* Shadows */
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-            --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
-            --shadow-glow: 0 0 20px var(--accent-glow);
-            --shadow-glow-green: 0 0 15px var(--green-glow);
-            --shadow-glow-rose: 0 0 15px var(--rose-glow);
-            --shadow-glow-amber: 0 0 15px var(--amber-glow);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.15);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.2);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.25);
+            --shadow-glow: 0 0 16px var(--accent-glow);
+            --shadow-glow-green: 0 0 12px var(--green-glow);
+            --shadow-glow-rose: 0 0 12px var(--rose-glow);
+            --shadow-glow-amber: 0 0 12px var(--amber-glow);
             /* Transitions */
             --transition-fast: 0.1s ease;
-            --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
-            --transition-slow: 0.3s cubic-bezier(0.4,0,0.2,1);
+            --transition: 0.15s ease;
+            --transition-slow: 0.25s ease;
+            /* Sidebar */
+            --sidebar-width: 260px;
+            --sidebar-collapsed-width: 64px;
+            --header-height: 52px;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { color-scheme: dark; scroll-behavior: smooth; }
+        html { color-scheme: dark; }
 
         body {
             min-height: 100vh;
@@ -70,29 +74,214 @@
             font-size: 14px;
             line-height: 1.5;
             background: var(--bg-base);
+            overflow: hidden;
         }
 
         h1,h2,h3,h4 { font-weight: 600; letter-spacing: -0.01em; }
         button,input,textarea,select { font: inherit; }
         a { color: inherit; text-decoration: none; }
 
-        /* ── Layout Shell ── */
-        .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+        /* ── Layout Shell (New B-端 Layout) ── */
+        .shell { 
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* ── Main Container with Tabs ── */
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--bg-base);
+            min-width: 0; /* Prevent flex overflow */
+        }
+        
+        /* ── Tab Bar (Multi-tab System) ── */
+        .tab-bar {
+            display: flex;
+            align-items: center;
+            height: var(--header-height);
+            min-height: 48px;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 16px;
+            gap: 4px;
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+        .tab-bar::-webkit-scrollbar { height: 0; }
+        
+        .tab-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            transition: all var(--transition);
+            white-space: nowrap;
+            max-width: 180px;
+            position: relative;
+        }
+        .tab-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-secondary);
+        }
+        .tab-item.active {
+            background: var(--bg-base);
+            color: var(--accent);
+            border-color: var(--border);
+        }
+        .tab-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--bg-base);
+        }
+        .tab-item-icon {
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .tab-item-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tab-item-close {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            opacity: 0;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+        .tab-item:hover .tab-item-close,
+        .tab-item.active .tab-item-close {
+            opacity: 1;
+        }
+        .tab-item-close:hover {
+            background: var(--bg-active);
+            color: var(--text-primary);
+        }
+        
+        .tab-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+            padding-left: 12px;
+            border-left: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        
+        /* ── Global Search ── */
+        .global-search {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .global-search:hover {
+            border-color: var(--border-strong);
+            color: var(--text-secondary);
+        }
+        .global-search-key {
+            font-size: 10px;
+            padding: 2px 6px;
+            background: var(--bg-hover);
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        
+        /* ── Page Content Area ── */
+        .page-container {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            min-height: 0; /* Flexbox fix */
+            background: var(--bg-base);
+        }
+        .page {
+            position: absolute;
+            inset: 0;
+            padding: 24px;
+            overflow-y: auto;
+            display: none;
+            animation: pageIn 0.2s ease-out;
+            background: var(--bg-base);
+        }
+        .page.active {
+            display: block !important;
+        }
+        @keyframes pageIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .page::-webkit-scrollbar { width: 6px; }
+        .page::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+        .page::-webkit-scrollbar-track { background: transparent; }
 
-        /* ── Sidebar (Enhanced Harness Style) ── */
+        /* ── Sidebar (Enhanced Harness Style - Collapsible) ── */
         .sidebar {
-            position: sticky; top: 0; height: 100vh;
+            position: relative;
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            max-width: var(--sidebar-width);
+            flex-shrink: 0;
+            height: 100vh;
             background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-base) 100%);
             border-right: 1px solid var(--border);
-            display: flex; flex-direction: column;
-            overflow-y: auto;
+            display: flex; 
+            flex-direction: column;
+            overflow: hidden;
+            transition: width var(--transition), min-width var(--transition), max-width var(--transition);
         }
-        .sidebar::-webkit-scrollbar { width: 4px; }
-        .sidebar::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+        .shell.sidebar-collapsed .sidebar {
+            width: var(--sidebar-collapsed-width);
+            min-width: var(--sidebar-collapsed-width);
+            max-width: var(--sidebar-collapsed-width);
+        }
+        .sidebar-inner {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .sidebar-inner::-webkit-scrollbar { width: 4px; }
+        .sidebar-inner::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+        
         .sidebar-header {
-            padding: 20px 20px 16px;
+            padding: 16px;
             border-bottom: 1px solid var(--border);
             background: var(--bg-surface);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
         .logo { display: flex; align-items: center; gap: 12px; }
         .logo-icon {
@@ -101,20 +290,59 @@
             display: grid; place-items: center;
             font-weight: 800; font-size: 15px; color: #fff;
             box-shadow: 0 4px 12px var(--accent-glow);
+            flex-shrink: 0;
         }
-        .logo-text { font-size: 16px; font-weight: 700; letter-spacing: 0.06em; }
-        .logo-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.02em; }
+        .logo-text-wrap {
+            overflow: hidden;
+            transition: opacity var(--transition), width var(--transition);
+        }
+        .shell.sidebar-collapsed .logo-text-wrap {
+            width: 0;
+            opacity: 0;
+        }
+        .logo-text { font-size: 16px; font-weight: 700; letter-spacing: 0.06em; white-space: nowrap; }
+        .logo-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.02em; white-space: nowrap; }
+        
+        .sidebar-toggle {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-base);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+        .sidebar-toggle:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--border-strong);
+        }
+        .shell.sidebar-collapsed .sidebar-toggle {
+            transform: rotate(180deg);
+        }
 
         .runner-widget {
-            margin: 16px 16px 0;
-            padding: 16px;
+            margin: 12px;
+            padding: 14px;
             border-radius: var(--radius-md);
             background: var(--bg-elevated);
             border: 1px solid var(--border);
             transition: all var(--transition);
+            flex-shrink: 0;
+        }
+        .shell.sidebar-collapsed .runner-widget {
+            padding: 8px;
+            margin: 8px;
         }
         .runner-widget:hover { border-color: var(--border-strong); }
-        .runner-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .runner-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .shell.sidebar-collapsed .runner-row { justify-content: center; margin-bottom: 0; }
         .dot { 
             width: 8px; height: 8px; border-radius: 50%; 
             background: var(--text-muted); flex-shrink: 0;
@@ -133,27 +361,42 @@
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.7; transform: scale(1.1); }
         }
-        .runner-label { font-size: 13px; font-weight: 600; }
+        .runner-label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+        .shell.sidebar-collapsed .runner-label { display: none; }
         .runner-detail { 
             font-size: 12px; color: var(--text-secondary); 
-            margin-bottom: 14px; 
+            margin-bottom: 12px; 
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
+        .shell.sidebar-collapsed .runner-detail { display: none; }
         .runner-btns { display: flex; gap: 8px; }
+        .shell.sidebar-collapsed .runner-btns { flex-direction: column; gap: 4px; }
+        .shell.sidebar-collapsed .runner-btns .btn { padding: 6px; font-size: 10px; }
 
-        .nav-section { padding: 16px; flex: 1; }
+        .nav-section { padding: 12px; flex: 1; overflow-y: auto; }
+        .nav-group { margin-bottom: 16px; }
         .nav-label {
             font-size: 10px; font-weight: 700; text-transform: uppercase;
             letter-spacing: 0.1em; color: var(--text-muted);
             padding: 0 12px; margin-bottom: 8px;
+            white-space: nowrap;
+        }
+        .shell.sidebar-collapsed .nav-label {
+            text-align: center;
+            padding: 0;
+            font-size: 8px;
         }
         .nav-link {
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex; align-items: center; gap: 12px;
             padding: 10px 12px; border-radius: var(--radius-sm);
             color: var(--text-secondary); cursor: pointer;
             transition: all var(--transition);
             margin-bottom: 2px;
             position: relative;
+        }
+        .shell.sidebar-collapsed .nav-link {
+            padding: 10px;
+            justify-content: center;
         }
         .nav-link:hover { background: var(--bg-hover); color: var(--text-primary); }
         .nav-link.active { 
@@ -168,34 +411,124 @@
             background: var(--accent);
             border-radius: 0 2px 2px 0;
         }
+        .nav-link-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+            width: 20px;
+            text-align: center;
+        }
+        .nav-link-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .shell.sidebar-collapsed .nav-link-text { display: none; }
         .nav-link .count {
             font-size: 10px; padding: 2px 8px; border-radius: 99px;
             background: var(--bg-hover); color: var(--text-muted);
             font-weight: 600;
         }
+        .shell.sidebar-collapsed .nav-link .count {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            padding: 1px 4px;
+            font-size: 8px;
+            min-width: 14px;
+            text-align: center;
+        }
         .nav-link.active .count { background: var(--accent); color: #fff; }
 
         .sidebar-footer {
-            margin-top: auto; padding: 16px;
+            margin-top: auto; padding: 12px;
             border-top: 1px solid var(--border);
             font-size: 11px; color: var(--text-muted);
             background: var(--bg-base);
+            flex-shrink: 0;
         }
+        .shell.sidebar-collapsed .sidebar-footer { padding: 8px; }
         .sidebar-footer .info-row { 
             display: flex; justify-content: space-between; 
-            padding: 5px 0;
+            padding: 4px 0;
         }
+        .shell.sidebar-collapsed .sidebar-footer .info-row { display: none; }
         .sidebar-footer .info-val { color: var(--text-secondary); font-weight: 500; }
-
-        /* ── Main Content ── */
-        .main { 
-            padding: 24px 32px; 
-            overflow-x: hidden; 
-            background: var(--bg-base);
+        
+        /* ── Quick Actions Floating ── */
+        .quick-actions {
+            display: none;
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            flex-direction: column;
+            gap: 8px;
         }
+        .shell.sidebar-collapsed .quick-actions { display: flex; }
+        .quick-action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all var(--transition);
+        }
+        .quick-action-btn:hover {
+            background: var(--accent-soft);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        /* ── Page Header ── */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .page-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        .page-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .page-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .breadcrumb-sep { opacity: 0.5; }
+        .breadcrumb-item { cursor: pointer; transition: color var(--transition); }
+        .breadcrumb-item:hover { color: var(--accent); }
+        .breadcrumb-item.current { color: var(--text-primary); pointer-events: none; }
 
         /* ── Metric Cards (Enhanced) ── */
-        .metrics { display: grid; grid-template-columns: repeat(6,1fr); gap: 16px; margin-bottom: 28px; }
+        .metrics { display: grid; grid-template-columns: repeat(6,1fr); gap: 16px; margin-bottom: 24px; }
         .metric-card {
             padding: 18px 20px;
             border-radius: var(--radius-lg);
@@ -948,6 +1281,112 @@
         .badge.failed,.badge.error { background: var(--rose-soft); color: var(--rose); }
         .badge.waiting_human { background: var(--amber-soft); color: var(--amber); }
         .badge.idle { background: rgba(255,255,255,0.04); color: var(--text-muted); }
+
+        /* ── History & Memory ── */
+        .history-container { display: flex; flex-direction: column; gap: 24px; }
+        .history-loading { text-align: center; padding: 40px; color: var(--text-muted); }
+        .history-empty {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 60px 20px; text-align: center;
+        }
+        .he-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.6; }
+        .he-title { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .he-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; max-width: 400px; line-height: 1.5; }
+        
+        .history-stats {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+        }
+        .history-stat-card {
+            display: flex; align-items: center; gap: 14px;
+            padding: 18px 20px; border-radius: var(--radius-md);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+        }
+        .history-stat-card.success { border-color: var(--green); background: var(--green-soft); }
+        .hsc-icon { font-size: 24px; }
+        .hsc-content { flex: 1; }
+        .hsc-value { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+        .hsc-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        
+        .history-trend {
+            padding: 20px; border-radius: var(--radius-md);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+        }
+        .ht-title { font-size: 13px; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary); }
+        .ht-chart { display: flex; align-items: flex-end; gap: 12px; height: 100px; }
+        .ht-bar { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .ht-bar-fill { 
+            width: 100%; min-height: 5px; max-height: 80px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            display: flex; align-items: flex-start; justify-content: center;
+            padding-top: 4px;
+        }
+        .ht-bar-count { font-size: 10px; font-weight: 700; color: white; }
+        .ht-bar-label { font-size: 10px; color: var(--text-muted); margin-top: 6px; }
+        
+        .history-two-col { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+        .history-tasks, .history-lessons {
+            padding: 20px; border-radius: var(--radius-md);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+        }
+        .ht-section-title { font-size: 13px; font-weight: 600; margin-bottom: 14px; color: var(--text-secondary); }
+        
+        .history-task-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; }
+        .history-task-list::-webkit-scrollbar { width: 4px; }
+        .history-task-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+        
+        .history-task-item {
+            padding: 14px; border-radius: var(--radius-sm);
+            background: var(--bg-base); border: 1px solid var(--border);
+            transition: all var(--transition);
+        }
+        .history-task-item:hover { border-color: var(--border-strong); }
+        .history-task-item.failed { border-left: 3px solid var(--rose); }
+        .history-task-item.completed { border-left: 3px solid var(--green); }
+        
+        .hti-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .hti-status { font-size: 14px; }
+        .hti-status.success { color: var(--green); }
+        .hti-status.failed { color: var(--rose); }
+        .hti-title { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+        .hti-time { font-size: 10px; color: var(--text-muted); }
+        
+        .hti-meta { display: flex; gap: 14px; font-size: 11px; color: var(--text-muted); }
+        .hti-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+        .hti-tag {
+            padding: 2px 8px; font-size: 10px; border-radius: 99px;
+            background: var(--accent-soft); color: var(--accent);
+        }
+        
+        .lessons-list { display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto; }
+        .lessons-list::-webkit-scrollbar { width: 4px; }
+        .lessons-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+        
+        .lesson-item {
+            padding: 14px; border-radius: var(--radius-sm);
+            background: var(--bg-base); border: 1px solid var(--border);
+        }
+        .li-header { display: flex; gap: 8px; margin-bottom: 8px; }
+        .li-stage {
+            padding: 2px 8px; font-size: 10px; border-radius: 99px;
+            background: var(--accent-soft); color: var(--accent); font-weight: 600;
+        }
+        .li-type {
+            padding: 2px 8px; font-size: 10px; border-radius: 99px;
+            background: var(--rose-soft); color: var(--rose);
+        }
+        .li-summary { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 8px; }
+        .li-prevention {
+            display: flex; gap: 8px; align-items: flex-start;
+            padding: 10px; border-radius: var(--radius-sm);
+            background: var(--green-soft); font-size: 11px; color: var(--green);
+        }
+        .li-prevent-icon { flex-shrink: 0; }
+        
+        @media (max-width: 900px) {
+            .history-stats { grid-template-columns: repeat(2, 1fr); }
+            .history-two-col { grid-template-columns: 1fr; }
+        }
         .badge.queued { background: var(--blue-soft); color: var(--blue); }
 
         /* ── Buttons (Harness Enterprise Style) ── */
@@ -1970,45 +2409,128 @@
             .progress-stats { flex: 1; grid-template-columns: repeat(3, 1fr); }
         }
         @media (max-width: 1100px) {
-            .shell { grid-template-columns: 1fr; }
-            .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; }
-            .sidebar-footer { margin-top: 0; }
+            /* Content area adjustments only - sidebar controlled by JS */
             .three-col { grid-template-columns: 1fr; }
             .progress-ring-card { flex-direction: column; }
             .progress-stats { grid-template-columns: 1fr; }
         }
         @media (max-width: 768px) {
-            .main { padding: 16px; }
+            .sidebar { 
+                position: fixed; 
+                left: 0; top: 0; 
+                width: var(--sidebar-width) !important;
+                min-width: var(--sidebar-width) !important;
+                max-width: var(--sidebar-width) !important;
+                z-index: 1000;
+                transform: translateX(-100%);
+                transition: transform var(--transition);
+            }
+            .shell.sidebar-open .sidebar { transform: translateX(0); }
+            .mobile-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity var(--transition);
+            }
+            .shell.sidebar-open .mobile-overlay {
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .page { padding: 16px; }
             .metrics { grid-template-columns: repeat(2,1fr); }
             .kanban { grid-template-columns: 1fr; }
             .agent-grid { grid-template-columns: 1fr; }
             .task-detail-grid { grid-template-columns: 1fr; }
             .mission-status-bar { flex-wrap: wrap; gap: 8px; }
+            .tab-bar { padding: 0 8px; }
+            .tab-item { padding: 8px 10px; max-width: 120px; }
+            .tab-bar-actions { padding-left: 8px; }
+            .mobile-menu-btn { display: flex !important; }
+        }
+        
+        .mobile-menu-btn {
+            display: none;
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
         }
     </style>
 </head>
 <body>
-<div id="app" class="shell"></div>
+<div id="app" class="shell">
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" onclick="toggleMobileSidebar()"></div>
+</div>
 <script>
+/* ══════════════════════════════════════════════════════════════
+   HARNESS CONSOLE - B端 SPA 架构重构版
+   特性：
+   - 多标签页系统（类似浏览器 tabs）
+   - 左侧可折叠导航（类似飞书/Jira）
+   - 独立页面路由（非锚点滚动）
+   - 响应式设计 + 小屏自动折叠
+   ══════════════════════════════════════════════════════════════ */
+
 /* ── State ── */
 let runtime = null;
 let eventSource = null;
 let latestEvents = [];
-let activeNav = 'overview';
 let feedFilter = 'all';
 let artifactTaskId = '';
 let artifactCache = {};
 let openArtifacts = new Set();
+
+/* ── Tab & Navigation State ── */
+let sidebarCollapsed = false;
+let openTabs = [{ id: 'dashboard', label: '总览', icon: '📊' }];
+let activeTabId = 'dashboard';
+
+/* ── Page Definitions ── */
+const PAGES = {
+    'dashboard': { label: '总览 Dashboard', icon: '📊', group: 'main' },
+    'mission': { label: '任务中心', icon: '🎯', group: 'main' },
+    'pipeline': { label: 'Pipeline 编排', icon: '🔧', group: 'main' },
+    'tasks': { label: '任务看板', icon: '📋', group: 'main' },
+    'approvals': { label: '审批中心', icon: '✅', group: 'main' },
+    'agents': { label: 'Agent 团队', icon: '🤖', group: 'main' },
+    'artifacts': { label: '产物查看', icon: '📦', group: 'data' },
+    'history': { label: '历史记录', icon: '📜', group: 'data' },
+    'events': { label: '事件流', icon: '⚡', group: 'data' },
+};
 
 /* ── Helpers ── */
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const humanStage = s => String(s||'pending').replace(/_/g,' ');
 const DEFAULT_STAGES = ['intake','planning','requirements','design','development','code_review','security_review','testing','delivery'];
 let STAGES = DEFAULT_STAGES;
+let SAVED_PIPELINE_STAGES = null;
+
+function toStageId(stage) {
+    return typeof stage === 'string' ? stage : stage?.id;
+}
+
+function pipelineStageIds(stages) {
+    return (stages || []).map(toStageId).filter(Boolean);
+}
+
+function taskPipelineStageIds(task) {
+    if (task?.pipeline_snapshot?.length) return pipelineStageIds(task.pipeline_snapshot);
+    return STAGES;
+}
 
 function statusCls(s) { return s || 'pending'; }
 function completedCount(task) { 
-    const pipelineStages = task?.pipeline_snapshot || STAGES;
+    const pipelineStages = taskPipelineStageIds(task);
     return pipelineStages.filter(stageId => {
         const stageData = task?.stages?.[stageId];
         return stageData && ['passed','completed'].includes(stageData.status);
@@ -2016,12 +2538,12 @@ function completedCount(task) {
 }
 function taskPct(task) {
     if (!task) return 0;
-    const pipelineStages = task.pipeline_snapshot || STAGES;
+    const pipelineStages = taskPipelineStageIds(task);
     const total = pipelineStages.length || 1;
     return Math.min(100, Math.round(completedCount(task) / total * 100));
 }
 function getTaskStageCount(task) {
-    return (task?.pipeline_snapshot || STAGES).length;
+    return taskPipelineStageIds(task).length;
 }
 function classifyTask(t) {
     const s = (t?.status||'').toLowerCase(), st = (t?.current_stage||'').toLowerCase();
@@ -2075,10 +2597,37 @@ function getStatusText(status) {
     return s;
 }
 
+function fmtDuration(startStr, endStr) {
+    if (!startStr) return '';
+    const start = new Date(startStr);
+    const end = endStr ? new Date(endStr) : new Date();
+    const sec = Math.round((end - start) / 1000);
+    if (sec < 60) return `${sec}s`;
+    const min = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (min < 60) return `${min}m${s}s`;
+    return `${Math.floor(min/60)}h${min%60}m`;
+}
+
 function taskDuration(task) {
     if (!task?.started_at) return '—';
     const start = new Date(task.started_at).getTime();
-    const end = task.completed_at ? new Date(task.completed_at).getTime() : Date.now();
+    let end;
+    if (task.completed_at) {
+        end = new Date(task.completed_at).getTime();
+    } else if (task.status === 'failed' || task.status === 'completed') {
+        const stages = task.stages || {};
+        let lastEnd = null;
+        for (const s of Object.values(stages)) {
+            if (s.ended_at) {
+                const d = new Date(s.ended_at).getTime();
+                if (!lastEnd || d > lastEnd) lastEnd = d;
+            }
+        }
+        end = lastEnd || new Date(task.updated_at || task.started_at).getTime();
+    } else {
+        end = Date.now();
+    }
     const sec = Math.round((end - start) / 1000);
     if (sec < 60) return `${sec}s`;
     if (sec < 3600) return `${Math.floor(sec/60)}m ${sec%60}s`;
@@ -2086,14 +2635,81 @@ function taskDuration(task) {
     return `${h}h ${m}m`;
 }
 
-function stageDuration(stageData) {
+function stageDuration(stageData, taskStatus) {
     if (!stageData?.started_at) return '';
     const start = new Date(stageData.started_at).getTime();
-    const end = stageData.completed_at ? new Date(stageData.completed_at).getTime() : Date.now();
+    let end;
+    if (stageData.completed_at || stageData.ended_at) {
+        end = new Date(stageData.completed_at || stageData.ended_at).getTime();
+    } else if (stageData.status === 'failed' || stageData.status === 'passed' || 
+               taskStatus === 'failed' || taskStatus === 'completed') {
+        end = new Date(stageData.started_at).getTime();
+    } else {
+        end = Date.now();
+    }
     const sec = Math.round((end - start) / 1000);
     if (sec < 60) return `${sec}s`;
     if (sec < 3600) return `${Math.floor(sec/60)}m ${sec%60}s`;
     return `${Math.floor(sec/3600)}h ${Math.floor((sec%3600)/60)}m`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TAB & NAVIGATION SYSTEM
+   ══════════════════════════════════════════════════════════════ */
+
+function toggleSidebar() {
+    sidebarCollapsed = !sidebarCollapsed;
+    const shell = document.getElementById('app');
+    shell.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+    localStorage.setItem('sidebarCollapsed', sidebarCollapsed);
+}
+
+function toggleMobileSidebar() {
+    const shell = document.getElementById('app');
+    shell.classList.toggle('sidebar-open');
+}
+
+function openPage(pageId, addTab = true) {
+    if (!PAGES[pageId]) return;
+    
+    // Add tab if not exists
+    if (addTab && !openTabs.find(t => t.id === pageId)) {
+        openTabs.push({ id: pageId, label: PAGES[pageId].label.split(' ')[0], icon: PAGES[pageId].icon });
+    }
+    
+    activeTabId = pageId;
+    
+    // Close mobile sidebar
+    document.getElementById('app')?.classList.remove('sidebar-open');
+    
+    // Lazy load page content
+    if (pageId === 'history' && !historyData) {
+        loadHistory();
+    }
+    
+    renderApp();
+}
+
+function closeTab(tabId, event) {
+    if (event) event.stopPropagation();
+    
+    const idx = openTabs.findIndex(t => t.id === tabId);
+    if (idx === -1 || openTabs.length === 1) return;
+    
+    openTabs.splice(idx, 1);
+    
+    // If closing active tab, switch to adjacent tab
+    if (activeTabId === tabId) {
+        activeTabId = openTabs[Math.min(idx, openTabs.length - 1)].id;
+    }
+    
+    renderApp();
+}
+
+function switchTab(tabId) {
+    if (activeTabId === tabId) return;
+    activeTabId = tabId;
+    renderApp();
 }
 
 function renderPipelineVisual(task) {
@@ -2102,7 +2718,7 @@ function renderPipelineVisual(task) {
     const taskStatus = task?.status || '';
     
     // Use task's pipeline_snapshot if available, otherwise fall back to global STAGES
-    const stageList = task?.pipeline_snapshot || STAGES;
+    const stageList = taskPipelineStageIds(task);
     
     // If no task or empty pipeline, show empty state
     if (!task || stageList.length === 0) {
@@ -2161,7 +2777,7 @@ function renderPipelineVisual(task) {
         const status = stageData.status || 'pending';
         const isCurrent = stage === currentStage;
         const isLast = idx === stageList.length - 1;
-        const duration = stageDuration(stageData);
+        const duration = stageDuration(stageData, taskStatus);
         // Support both retry_count (state_machine) and attempts (pipeline_runner)
         const retryCount = Math.max((stageData.retry_count || 0), (stageData.attempts || 0) - 1, 0);
         
@@ -2199,7 +2815,10 @@ function renderPipelineVisual(task) {
     return html;
 }
 
-/* ── API ── */
+/* ══════════════════════════════════════════════════════════════
+   API FUNCTIONS
+   ══════════════════════════════════════════════════════════════ */
+
 async function fetchRuntime() {
     const r = await fetch('/api/runtime');
     runtime = await r.json();
@@ -2210,26 +2829,50 @@ async function fetchRuntime() {
             const pr = await fetch('/api/pipeline');
             const pd = await pr.json();
             pipelineIsCustom = pd.is_custom ?? false;
+            SAVED_PIPELINE_STAGES = pd.stages || [];
+            STAGES = pipelineStageIds(SAVED_PIPELINE_STAGES.length ? SAVED_PIPELINE_STAGES : (pd.order || DEFAULT_STAGES));
             pipelineFetched = true;
         } catch(e) {}
     }
-    render();
+    renderApp();
 }
+
 async function submitRequest() {
-    const title = document.getElementById('req-title').value.trim();
-    const text = document.getElementById('req-text').value.trim();
-    const source = document.getElementById('req-source').value.trim() || 'web';
-    if (!text) { alert('请输入需求内容'); return; }
-    await fetch('/api/requests', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title,text,source}) });
-    document.getElementById('req-title').value = '';
-    document.getElementById('req-text').value = '';
-    await fetchRuntime();
+    const title = document.getElementById('req-title')?.value.trim();
+    const text = document.getElementById('req-text')?.value.trim();
+    const source = document.getElementById('req-source')?.value.trim() || 'web';
+    if (!text) { showToast('请输入需求内容', true); return; }
+    
+    const btn = document.querySelector('.composer-actions .btn.primary');
+    if (btn) btn.classList.add('loading');
+    
+    try {
+        await fetch('/api/requests', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title,text,source}) });
+        const titleEl = document.getElementById('req-title');
+        const textEl = document.getElementById('req-text');
+        if (titleEl) titleEl.value = '';
+        if (textEl) textEl.value = '';
+        showToast('请求已提交');
+        await fetchRuntime();
+    } catch (e) {
+        showToast('提交失败', true);
+    } finally {
+        if (btn) btn.classList.remove('loading');
+    }
 }
-async function controlRunner(action) { await fetch(`/api/control/${action}`,{method:'POST'}); await fetchRuntime(); }
+
+async function controlRunner(action) { 
+    await fetch(`/api/control/${action}`,{method:'POST'}); 
+    showToast(action === 'resume' ? 'Runner 已恢复' : 'Runner 已暂停');
+    await fetchRuntime(); 
+}
+
 async function resolveApproval(taskId, approvalId, resolution) {
     await fetch(`/api/approvals/${taskId}/${approvalId}/resolve`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({resolution}) });
+    showToast(resolution === 'approved' ? '已批准' : '已拒绝');
     await fetchRuntime();
 }
+
 async function retryTask(taskId) {
     try {
         const r = await fetch(`/api/tasks/${taskId}/retry`, { method:'POST' });
@@ -2244,36 +2887,38 @@ async function retryTask(taskId) {
     }
     await fetchRuntime();
 }
+
 async function deleteTask(taskId) {
     if (!confirm('确定删除这个任务？')) return;
     await fetch(`/api/tasks/${taskId}`, { method:'DELETE' });
+    showToast('任务已删除');
     await fetchRuntime();
 }
 
-/* ── Navigation ── */
-function setNav(id) {
-    activeNav = id;
-    render();
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
-}
+/* ══════════════════════════════════════════════════════════════
+   MAIN RENDER FUNCTION - NEW TAB-BASED LAYOUT
+   ══════════════════════════════════════════════════════════════ */
 
-/* ── Render ── */
-function render() {
+function renderApp() {
+    console.log('[HARNESS] renderApp called, runtime:', !!runtime);
     if (!runtime) return;
+    
     const app = document.getElementById('app');
+    console.log('[HARNESS] app element:', !!app);
     const tasks = runtime.tasks || [];
     const approvals = runtime.approvals || [];
     const agents = runtime.agents || [];
     const stats = runtime.stats || {};
     const runner = runtime.runner || {};
     const settings = runtime.settings || {};
-    // Only update STAGES if editor is not actively being used
+    
+    console.log('[HARNESS] Data loaded - tasks:', tasks.length, 'approvals:', approvals.length);
+    
     if (!editorLoaded) {
-        STAGES = runtime.pipeline_order || DEFAULT_STAGES;
+        STAGES = pipelineStageIds(SAVED_PIPELINE_STAGES?.length ? SAVED_PIPELINE_STAGES : (runtime.pipeline_order || DEFAULT_STAGES));
     }
+    
     const activeTask = tasks.find(t => t.id === runner.current_task_id) || tasks[0];
-    const pct = taskPct(activeTask);
     const budget = runtime.budget || {used: 0, limit: 500000, percent: 0, status: 'ok'};
     const isLive = runner.running && !runner.paused;
     const isPaused = runner.paused;
@@ -2282,63 +2927,219 @@ function render() {
     const savedTitle = document.getElementById('req-title')?.value ?? '';
     const savedText = document.getElementById('req-text')?.value ?? '';
     const savedSource = document.getElementById('req-source')?.value ?? 'web';
-    const titleFocused = document.activeElement?.id === 'req-title';
-    const textFocused = document.activeElement?.id === 'req-text';
-    const sourceFocused = document.activeElement?.id === 'req-source';
+
+    const navItems = [
+        { group: 'main', label: '主控', items: [
+            { id: 'dashboard', icon: '📊', label: '总览', count: '' },
+            { id: 'mission', icon: '🎯', label: '任务中心', count: '' },
+            { id: 'pipeline', icon: '🔧', label: 'Pipeline', count: '' },
+            { id: 'tasks', icon: '📋', label: '看板', count: tasks.length },
+            { id: 'approvals', icon: '✅', label: '审批', count: approvals.length },
+        ]},
+        { group: 'team', label: '团队', items: [
+            { id: 'agents', icon: '🤖', label: 'Agents', count: agents.length },
+        ]},
+        { group: 'data', label: '数据', items: [
+            { id: 'artifacts', icon: '📦', label: '产物', count: '' },
+            { id: 'history', icon: '📜', label: '历史', count: '' },
+            { id: 'events', icon: '⚡', label: '事件', count: latestEvents.length },
+        ]},
+    ];
 
     app.innerHTML = `
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" onclick="toggleMobileSidebar()"></div>
+    
     <!-- Sidebar -->
     <aside class="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                <div class="logo-icon">H</div>
-                <div>
-                    <div class="logo-text">HARNESS</div>
-                    <div class="logo-sub">Mission Console</div>
+        <div class="sidebar-inner">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">H</div>
+                    <div class="logo-text-wrap">
+                        <div class="logo-text">HARNESS</div>
+                        <div class="logo-sub">Mission Console</div>
+                    </div>
+                </div>
+                <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠/展开">◀</button>
+            </div>
+
+            <div class="runner-widget">
+                <div class="runner-row">
+                    <span class="dot ${isLive?'live':(isPaused?'paused':'')}"></span>
+                    <span class="runner-label">${isPaused?'Runner Paused':(isLive?'Runner Live':'Runner Stopped')}</span>
+                </div>
+                <div class="runner-detail">${activeTask ? esc(activeTask.title||'Untitled') : '暂无活动任务'}</div>
+                <div class="runner-btns">
+                    <button class="btn primary sm" onclick="controlRunner('resume')">恢复</button>
+                    <button class="btn warn sm" onclick="controlRunner('pause')">暂停</button>
                 </div>
             </div>
-        </div>
 
-        <div class="runner-widget">
-            <div class="runner-row">
-                <span class="dot ${isLive?'live':(isPaused?'paused':'')}"></span>
-                <span class="runner-label">${isPaused?'Runner Paused':(isLive?'Runner Live':'Runner Stopped')}</span>
+            <nav class="nav-section">
+                ${navItems.map(group => `
+                    <div class="nav-group">
+                        <div class="nav-label">${group.label}</div>
+                        ${group.items.map(n => `
+                            <a class="nav-link ${activeTabId===n.id?'active':''}" onclick="openPage('${n.id}')">
+                                <span class="nav-link-icon">${n.icon}</span>
+                                <span class="nav-link-text">${n.label}</span>
+                                ${n.count!==''?`<span class="count">${n.count}</span>`:''}
+                            </a>
+                        `).join('')}
+                    </div>
+                `).join('')}
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="info-row"><span>Target Repo</span><span class="info-val">${esc(settings.target_repo||'-')}</span></div>
+                <div class="info-row"><span>Claude</span><span class="info-val">${settings.claude?.simulate?'Simulation':'CLI'}</span></div>
+                <div class="info-row"><span>Updated</span><span class="info-val">${fmtTime(runner.updated_at)}</span></div>
             </div>
-            <div class="runner-detail">${activeTask ? esc(activeTask.title||'Untitled') : '暂无活动任务'}</div>
-            <div class="runner-btns">
-                <button class="btn primary sm" onclick="controlRunner('resume')">恢复</button>
-                <button class="btn warn sm" onclick="controlRunner('pause')">暂停</button>
-            </div>
-        </div>
-
-        <nav class="nav-section">
-            <div class="nav-label">导航</div>
-            ${[
-                {id:'overview', label:'总览', count:''},
-                {id:'request', label:'提交请求', count:''},
-                {id:'pipeline-editor', label:'Pipeline 编排', count:''},
-                {id:'tasks', label:'任务看板', count:tasks.length},
-                {id:'approvals', label:'审批中心', count:approvals.length},
-                {id:'agents', label:'Agent 团队', count:agents.length},
-                {id:'artifacts', label:'产物查看', count:''},
-                {id:'feed', label:'事件流', count:latestEvents.length},
-            ].map(n => `
-                <a class="nav-link ${activeNav===n.id?'active':''}" onclick="setNav('${n.id}')">
-                    <span>${n.label}</span>
-                    ${n.count!==''?`<span class="count">${n.count}</span>`:''}
-                </a>
-            `).join('')}
-        </nav>
-
-        <div class="sidebar-footer">
-            <div class="info-row"><span>Target Repo</span><span class="info-val">${esc(settings.target_repo||'-')}</span></div>
-            <div class="info-row"><span>Claude</span><span class="info-val">${settings.claude?.simulate?'Simulation':'CLI'}</span></div>
-            <div class="info-row"><span>Updated</span><span class="info-val">${fmtTime(runner.updated_at)}</span></div>
         </div>
     </aside>
 
-    <!-- Main -->
-    <main class="main">
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="mobile-menu-btn" onclick="toggleMobileSidebar()">☰</button>
+            ${openTabs.map(tab => `
+                <div class="tab-item ${activeTabId===tab.id?'active':''}" onclick="switchTab('${tab.id}')">
+                    <span class="tab-item-icon">${tab.icon}</span>
+                    <span class="tab-item-label">${tab.label}</span>
+                    ${openTabs.length > 1 ? `<span class="tab-item-close" onclick="closeTab('${tab.id}', event)">×</span>` : ''}
+                </div>
+            `).join('')}
+            <div class="tab-bar-actions">
+                <div class="global-search" onclick="showGlobalSearch()">
+                    <span>🔍</span>
+                    <span>搜索...</span>
+                    <span class="global-search-key">⌘K</span>
+                </div>
+                <button class="btn ghost sm" onclick="fetchRuntime()">🔄</button>
+            </div>
+        </div>
+        
+        <!-- Page Container -->
+        <div class="page-container" id="page-container">
+            <div class="page" data-page="dashboard" id="page-dashboard">${renderDashboardPage(activeTask, tasks, stats, budget, settings)}</div>
+            <div class="page" data-page="mission" id="page-mission">${renderMissionPage(activeTask, tasks, stats, budget)}</div>
+            <div class="page" data-page="pipeline" id="page-pipeline">${renderPipelinePage()}</div>
+            <div class="page" data-page="tasks" id="page-tasks">${renderTasksPage(tasks)}</div>
+            <div class="page" data-page="approvals" id="page-approvals">${renderApprovalsPage(approvals)}</div>
+            <div class="page" data-page="agents" id="page-agents">${renderAgentsPage(agents)}</div>
+            <div class="page" data-page="artifacts" id="page-artifacts">${renderArtifactsPage(tasks)}</div>
+            <div class="page" data-page="history" id="page-history">${renderHistoryPage()}</div>
+            <div class="page" data-page="events" id="page-events">${renderEventsPage()}</div>
+        </div>
+    </div>
+    
+    <!-- Add Stage Modal -->
+    <div class="pipe-modal-overlay" id="add-stage-modal">
+        <div class="pipe-modal">
+            <div class="pipe-modal-header">
+                <div class="pipe-modal-title">添加 Pipeline Stage</div>
+                <button class="pipe-config-close" onclick="closeAddStageModal()">×</button>
+            </div>
+            <div class="pipe-modal-body" id="stage-options-body"></div>
+            <div class="pipe-modal-footer">
+                <button class="btn ghost" onclick="closeAddStageModal()">取消</button>
+                <button class="btn primary" onclick="confirmAddStage()">添加</button>
+            </div>
+        </div>
+    </div>
+    `;
+
+    console.log('[HARNESS] innerHTML set successfully');
+
+    /* Set active page */
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const activePage = document.getElementById('page-' + activeTabId);
+    if (activePage) {
+        activePage.classList.add('active');
+        console.log('[HARNESS] Active page set:', activeTabId);
+    } else {
+        console.error('[HARNESS] Active page not found:', activeTabId);
+    }
+
+    /* Restore input values */
+    const ti = document.getElementById('req-title');
+    const tx = document.getElementById('req-text');
+    const sr = document.getElementById('req-source');
+    if (ti) ti.value = savedTitle;
+    if (tx) tx.value = savedText;
+    if (sr) sr.value = savedSource;
+
+    /* Restore sidebar collapsed state */
+    if (sidebarCollapsed) {
+        app.classList.add('sidebar-collapsed');
+    }
+
+    /* Init pipeline editor if on pipeline page */
+    if (activeTabId === 'pipeline') {
+        initPipelineEditor();
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PAGE RENDERERS - Each page is a separate component
+   ══════════════════════════════════════════════════════════════ */
+
+function renderPage(pageId, activeTask, tasks, stats, budget, settings, approvals = [], agents = []) {
+    const isActive = activeTabId === pageId;
+    let content = '';
+    
+    switch(pageId) {
+        case 'dashboard':
+            content = renderDashboardPage(activeTask, tasks, stats, budget, settings);
+            break;
+        case 'mission':
+            content = renderMissionPage(activeTask, tasks, stats, budget);
+            break;
+        case 'pipeline':
+            content = renderPipelinePage();
+            break;
+        case 'tasks':
+            content = renderTasksPage(tasks);
+            break;
+        case 'approvals':
+            content = renderApprovalsPage(approvals || runtime?.approvals || []);
+            break;
+        case 'agents':
+            content = renderAgentsPage(agents || runtime?.agents || []);
+            break;
+        case 'artifacts':
+            content = renderArtifactsPage(tasks);
+            break;
+        case 'history':
+            content = renderHistoryPage();
+            break;
+        case 'events':
+            content = renderEventsPage();
+            break;
+        default:
+            content = '<div class="empty">页面不存在</div>';
+    }
+    
+    return `<div class="page ${isActive ? 'active' : ''}" id="page-${pageId}">${content}</div>`;
+}
+
+function renderDashboardPage(activeTask, tasks, stats, budget, settings) {
+    const pct = taskPct(activeTask);
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">总览 Dashboard</h1>
+                    <div class="page-subtitle">系统状态与任务概览</div>
+                </div>
+            </div>
+            <div class="page-header-actions">
+                <button class="btn primary" onclick="openPage('mission')">🎯 查看任务中心</button>
+            </div>
+        </div>
+        
         <!-- Metrics -->
         <div class="metrics">
             <div class="metric-card"><div class="metric-label">总任务</div><div class="metric-value total">${stats.total||0}</div><div class="metric-hint">所有接入的请求</div></div>
@@ -2348,115 +3149,11 @@ function render() {
             <div class="metric-card"><div class="metric-label">失败</div><div class="metric-value failed">${stats.failed||0}</div><div class="metric-hint">需要关注</div></div>
             <div class="metric-card token-card"><div class="metric-label">Token 用量</div><div class="metric-value ${tokenStatusCls(budget.status)}">${fmtTokens(budget.used)}</div><div class="metric-hint">${budget.percent}% · ${fmtTokens(budget.limit)} 限额</div></div>
         </div>
-
-        <!-- Mission Center -->
-        <section id="overview" class="section">
+        
+        <!-- Quick Actions -->
+        <div class="section" style="margin-bottom:20px;">
             <div class="section-header">
-                <div><div class="section-title">Mission Center</div><div class="section-desc">当前任务主线与 Pipeline 推进状态</div></div>
-                <button class="btn ghost sm" onclick="fetchRuntime()">刷新</button>
-            </div>
-            <div class="section-body">
-                <!-- Mission Hero -->
-                <div class="mission-hero">
-                    <div class="mission-main">
-                        <!-- Status Bar -->
-                        <div class="mission-status-bar">
-                            <div class="mission-status-icon ${statusCls(activeTask?.status)}">
-                                ${getStatusIcon(activeTask?.status)}
-                            </div>
-                            <div class="mission-status-info">
-                                <div class="mission-status-title">${esc(activeTask?.title||'等待新任务')}</div>
-                                <div class="mission-status-subtitle">
-                                    <span>${esc(activeTask?.source||'web')}</span>
-                                    <span class="sep">•</span>
-                                    <span>${esc(humanStage(activeTask?.current_stage||'idle'))}</span>
-                                    <span class="sep">•</span>
-                                    <span>${taskDuration(activeTask)}</span>
-                                </div>
-                            </div>
-                            <div class="mission-status-badge ${statusCls(activeTask?.status)}">
-                                ${getStatusText(activeTask?.status)}
-                            </div>
-                        </div>
-                        
-                        <!-- Task Details -->
-                        <div class="task-detail-card">
-                            <div class="task-detail-desc">${esc(activeTask?.request_text||'等待新请求，或者从飞书、API、Web 提交需求。')}</div>
-                            <div class="task-detail-grid">
-                                <div class="task-detail-item">
-                                    <div class="tdi-label">当前阶段</div>
-                                    <div class="tdi-value highlight">${esc(humanStage(activeTask?.current_stage||'-'))}</div>
-                                </div>
-                                <div class="task-detail-item">
-                                    <div class="tdi-label">进度</div>
-                                    <div class="tdi-value">${completedCount(activeTask||{})} / ${getTaskStageCount(activeTask)}</div>
-                                </div>
-                                <div class="task-detail-item">
-                                    <div class="tdi-label">耗时</div>
-                                    <div class="tdi-value">${taskDuration(activeTask)}</div>
-                                </div>
-                                <div class="task-detail-item">
-                                    <div class="tdi-label">Token 消耗</div>
-                                    <div class="tdi-value ${tokenStatusCls(budget.status)}">${fmtTokens(budget.used)}</div>
-                                </div>
-                                <div class="task-detail-item">
-                                    <div class="tdi-label">Token 限额</div>
-                                    <div class="tdi-value">${fmtTokens(budget.limit)}</div>
-                                </div>
-                                <div class="task-detail-item">
-                                    <div class="tdi-label">使用率</div>
-                                    <div class="tdi-value ${budget.percent>80?'highlight':''}">${budget.percent}%</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Progress Ring -->
-                    <div class="progress-ring-card">
-                        <div class="progress-ring-container">
-                            <svg class="progress-ring" width="160" height="160" viewBox="0 0 160 160">
-                                <defs>
-                                    <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" style="stop-color:var(--accent)"/>
-                                        <stop offset="100%" style="stop-color:var(--purple)"/>
-                                    </linearGradient>
-                                </defs>
-                                <circle class="progress-ring-bg" cx="80" cy="80" r="68"/>
-                                <circle class="progress-ring-fill" cx="80" cy="80" r="68" 
-                                    stroke-dasharray="${Math.PI * 2 * 68}" 
-                                    stroke-dashoffset="${Math.PI * 2 * 68 * (1 - pct / 100)}"/>
-                            </svg>
-                            <div class="progress-ring-text">
-                                <div class="progress-ring-pct">${pct}%</div>
-                                <div class="progress-ring-label">完成度</div>
-                            </div>
-                        </div>
-                        <div class="progress-stats">
-                            <div class="progress-stat-row">
-                                <span>失败任务</span>
-                                <strong style="color:${stats.failed>0?'var(--rose)':'inherit'}">${stats.failed||0}</strong>
-                            </div>
-                            <div class="progress-stat-row">
-                                <span>事件数量</span>
-                                <strong>${latestEvents.length}</strong>
-                            </div>
-                            <div class="progress-stat-row">
-                                <span>最新事件</span>
-                                <strong>${esc(latestEvents.length?latestEvents[latestEvents.length-1].source:'—')}</strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Pipeline Visual -->
-                ${renderPipelineVisual(activeTask)}
-            </div>
-        </section>
-
-        <!-- Request Composer -->
-        <section id="request" class="section">
-            <div class="section-header">
-                <div><div class="section-title">Request Intake</div><div class="section-desc">提交新的需求请求</div></div>
+                <div><div class="section-title">快速操作</div><div class="section-desc">提交新请求或查看关键信息</div></div>
             </div>
             <div class="section-body">
                 <div class="composer">
@@ -2471,145 +3168,338 @@ function render() {
                     </div>
                 </div>
             </div>
-        </section>
-
-        <!-- Pipeline Editor V2 -->
-        <section id="pipeline-editor" class="section">
+        </div>
+        
+        <!-- Current Task Summary -->
+        ${activeTask ? `
+        <div class="section">
             <div class="section-header">
-                <div>
-                    <div class="section-title">Pipeline Editor</div>
-                    <div class="section-desc">可视化编排 · 点击节点配置回退规则 · <span id="pipe-mode-tag" style="color:var(--text-muted)"></span></div>
-                </div>
-                <div style="display:flex;gap:8px">
-                    <button class="btn ghost sm" onclick="resetPipelineEditor()">撤销编辑</button>
-                    <button class="btn ghost sm" onclick="restoreDefaultPipeline()" id="pipe-restore-btn" style="display:none">恢复默认</button>
-                    <button class="btn primary sm" onclick="savePipeline()">保存配置</button>
-                </div>
+                <div><div class="section-title">当前任务</div><div class="section-desc">${esc(activeTask.title||'Untitled')}</div></div>
+                <button class="btn ghost sm" onclick="openPage('mission')">查看详情 →</button>
             </div>
             <div class="section-body">
-                <div id="pipe-editor-body"></div>
-                <!-- Live Preview -->
-                <div class="pipe-preview-section">
-                    <div class="pipe-preview-header">
-                        <span class="pipe-preview-title">📺 实时预览</span>
-                        <span class="pipe-preview-hint">显示保存后 Mission Center 中的效果</span>
+                <div class="focus-grid">
+                    <div class="focus-card">
+                        <div class="focus-label">任务详情</div>
+                        <div class="focus-name">${esc(activeTask.title||'当前任务')}</div>
+                        <div class="focus-desc">${esc(activeTask.request_text||'无描述')}</div>
+                        <div class="focus-meta">
+                            <div class="focus-meta-item"><div class="fm-label">阶段</div><div class="fm-value">${esc(humanStage(activeTask.current_stage||'-'))}</div></div>
+                            <div class="focus-meta-item"><div class="fm-label">状态</div><div class="fm-value">${getStatusText(activeTask.status)}</div></div>
+                            <div class="focus-meta-item"><div class="fm-label">进度</div><div class="fm-value">${completedCount(activeTask)} / ${getTaskStageCount(activeTask)}</div></div>
+                            <div class="focus-meta-item"><div class="fm-label">耗时</div><div class="fm-value">${taskDuration(activeTask)}</div></div>
+                        </div>
                     </div>
-                    <div id="pipe-preview-content"></div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Add Stage Modal -->
-        <div class="pipe-modal-overlay" id="add-stage-modal">
-            <div class="pipe-modal">
-                <div class="pipe-modal-header">
-                    <div class="pipe-modal-title">添加 Pipeline Stage</div>
-                    <button class="pipe-config-close" onclick="closeAddStageModal()">×</button>
-                </div>
-                <div class="pipe-modal-body" id="stage-options-body"></div>
-                <div class="pipe-modal-footer">
-                    <button class="btn ghost" onclick="closeAddStageModal()">取消</button>
-                    <button class="btn primary" onclick="confirmAddStage()">添加</button>
+                    <div class="health-card">
+                        <div class="health-title">完成进度</div>
+                        <div class="health-big">${pct}%</div>
+                        <div class="progress-track"><div class="progress-bar" style="width:${pct}%"></div></div>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <!-- Task Board -->
-        <section id="tasks" class="section">
-            <div class="section-header">
-                <div><div class="section-title">Task Board</div><div class="section-desc">按状态分栏展示所有任务</div></div>
+        ` : `
+        <div class="section">
+            <div class="section-body">
+                <div class="empty">暂无活动任务，请提交新请求开始</div>
             </div>
-            <div class="section-body">${renderKanban(tasks)}</div>
-        </section>
+        </div>
+        `}
+    `;
+}
 
-        <!-- Artifacts (not rebuilt by render, updated independently) -->
-        <section id="artifacts" class="section">
-            <div class="section-header">
-                <div><div class="section-title">Artifacts</div><div class="section-desc">各阶段产物文件，按 stage 分组</div></div>
+/* ── Sub-renderers ── */
+function fmtDurationSec(sec) {
+    if (!sec || sec <= 0) return '-';
+    if (sec < 60) return `${sec}s`;
+    if (sec < 3600) return `${Math.floor(sec/60)}m ${sec%60}s`;
+    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
+    return `${h}h ${m}m`;
+}
+
+function fmtTokensK(tokens) {
+    if (!tokens || tokens <= 0) return '-';
+    if (tokens < 1000) return String(tokens);
+    return `${(tokens/1000).toFixed(1)}k`;
+}
+
+function renderMissionPage(activeTask, tasks, stats, budget) {
+    const pct = taskPct(activeTask);
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">🎯 任务中心</h1>
+                    <div class="page-subtitle">当前任务主线与 Pipeline 推进状态</div>
+                </div>
+            </div>
+            <div class="page-header-actions">
+                <button class="btn ghost sm" onclick="fetchRuntime()">🔄 刷新</button>
+            </div>
+        </div>
+        
+        <!-- Mission Hero -->
+        <div class="mission-hero">
+            <div class="mission-main">
+                <!-- Status Bar -->
+                <div class="mission-status-bar">
+                    <div class="mission-status-icon ${statusCls(activeTask?.status)}">
+                        ${getStatusIcon(activeTask?.status)}
+                    </div>
+                    <div class="mission-status-info">
+                        <div class="mission-status-title">${esc(activeTask?.title||'等待新任务')}</div>
+                        <div class="mission-status-subtitle">
+                            <span>${esc(activeTask?.source||'web')}</span>
+                            <span class="sep">•</span>
+                            <span>${esc(humanStage(activeTask?.current_stage||'idle'))}</span>
+                            <span class="sep">•</span>
+                            <span>${taskDuration(activeTask)}</span>
+                        </div>
+                    </div>
+                    <div class="mission-status-badge ${statusCls(activeTask?.status)}">
+                        ${getStatusText(activeTask?.status)}
+                    </div>
+                </div>
+                
+                <!-- Task Details -->
+                <div class="task-detail-card">
+                    <div class="task-detail-desc">${esc(activeTask?.request_text||'等待新请求，或者从飞书、API、Web 提交需求。')}</div>
+                    <div class="task-detail-grid">
+                        <div class="task-detail-item">
+                            <div class="tdi-label">当前阶段</div>
+                            <div class="tdi-value highlight">${esc(humanStage(activeTask?.current_stage||'-'))}</div>
+                        </div>
+                        <div class="task-detail-item">
+                            <div class="tdi-label">进度</div>
+                            <div class="tdi-value">${completedCount(activeTask||{})} / ${getTaskStageCount(activeTask)}</div>
+                        </div>
+                        <div class="task-detail-item">
+                            <div class="tdi-label">耗时</div>
+                            <div class="tdi-value">${taskDuration(activeTask)}</div>
+                        </div>
+                        <div class="task-detail-item">
+                            <div class="tdi-label">Token 消耗</div>
+                            <div class="tdi-value ${tokenStatusCls(budget.status)}">${fmtTokens(budget.used)}</div>
+                        </div>
+                        <div class="task-detail-item">
+                            <div class="tdi-label">Token 限额</div>
+                            <div class="tdi-value">${fmtTokens(budget.limit)}</div>
+                        </div>
+                        <div class="task-detail-item">
+                            <div class="tdi-label">使用率</div>
+                            <div class="tdi-value ${budget.percent>80?'highlight':''}">${budget.percent}%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Ring -->
+            <div class="progress-ring-card">
+                <div class="progress-ring-container">
+                    <svg class="progress-ring" width="160" height="160" viewBox="0 0 160 160">
+                        <defs>
+                            <linearGradient id="progressGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:var(--accent)"/>
+                                <stop offset="100%" style="stop-color:var(--purple)"/>
+                            </linearGradient>
+                        </defs>
+                        <circle class="progress-ring-bg" cx="80" cy="80" r="68"/>
+                        <circle class="progress-ring-fill" cx="80" cy="80" r="68" 
+                            stroke-dasharray="${Math.PI * 2 * 68}" 
+                            stroke-dashoffset="${Math.PI * 2 * 68 * (1 - pct / 100)}"
+                            style="stroke: url(#progressGradient2)"/>
+                    </svg>
+                    <div class="progress-ring-text">
+                        <div class="progress-ring-pct">${pct}%</div>
+                        <div class="progress-ring-label">完成度</div>
+                    </div>
+                </div>
+                <div class="progress-stats">
+                    <div class="progress-stat-row">
+                        <span>失败任务</span>
+                        <strong style="color:${stats.failed>0?'var(--rose)':'inherit'}">${stats.failed||0}</strong>
+                    </div>
+                    <div class="progress-stat-row">
+                        <span>事件数量</span>
+                        <strong>${latestEvents.length}</strong>
+                    </div>
+                    <div class="progress-stat-row">
+                        <span>最新事件</span>
+                        <strong>${esc(latestEvents.length?latestEvents[latestEvents.length-1].source:'—')}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pipeline Visual -->
+        ${renderPipelineVisual(activeTask)}
+    `;
+}
+
+function renderPipelinePage() {
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">🔧 Pipeline 编排</h1>
+                    <div class="page-subtitle">可视化编排 · 点击节点配置回退规则 · <span id="pipe-mode-tag" style="color:var(--text-muted)"></span></div>
+                </div>
+            </div>
+            <div class="page-header-actions">
+                <button class="btn ghost sm" onclick="resetPipelineEditor()">撤销编辑</button>
+                <button class="btn ghost sm" onclick="restoreDefaultPipeline()" id="pipe-restore-btn" style="display:none">恢复默认</button>
+                <button class="btn primary sm" onclick="savePipeline()">保存配置</button>
+            </div>
+        </div>
+        
+        <div id="pipe-editor-body"></div>
+        
+        <!-- Live Preview -->
+        <div class="pipe-preview-section" style="margin-top:24px;padding-top:24px;border-top:1px dashed var(--border)">
+            <div class="pipe-preview-header">
+                <span class="pipe-preview-title">📺 实时预览</span>
+                <span class="pipe-preview-hint">显示保存后 Mission Center 中的效果</span>
+            </div>
+            <div id="pipe-preview-content"></div>
+        </div>
+    `;
+}
+
+function renderTasksPage(tasks) {
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">📋 任务看板</h1>
+                    <div class="page-subtitle">按状态分栏展示所有任务</div>
+                </div>
+            </div>
+            <div class="page-header-actions">
+                <button class="btn ghost sm" onclick="fetchRuntime()">🔄 刷新</button>
+            </div>
+        </div>
+        
+        ${renderKanban(tasks)}
+    `;
+}
+
+function renderApprovalsPage(approvals) {
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">✅ 审批中心</h1>
+                    <div class="page-subtitle">待处理的人工审批请求</div>
+                </div>
+            </div>
+            <div class="page-header-actions">
+                <span class="badge ${approvals.length > 0 ? 'waiting_human' : 'idle'}">${approvals.length} 待处理</span>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-body">
+                ${renderApprovals(approvals)}
+            </div>
+        </div>
+    `;
+}
+
+function renderAgentsPage(agents) {
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">🤖 Agent 团队</h1>
+                    <div class="page-subtitle">各 Agent 当前状态与工作负载</div>
+                </div>
+            </div>
+            <div class="page-header-actions">
+                <span class="badge idle">${agents.length} Agents</span>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-body">
+                ${renderAgents(agents)}
+            </div>
+        </div>
+    `;
+}
+
+function renderArtifactsPage(tasks) {
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">📦 产物查看</h1>
+                    <div class="page-subtitle">各阶段产物文件，按 stage 分组</div>
+                </div>
+            </div>
+            <div class="page-header-actions">
                 <select class="artifact-task-select" id="artifact-select" onchange="loadArtifacts(this.value)">
                     <option value="">选择任务</option>
                     ${tasks.filter(t=>t.status==='completed'||t.status==='failed'||t.status==='running').map(t=>`<option value="${esc(t.id)}" ${t.id===artifactTaskId?'selected':''}>${esc(t.title||t.id)} (${esc(t.status)})</option>`).join('')}
                 </select>
             </div>
-            <div class="section-body" id="artifact-body"></div>
-        </section>
-
-        <!-- Three Column: Approvals + Agents + Feed -->
-        <div class="three-col">
-            <section id="approvals" class="section">
-                <div class="section-header">
-                    <div><div class="section-title">Approval Center</div><div class="section-desc">待处理的人工审批</div></div>
-                </div>
-                <div class="section-body" style="max-height:360px;overflow-y:auto">${renderApprovals(approvals)}</div>
-            </section>
-
-            <section id="agents" class="section">
-                <div class="section-header">
-                    <div><div class="section-title">Agent Team</div><div class="section-desc">各 Agent 当前状态</div></div>
-                </div>
-                <div class="section-body">${renderAgents(agents)}</div>
-            </section>
-
-            <section id="feed" class="section">
-                <div class="section-header">
-                    <div><div class="section-title">Live Feed</div><div class="section-desc">实时事件流</div></div>
-                    <div class="feed-filter">
-                        ${['all','info','success','warning','error'].map(f => `<button class="btn sm ${feedFilter===f?'active':''}" onclick="feedFilter='${f}';render()">${f}</button>`).join('')}
-                    </div>
-                </div>
-                <div class="section-body">${renderFeed(latestEvents)}</div>
-            </section>
         </div>
-    </main>`;
-
-    /* Restore input values */
-    const ti = document.getElementById('req-title');
-    const tx = document.getElementById('req-text');
-    const sr = document.getElementById('req-source');
-    if (ti) ti.value = savedTitle;
-    if (tx) tx.value = savedText;
-    if (sr) sr.value = savedSource;
-    if (titleFocused && ti) ti.focus();
-    if (textFocused && tx) tx.focus();
-    if (sourceFocused && sr) sr.focus();
-
-    /* Render artifact body only if it's empty (first load) or no task selected yet */
-    const ab = document.getElementById('artifact-body');
-    if (ab && !ab.hasChildNodes()) {
-        ab.innerHTML = artifactCache[artifactTaskId]
-            ? renderArtifacts(artifactCache[artifactTaskId])
-            : '<div class="empty">选择一个任务查看产物</div>';
-    }
-
-    /* Init pipeline editor (only writes DOM on first load) */
-    initPipelineEditor();
+        
+        <div class="section">
+            <div class="section-body" id="artifact-body">
+                ${artifactTaskId && artifactCache[artifactTaskId] ? renderArtifactsContent(artifactCache[artifactTaskId]) : '<div class="empty">选择一个任务查看产物</div>'}
+            </div>
+        </div>
+    `;
 }
 
-/* ── Sub-renderers ── */
-function fmtDuration(startStr, endStr) {
-    if (!startStr) return '';
-    const start = new Date(startStr);
-    const end = endStr ? new Date(endStr) : new Date();
-    const sec = Math.round((end - start) / 1000);
-    if (sec < 60) return `${sec}s`;
-    const min = Math.floor(sec / 60);
-    const s = sec % 60;
-    if (min < 60) return `${min}m${s}s`;
-    return `${Math.floor(min/60)}h${min%60}m`;
+function renderHistoryPage() {
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">📜 历史记录</h1>
+                    <div class="page-subtitle">任务历史、统计趋势和经验教训</div>
+                </div>
+            </div>
+            <div class="page-header-actions">
+                <button class="btn ghost sm" onclick="importHistory()">导入历史</button>
+                <button class="btn ghost sm" onclick="loadHistory()">🔄 刷新</button>
+            </div>
+        </div>
+        
+        <div id="history-body">
+            ${historyData !== null ? renderHistory() : '<div class="history-loading">加载中...</div>'}
+        </div>
+    `;
 }
-function taskDuration(task) {
-    if (!task) return '-';
-    const stages = task.stages || {};
-    let earliest = null, latest = null;
-    for (const s of Object.values(stages)) {
-        if (s.started_at) { const d = new Date(s.started_at); if (!earliest || d < earliest) earliest = d; }
-        if (s.ended_at) { const d = new Date(s.ended_at); if (!latest || d > latest) latest = d; }
-    }
-    if (!earliest) return '-';
-    if (!latest && task.status === 'running') latest = new Date();
-    if (!latest) return '-';
-    return fmtDuration(earliest.toISOString(), latest.toISOString());
+
+function renderEventsPage() {
+    return `
+        <div class="page-header">
+            <div class="page-header-left">
+                <div>
+                    <h1 class="page-title">⚡ 事件流</h1>
+                    <div class="page-subtitle">实时系统事件</div>
+                </div>
+            </div>
+            <div class="page-header-actions">
+                <div class="feed-filter">
+                    ${['all','info','success','warning','error'].map(f => `<button class="btn sm ${feedFilter===f?'active':''}" onclick="feedFilter='${f}';renderApp()">${f}</button>`).join('')}
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-body">
+                ${renderFeed(latestEvents)}
+            </div>
+        </div>
+    `;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   COMPONENT RENDERERS
+   ══════════════════════════════════════════════════════════════ */
 
 function renderPipeline(task) {
     if (!task) return '<div class="empty">暂无活动任务</div>';
@@ -2628,10 +3518,10 @@ function renderPipeline(task) {
 function renderKanban(tasks) {
     if (!tasks.length) return '<div class="empty">还没有任务。先提交一个请求。</div>';
     const cols = [
-        {key:'progress',title:'In Progress',cls:'progress'},
-        {key:'review',title:'In Review',cls:'review'},
-        {key:'done',title:'Done',cls:'done'},
-        {key:'attention',title:'Needs Attention',cls:'attention'}
+        {key:'progress',title:'进行中',cls:'progress'},
+        {key:'review',title:'待审批',cls:'review'},
+        {key:'done',title:'已完成',cls:'done'},
+        {key:'attention',title:'需关注',cls:'attention'}
     ];
     const grouped = {}; cols.forEach(c=>grouped[c.key]=[]);
     tasks.forEach(t=>grouped[classifyTask(t)].push(t));
@@ -2646,15 +3536,15 @@ function renderKanban(tasks) {
                     <div class="task-card-head"><div><div class="task-card-title">${esc(t.title||'Untitled')}</div><div class="task-card-sub">${esc(t.source||'unknown')} · ${esc(humanStage(t.current_stage||'queued'))}</div></div><span class="badge ${statusCls(t.status)}">${esc(t.status||'queued')}</span></div>
                     <div class="task-card-body">${esc(t.request_text||'')}</div>
                     <div class="task-card-progress"><div class="task-card-progress-top"><span>${esc(t.id||'-')}</span><span>${p}%</span></div><div class="task-microbar"><span style="width:${p}%"></span></div></div>
-                    <div class="task-card-badges">${badges||'<span class="badge queued">queued</span>'}${t.status==='failed'?`<button class="btn danger sm" style="margin-left:auto" onclick="retryTask('${esc(t.id)}')">从失败处继续</button><button class="btn ghost sm" onclick="deleteTask('${esc(t.id)}')">删除</button>`:(t.status==='completed'?`<button class="btn ghost sm" style="margin-left:auto" onclick="deleteTask('${esc(t.id)}')">删除</button>`:'')}</div>
+                    <div class="task-card-badges">${badges||'<span class="badge queued">queued</span>'}${t.status==='failed'?`<button class="btn danger sm" style="margin-left:auto" onclick="retryTask('${esc(t.id)}')">重试</button><button class="btn ghost sm" onclick="deleteTask('${esc(t.id)}')">删除</button>`:(t.status==='completed'?`<button class="btn ghost sm" style="margin-left:auto" onclick="deleteTask('${esc(t.id)}')">删除</button>`:'')}</div>
                 </div>`;
-            }).join('') : '<div class="empty">无</div>'}</div>
+            }).join('') : '<div class="empty no-icon"><div class="empty-title">暂无任务</div></div>'}</div>
         </div>`;
     }).join('')}</div>`;
 }
 
 function renderApprovals(approvals) {
-    if (!approvals.length) return '<div class="empty">当前没有待处理审批</div>';
+    if (!approvals.length) return '<div class="empty"><div class="empty-title">当前没有待处理审批</div><div class="empty-desc">审批请求将在任务需要人工干预时出现</div></div>';
     return `<div style="display:grid;gap:12px">${approvals.map(a => {
         const tid = JSON.stringify(String(a.task_id||''));
         const aid = JSON.stringify(String(a.id||''));
@@ -2670,8 +3560,8 @@ function renderApprovals(approvals) {
 }
 
 function renderAgents(agents) {
-    if (!agents.length) return '<div class="empty">暂无 Agent 状态</div>';
-    return `<div class="agent-grid">${agents.map(a => `
+    if (!agents.length) return '<div class="empty"><div class="empty-title">暂无 Agent 状态</div><div class="empty-desc">Agent 信息将在任务运行时显示</div></div>';
+    return `<div class="agent-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))">${agents.map(a => `
         <div class="agent-card">
             <div class="agent-top"><div><div class="agent-name">${esc(a.name||'Agent')}</div><div class="agent-model">${esc(a.model||'-')}</div></div><span class="badge ${statusCls(a.status)}">${esc(a.status||'idle')}</span></div>
             <div class="agent-role">${esc(a.role||'')}</div>
@@ -2680,20 +3570,223 @@ function renderAgents(agents) {
     `).join('')}</div>`;
 }
 
+function renderFeed(events) {
+    let filtered = [...events].reverse().slice(0,150);
+    if (feedFilter !== 'all') filtered = filtered.filter(e => e.level === feedFilter);
+    if (!filtered.length) return '<div class="empty"><div class="empty-title">暂无事件</div></div>';
+    return `<div class="feed" style="max-height:calc(100vh - 250px)">${filtered.map(e => `
+        <div class="feed-item">
+            <div class="feed-top">
+                <span class="feed-dot ${esc(e.level||'info')}"></span>
+                <span class="feed-time">${fmtTime(e.timestamp)}</span>
+                <span class="feed-source">${esc(e.source||'system')}</span>
+                ${e.stage?`<span class="feed-stage-tag">${esc(humanStage(e.stage))}</span>`:''}
+            </div>
+            <div class="feed-msg">${esc(e.message||'')}</div>
+        </div>
+    `).join('')}</div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GLOBAL SEARCH (Placeholder)
+   ══════════════════════════════════════════════════════════════ */
+
+function showGlobalSearch() {
+    showToast('全局搜索功能开发中...');
+}
+
+// Keyboard shortcut for search
+document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        showGlobalSearch();
+    }
+});
+
+/* ══════════════════════════════════════════════════════════════
+   HISTORY & MEMORY
+   ══════════════════════════════════════════════════════════════ */
+
+let historyData = null;
+let statsData = null;
+let lessonsData = null;
+
+async function loadHistory() {
+    const hb = document.getElementById('history-body');
+    if (!hb) return;
+    hb.innerHTML = '<div class="history-loading" style="text-align:center;padding:40px;color:var(--text-muted)"><div class="loading-spinner lg" style="margin:0 auto 16px"></div>加载中...</div>';
+    
+    try {
+        const [historyRes, statsRes, lessonsRes] = await Promise.all([
+            fetch('/api/memory/history?limit=30'),
+            fetch('/api/memory/statistics'),
+            fetch('/api/memory/lessons?limit=10'),
+        ]);
+        historyData = await historyRes.json();
+        statsData = await statsRes.json();
+        lessonsData = await lessonsRes.json();
+        
+        hb.innerHTML = renderHistory();
+    } catch (e) {
+        hb.innerHTML = `<div class="empty"><div class="empty-title">加载失败</div><div class="empty-desc">${e.message}</div></div>`;
+    }
+}
+
+async function importHistory() {
+    const hb = document.getElementById('history-body');
+    if (hb) hb.innerHTML = '<div class="history-loading" style="text-align:center;padding:40px;color:var(--text-muted)"><div class="loading-spinner lg" style="margin:0 auto 16px"></div>正在导入历史任务...</div>';
+    
+    try {
+        const res = await fetch('/api/memory/import', { method: 'POST' });
+        const data = await res.json();
+        showToast(`已导入 ${data.imported} 个历史任务`);
+        await loadHistory();
+    } catch (e) {
+        showToast(`导入失败: ${e.message}`, true);
+        if (hb) hb.innerHTML = `<div class="empty"><div class="empty-title">导入失败</div><div class="empty-desc">${e.message}</div></div>`;
+    }
+}
+
+function renderHistory() {
+    const stats = statsData || {};
+    const tasks = historyData || [];
+    const lessons = lessonsData || [];
+    
+    // 如果没有数据，显示空状态和导入提示
+    if (stats.total_tasks === 0 && tasks.length === 0) {
+        return `
+            <div class="history-empty">
+                <div class="he-icon">📋</div>
+                <div class="he-title">暂无历史记录</div>
+                <div class="he-desc">完成任务后将自动记录，或点击"导入历史"从现有任务导入</div>
+                <button class="btn primary" onclick="importHistory()">导入历史任务</button>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="history-container">
+            <!-- Statistics Cards -->
+            <div class="history-stats">
+                <div class="history-stat-card">
+                    <div class="hsc-icon">📊</div>
+                    <div class="hsc-content">
+                        <div class="hsc-value">${stats.total_tasks || 0}</div>
+                        <div class="hsc-label">历史任务</div>
+                    </div>
+                </div>
+                <div class="history-stat-card success">
+                    <div class="hsc-icon">✅</div>
+                    <div class="hsc-content">
+                        <div class="hsc-value">${stats.success_rate || 0}%</div>
+                        <div class="hsc-label">成功率</div>
+                    </div>
+                </div>
+                <div class="history-stat-card">
+                    <div class="hsc-icon">⏱️</div>
+                    <div class="hsc-content">
+                        <div class="hsc-value">${fmtDurationSec(stats.avg_duration_seconds || 0)}</div>
+                        <div class="hsc-label">平均耗时</div>
+                    </div>
+                </div>
+                <div class="history-stat-card">
+                    <div class="hsc-icon">🎯</div>
+                    <div class="hsc-content">
+                        <div class="hsc-value">${fmtTokensK(stats.avg_tokens_per_task || 0)}</div>
+                        <div class="hsc-label">平均Token</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Daily Trend Chart (simple text version) -->
+            ${stats.daily_trend && stats.daily_trend.length > 0 ? `
+            <div class="history-trend">
+                <div class="ht-title">📈 近7天趋势</div>
+                <div class="ht-chart">
+                    ${stats.daily_trend.map(d => `
+                        <div class="ht-bar">
+                            <div class="ht-bar-fill" style="height: ${Math.max(5, d.count * 20)}px">
+                                <span class="ht-bar-count">${d.count}</span>
+                            </div>
+                            <div class="ht-bar-label">${d.day.slice(5)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- Two Column: Task List + Lessons -->
+            <div class="history-two-col">
+                <!-- Task History List -->
+                <div class="history-tasks">
+                    <div class="ht-section-title">📋 任务历史</div>
+                    ${tasks.length === 0 ? '<div class="empty">暂无历史任务</div>' : `
+                    <div class="history-task-list">
+                        ${tasks.map(t => `
+                            <div class="history-task-item ${t.status}">
+                                <div class="hti-header">
+                                    <span class="hti-status ${t.status === 'completed' ? 'success' : 'failed'}">${t.status === 'completed' ? '✓' : '✗'}</span>
+                                    <span class="hti-title">${esc(t.title)}</span>
+                                    <span class="hti-time">${fmtTime(t.created_at)}</span>
+                                </div>
+                                <div class="hti-meta">
+                                    <span class="hti-duration">⏱ ${fmtDurationSec(t.duration_seconds)}</span>
+                                    <span class="hti-tokens">🎯 ${fmtTokensK(t.total_tokens)}</span>
+                                    <span class="hti-stages">📦 ${t.stages_passed?.length || 0} passed</span>
+                                </div>
+                                ${t.tags && t.tags.length > 0 ? `
+                                <div class="hti-tags">
+                                    ${t.tags.map(tag => `<span class="hti-tag">${esc(tag)}</span>`).join('')}
+                                </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    `}
+                </div>
+                
+                <!-- Lessons Learned -->
+                <div class="history-lessons">
+                    <div class="ht-section-title">💡 经验教训</div>
+                    ${lessons.length === 0 ? '<div class="empty">暂无经验教训</div>' : `
+                    <div class="lessons-list">
+                        ${lessons.map(l => `
+                            <div class="lesson-item">
+                                <div class="li-header">
+                                    <span class="li-stage">${esc(humanStage(l.stage))}</span>
+                                    <span class="li-type">${esc(l.failure_type)}</span>
+                                </div>
+                                <div class="li-summary">${esc(l.failure_summary.slice(0, 100))}${l.failure_summary.length > 100 ? '...' : ''}</div>
+                                ${l.prevention_strategy ? `
+                                <div class="li-prevention">
+                                    <span class="li-prevent-icon">💡</span>
+                                    <span>${esc(l.prevention_strategy)}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    `}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 async function loadArtifacts(taskId) {
     artifactTaskId = taskId;
     openArtifacts.clear();
     const ab = document.getElementById('artifact-body');
     if (!taskId) {
-        if (ab) ab.innerHTML = '<div class="empty">选择一个任务查看产物</div>';
+        if (ab) ab.innerHTML = '<div class="empty"><div class="empty-title">选择一个任务</div><div class="empty-desc">从下拉菜单选择任务查看其产物</div></div>';
         return;
     }
-    if (ab) ab.innerHTML = '<div class="empty">加载中...</div>';
+    if (ab) ab.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)"><div class="loading-spinner lg" style="margin:0 auto 16px"></div>加载中...</div>';
     if (!artifactCache[taskId]) {
         const r = await fetch(`/api/tasks/${taskId}/artifacts`);
         artifactCache[taskId] = await r.json();
     }
-    if (ab) ab.innerHTML = renderArtifacts(artifactCache[taskId]);
+    if (ab) ab.innerHTML = renderArtifactsContent(artifactCache[taskId]);
 }
 
 function toggleArtifact(id) {
@@ -2711,16 +3804,16 @@ function downloadArtifact(name, content) {
     URL.revokeObjectURL(url);
 }
 
-function renderArtifacts(data) {
-    if (!data || !Object.keys(data).length) return '<div class="empty">该任务暂无产物</div>';
+function renderArtifactsContent(data) {
+    if (!data || !Object.keys(data).length) return '<div class="empty"><div class="empty-title">暂无产物</div><div class="empty-desc">该任务还没有生成任何产物文件</div></div>';
     let counter = 0;
     return `<div class="artifact-stages">${STAGES.map(stage => {
         const files = data[stage];
         if (!files || !files.length) return '';
         return `<div>
             <div class="artifact-stage-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
-                <span class="artifact-stage-name">${esc(humanStage(stage))}</span>
-                <span class="artifact-stage-count">${files.length} file${files.length>1?'s':''}</span>
+                <span class="artifact-stage-name">${getStageIcon(stage)} ${esc(humanStage(stage))}</span>
+                <span class="artifact-stage-count">${files.length} 文件</span>
             </div>
             <div class="artifact-files" style="display:none">${files.map(f => {
                 const id = 'af-' + (counter++);
@@ -2743,6 +3836,11 @@ function renderArtifacts(data) {
             }).join('')}</div>
         </div>`;
     }).join('')}</div>`;
+}
+
+// Backwards compatibility
+function renderArtifacts(data) {
+    return renderArtifactsContent(data);
 }
 
 function renderFeed(events) {
@@ -2789,21 +3887,23 @@ let pendingAddStage = null;
 
 function initPipelineEditor() {
     if (!editorLoaded) {
-        editorStages = STAGES.map(id => {
+        const sourceStages = SAVED_PIPELINE_STAGES?.length ? SAVED_PIPELINE_STAGES : STAGES.map(id => ({id}));
+        editorStages = sourceStages.map(item => {
+            const id = toStageId(item);
             const stage = ALL_STAGES.find(s => s.id === id);
-            return stage ? {...stage} : {id, name: id, agent: '-', icon: '⚙️'};
+            return stage ? {...stage} : {id, name: item?.name || id, agent: item?.agent || '-', icon: '⚙️'};
         });
-        // Initialize default fallback rules
         fallbackRules = {};
         editorStages.forEach(s => {
-            fallbackRules[s.id] = { enabled: false, targetStageId: '', maxRetries: 3 };
+            const saved = sourceStages.find(item => toStageId(item) === s.id)?.fallback;
+            fallbackRules[s.id] = saved
+                ? { enabled: !!saved.enabled, targetStageId: saved.targetStageId || '', maxRetries: saved.maxRetries || 3 }
+                : { enabled: false, targetStageId: '', maxRetries: 3 };
         });
-        // Default: testing fails -> development
-        if (fallbackRules.testing) {
+        if (!SAVED_PIPELINE_STAGES?.length && fallbackRules.testing) {
             fallbackRules.testing = { enabled: true, targetStageId: 'development', maxRetries: 3 };
         }
-        // Default: code_review fails -> development
-        if (fallbackRules.code_review) {
+        if (!SAVED_PIPELINE_STAGES?.length && fallbackRules.code_review) {
             fallbackRules.code_review = { enabled: true, targetStageId: 'development', maxRetries: 2 };
         }
         editorLoaded = true;
@@ -3242,18 +4342,23 @@ function pipeRemove(idx) {
 }
 
 function resetPipelineEditor() {
-    editorStages = STAGES.map(id => {
+    const sourceStages = SAVED_PIPELINE_STAGES?.length ? SAVED_PIPELINE_STAGES : STAGES.map(id => ({id}));
+    editorStages = sourceStages.map(item => {
+        const id = toStageId(item);
         const stage = ALL_STAGES.find(s => s.id === id);
-        return stage ? {...stage} : {id, name: id, agent: '-', icon: '⚙️'};
+        return stage ? {...stage} : {id, name: item?.name || id, agent: item?.agent || '-', icon: '⚙️'};
     });
     fallbackRules = {};
     editorStages.forEach(s => {
-        fallbackRules[s.id] = { enabled: false, targetStageId: '', maxRetries: 3 };
+        const saved = sourceStages.find(item => toStageId(item) === s.id)?.fallback;
+        fallbackRules[s.id] = saved
+            ? { enabled: !!saved.enabled, targetStageId: saved.targetStageId || '', maxRetries: saved.maxRetries || 3 }
+            : { enabled: false, targetStageId: '', maxRetries: 3 };
     });
-    if (fallbackRules.testing) {
+    if (!SAVED_PIPELINE_STAGES?.length && fallbackRules.testing) {
         fallbackRules.testing = { enabled: true, targetStageId: 'development', maxRetries: 3 };
     }
-    if (fallbackRules.code_review) {
+    if (!SAVED_PIPELINE_STAGES?.length && fallbackRules.code_review) {
         fallbackRules.code_review = { enabled: true, targetStageId: 'development', maxRetries: 2 };
     }
     selectedStageId = null;
@@ -3275,6 +4380,7 @@ async function savePipeline() {
     const data = await r.json();
     pipelineIsCustom = data.is_custom ?? true;
     pipelineFetched = true;
+    SAVED_PIPELINE_STAGES = stages;
     
     // Update global STAGES to match editor (before fetchRuntime which would reset)
     STAGES = editorStages.map(s => s.id);
@@ -3311,6 +4417,7 @@ async function restoreDefaultPipeline() {
     await fetch('/api/pipeline/reset', {method:'POST'});
     pipelineIsCustom = false;
     pipelineFetched = true;
+    SAVED_PIPELINE_STAGES = null;
     
     // Reset STAGES to default
     STAGES = [...DEFAULT_STAGES];
@@ -3343,8 +4450,33 @@ function connectStream() {
 }
 
 /* ── Boot ── */
-fetchRuntime().then(connectStream);
-setInterval(fetchRuntime, 15000);
+(function init() {
+    console.log('[HARNESS] Init started');
+    
+    // Restore sidebar state - default to expanded
+    const savedCollapsed = localStorage.getItem('sidebarCollapsed');
+    sidebarCollapsed = savedCollapsed === 'true';
+    
+    // Only auto-collapse on very small screens (mobile)
+    const checkScreenSize = () => {
+        if (window.innerWidth < 768) {
+            sidebarCollapsed = true;
+        }
+    };
+    // Don't auto-collapse on init, let user control
+    // checkScreenSize();
+    // window.addEventListener('resize', checkScreenSize);
+    
+    // Start fetching data
+    console.log('[HARNESS] Fetching runtime...');
+    fetchRuntime().then(() => {
+        console.log('[HARNESS] Runtime fetched, connecting stream...');
+        connectStream();
+    }).catch(err => {
+        console.error('[HARNESS] Error fetching runtime:', err);
+    });
+    setInterval(fetchRuntime, 15000);
+})();
 </script>
 </body>
 </html>

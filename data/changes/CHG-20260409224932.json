@@ -1,0 +1,13 @@
+{
+  "change_id": "CHG-20260409224932",
+  "timestamp": "2026-04-09T22:49:32.448759",
+  "change_description": "跳跳棋",
+  "affected_requirements": [],
+  "affected_designs": [],
+  "affected_code_modules": [],
+  "affected_test_cases": [],
+  "stages_to_rerun": [
+    "requirements"
+  ],
+  "impact_level": "low"
+}

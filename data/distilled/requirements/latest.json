@@ -1,13 +1,13 @@
 {
   "stage": "requirements",
-  "original_size": 10715,
-  "distilled_size": 346,
-  "compression_ratio": 0.97,
+  "original_size": 1421,
+  "distilled_size": 318,
+  "compression_ratio": 0.78,
   "key_decisions": [],
   "api_summary": [],
   "data_entities": [],
   "unresolved_issues": [],
   "quality_score": null,
-  "handoff_summary": "功能点数量: 28\n验收标准数量: 28\n性能指标: 150, 150, 10, 50, 200, 500, 16, 1, 150, 150\n",
-  "created_at": "2026-04-08T22:53:26.288668"
+  "handoff_summary": "功能点数量: 0\n验收标准数量: 1\n性能指标: 3, 2, 80, 3, 2, 80\n",
+  "created_at": "2026-04-09T22:49:32.442498"
 }

@@ -10,9 +10,9 @@
   "created_at": "2026-04-08T14:00:54.006313",
   "updated_at": "2026-04-08T14:00:54.720109",
   "budget": {
-    "used": 71022,
+    "used": 114411,
     "limit": 500000,
-    "percent": 14.2,
+    "percent": 22.9,
     "status": "ok"
   },
   "stages": {

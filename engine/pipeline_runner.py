@@ -29,6 +29,8 @@ except ImportError as exc:
 from distillers.context_distiller import ContextDistiller
 from event_bus import EventBus
 from integrations import BuildVerificationAdapter, ClaudeCLIAdapter, FeishuAdapter, GerritAdapter, HILAdapter
+from memory_store import MemoryStore
+from memory_extractor import MemoryExtractor, MemoryInjector
 from reviewers.change_impact_analyzer import ChangeImpactAnalyzer
 from reviewers.consistency_checker import ConsistencyChecker
 from state_store import StateStore
@@ -142,6 +144,9 @@ class PipelineRunner:
         self.engine = PipelineEngine(harness_dir, budget_limit=self.settings["budget_limit"])
         self.event_bus = EventBus(self.data_dir)
         self.distiller = ContextDistiller(harness_dir)
+        self.memory_store = MemoryStore(harness_dir)
+        self.memory_extractor = MemoryExtractor(self.memory_store)
+        self.memory_injector = MemoryInjector(self.memory_store)
         self.consistency_checker = ConsistencyChecker(harness_dir)
         self.change_impact_analyzer = ChangeImpactAnalyzer(harness_dir)
         self.claude = ClaudeCLIAdapter(self.settings["claude"])
@@ -177,6 +182,7 @@ class PipelineRunner:
                 "output_format": "stream-json",
                 "simulate": os.environ.get("HARNESS_SIMULATE_CLAUDE", "1") == "1",
                 "hard_timeout_seconds": int(os.environ.get("HARNESS_CLAUDE_HARD_TIMEOUT", "1800")),
+                "idle_timeout_seconds": int(os.environ.get("HARNESS_CLAUDE_IDLE_TIMEOUT", "300")),
                 "max_tokens_per_run": int(os.environ.get("HARNESS_CLAUDE_MAX_TOKENS_PER_RUN", "0")),
             },
             "feishu": {
@@ -230,9 +236,6 @@ class PipelineRunner:
     def _resolve_pipeline_order(self) -> List[str]:
         configured = [stage.get("id") for stage in self.pipeline_config.get("stages", []) if stage.get("id")]
         if configured:
-            missing_required = [stage for stage in DEFAULT_PIPELINE_ORDER if stage not in configured]
-            if missing_required:
-                return list(DEFAULT_PIPELINE_ORDER)
             seen = set()
             order = []
             for stage in configured:
@@ -291,6 +294,20 @@ class PipelineRunner:
             for stage in self.pipeline_order
         }
 
+    def _task_pipeline_order(self, task: Dict) -> List[str]:
+        snapshot = task.get("pipeline_snapshot") or []
+        if snapshot:
+            order = []
+            seen = set()
+            for item in snapshot:
+                stage_id = item if isinstance(item, str) else item.get("id")
+                if stage_id and stage_id not in seen:
+                    order.append(stage_id)
+                    seen.add(stage_id)
+            if order:
+                return order
+        return list(self.pipeline_order)
+
     def _persist_runtime(self) -> None:
         self.runtime["updated_at"] = datetime.now().isoformat()
         self.state_store.save_document("runtime_state", self.runtime)
@@ -342,6 +359,8 @@ class PipelineRunner:
         content = f"# {title or 'User Request'}\n\n{text.strip()}\n"
         self._save_text(spec_path, content)
         run_dir = self._ensure_run_layout(task_id)
+        pipeline_snapshot = json.loads(json.dumps(self.pipeline_config.get("stages", []), ensure_ascii=False))
+        first_stage = (pipeline_snapshot[0].get("id") if pipeline_snapshot else None) or self.pipeline_order[0]
 
         task = {
             "id": task_id,
@@ -352,7 +371,7 @@ class PipelineRunner:
             "spec_file": spec_file,
             "run_dir": run_dir,
             "status": "queued",
-            "current_stage": "intake",
+            "current_stage": first_stage,
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
             "approvals": [],
@@ -360,7 +379,7 @@ class PipelineRunner:
             "artifacts": {},
             "gerrit": {},
             "stages": self._empty_stage_map(),
-            "pipeline_snapshot": list(self.pipeline_order),  # Record pipeline at task creation time
+            "pipeline_snapshot": pipeline_snapshot,
         }
 
         with self.lock:
@@ -448,11 +467,84 @@ class PipelineRunner:
             if self.paused:
                 time.sleep(1)
                 continue
+            # First check if there's a running task that needs to be resumed
+            running_task = self._get_running_task()
+            if running_task:
+                self._resume_running_task(running_task)
+                continue
+            # Then check for queued tasks
             next_task = self._next_queued_task()
             if next_task is None:
                 time.sleep(1)
                 continue
             self._process_task(next_task)
+
+    def _get_running_task(self) -> Optional[Dict]:
+        """Get a task that was left in 'running' state (e.g., after restart)."""
+        with self.lock:
+            current_id = self.runtime.get("current_task_id")
+            if current_id:
+                for task in self.runtime["tasks"]:
+                    if task["id"] == current_id and task["status"] == "running":
+                        return task
+        return None
+
+    def _resume_running_task(self, task: Dict) -> None:
+        """Resume a task that was interrupted (e.g., by a restart)."""
+        task_id = task["id"]
+        task_pipeline_order = self._task_pipeline_order(task)
+        self._emit("task_resumed", f"Resuming interrupted task: {task['title']}", source="pipeline", task_id=task_id)
+        
+        # Find the stage that was running and reset it
+        for stage in task_pipeline_order:
+            stage_data = task["stages"].get(stage, {})
+            if stage_data.get("status") == "running":
+                # This stage was interrupted, mark it for retry
+                stage_data["status"] = "pending"
+                stage_data["attempts"] = stage_data.get("attempts", 1)  # Keep retry count
+                now = datetime.now().isoformat()
+                task["updated_at"] = now
+                self._persist_runtime()
+                break
+        
+        # Continue processing
+        self._continue_task(task)
+
+    def _continue_task(self, task: Dict) -> None:
+        """Continue processing a task from where it left off."""
+        task_id = task["id"]
+        task_pipeline_order = self._task_pipeline_order(task)
+        self.engine.snapshot.current_spec = task["spec_file"]
+        self._update_latest_run_link(task["run_dir"])
+        
+        context = {"request_text": task["request_text"]}
+        context.update(task.get("context", {}))
+
+        for stage in task_pipeline_order:
+            stage_data = task["stages"].get(stage, {})
+            if stage_data.get("status") in ("passed", "completed"):
+                continue
+            
+            if not self.running:
+                return
+            if self.paused:
+                return
+            
+            task["current_stage"] = stage
+            self._persist_runtime()
+            
+            if stage == "delivery":
+                if not self._run_delivery_stage(task, context):
+                    return
+                continue
+            if stage == "build_verification":
+                if not self._run_build_verification_stage(task, context):
+                    return
+                continue
+            if not self._run_stage_with_retries(task, stage, context):
+                return
+        
+        self._complete_task(task)
 
     def _next_queued_task(self) -> Optional[Dict]:
         with self.lock:
@@ -463,6 +555,7 @@ class PipelineRunner:
 
     def _process_task(self, task: Dict) -> None:
         task_id = task["id"]
+        task_pipeline_order = self._task_pipeline_order(task)
         with self.lock:
             task["status"] = "running"
             task["updated_at"] = datetime.now().isoformat()
@@ -486,7 +579,7 @@ class PipelineRunner:
         context = {"request_text": task["request_text"]}
         context.update(task.get("context", {}))
 
-        for stage in self.pipeline_order:
+        for stage in task_pipeline_order:
             # Skip stages that already passed (resume support)
             stage_data = task["stages"].get(stage, {})
             if stage_data.get("status") in ("passed", "completed"):
@@ -535,9 +628,12 @@ class PipelineRunner:
         
         for attempt in range(1, max_retries + 1):
             with self.lock:
+                now = datetime.now().isoformat()
+                task["updated_at"] = now
                 stage_state["attempts"] = attempt
                 stage_state["status"] = "running"
-                stage_state["started_at"] = datetime.now().isoformat()
+                stage_state["started_at"] = now
+                stage_state["last_event_at"] = now
                 stage_state["summary"] = ""
                 self._persist_runtime()
             self.engine.start_stage(stage)
@@ -756,26 +852,34 @@ class PipelineRunner:
         return False
 
     def _fail_task(self, task: Dict, reason: str) -> None:
+        failed_stage = task.get("current_stage", "unknown")
         with self.lock:
             task["status"] = "failed"
             task["updated_at"] = datetime.now().isoformat()
             self.runtime["current_task_id"] = None
             self._persist_runtime()
         self._write_run_metadata(task, final_status="failed", failure_reason=reason)
-        self.engine.add_alert("critical", task.get("current_stage", "pipeline"), reason, action_required=True)
+        self.engine.add_alert("critical", failed_stage, reason, action_required=True)
         self._emit("task_failed", reason, source="pipeline", task_id=task["id"], level="error")
         self._notify_task_update(task, f"Task failed: {reason}")
+        
+        # 提取失败经验教训到记忆系统
+        try:
+            self.memory_extractor.extract_from_failed_task(task, failed_stage, reason)
+        except Exception as e:
+            self._emit("memory_error", f"Failed to extract lesson: {e}", source="memory", level="warning")
 
     def retry_task(self, task_id: str) -> Dict:
         """Resume a failed task from the failed stage, keeping passed stages intact."""
         with self.lock:
             task = self._require_task(task_id)
+            task_pipeline_order = self._task_pipeline_order(task)
             if task["status"] != "failed":
                 raise ValueError(f"Task {task_id} is not failed (status={task['status']})")
 
             # Find the first non-passed stage to resume from
             resume_stage = None
-            for stage_id in self.pipeline_order:
+            for stage_id in task_pipeline_order:
                 stage_data = task["stages"].get(stage_id, {})
                 if stage_data.get("status") not in ("passed", "completed"):
                     resume_stage = stage_id
@@ -783,7 +887,7 @@ class PipelineRunner:
 
             # Reset the failed stage and all stages after it
             found = False
-            for stage_id in self.pipeline_order:
+            for stage_id in task_pipeline_order:
                 if stage_id == resume_stage:
                     found = True
                 if found:
@@ -803,11 +907,11 @@ class PipelineRunner:
                     task["context"].pop(stage_id, None)
 
             task["status"] = "queued"
-            task["current_stage"] = resume_stage or self.pipeline_order[0]
+            task["current_stage"] = resume_stage or task_pipeline_order[0]
             task["updated_at"] = datetime.now().isoformat()
             self._persist_runtime()
 
-        passed = [s for s in self.pipeline_order if task["stages"].get(s, {}).get("status") in ("passed", "completed")]
+        passed = [s for s in task_pipeline_order if task["stages"].get(s, {}).get("status") in ("passed", "completed")]
         self._emit("task_retried", f"Task resumed from {resume_stage} ({len(passed)} stages kept)", source="system", task_id=task_id)
         return task
 
@@ -829,13 +933,20 @@ class PipelineRunner:
 
         with self.lock:
             task["status"] = "completed"
-            task["updated_at"] = datetime.now().isoformat()
+            task["completed_at"] = datetime.now().isoformat()
+            task["updated_at"] = task["completed_at"]
             self.runtime["current_task_id"] = None
             self._persist_runtime()
         self._write_run_metadata(task, final_status="completed")
         self.engine.transition("all_pass")
         self._emit("task_completed", f"Task completed: {task['title']}", source="pipeline", task_id=task["id"], level="success")
         self._notify_task_update(task, f"Task completed: {task['title']}")
+        
+        # 提取任务摘要到记忆系统
+        try:
+            self.memory_extractor.extract_from_completed_task(task)
+        except Exception as e:
+            self._emit("memory_error", f"Failed to extract task summary: {e}", source="memory", level="warning")
 
     def _notify_task_update(self, task: Dict, text: str) -> None:
         chat_id = task.get("source_metadata", {}).get("chat_id")
@@ -866,6 +977,9 @@ class PipelineRunner:
 
         with self.lock:
             task_stage = task["stages"].setdefault(stage, self._empty_stage_map().get(stage, {}))
+            now = datetime.now().isoformat()
+            task["updated_at"] = now
+            task_stage["last_event_at"] = now
             task_stage.setdefault("logs", []).append({"timestamp": datetime.now().isoformat(), "message": message})
             task_stage["logs"] = task_stage["logs"][-50:]
             self._persist_runtime()
@@ -897,6 +1011,16 @@ class PipelineRunner:
             "",
         ]
         
+        # Inject memory context (historical experience)
+        memory_section = []
+        try:
+            agent_id = STAGE_TO_AGENT.get(stage, stage)
+            memory_ctx = self.memory_injector.build_memory_context(stage, task["request_text"], agent_id)
+            if memory_ctx:
+                memory_section = [self.memory_injector.format_for_prompt(memory_ctx), ""]
+        except Exception:
+            pass  # Memory injection is optional
+        
         # Add retry context if this is a retry attempt
         retry_section = []
         if retry_info:
@@ -923,7 +1047,7 @@ class PipelineRunner:
             "testing": "Report validation strategy, tests to run, and quality gates. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "build_verification": "Summarize CI build, static analysis, SBOM, and signing checks. End with VERDICT: PASS or FAIL.",
         }
-        return "\n".join(preamble + previous + retry_section + [f"## Stage Instructions\n{stage_instructions.get(stage, f'Complete the {stage} stage.')}" ])
+        return "\n".join(preamble + memory_section + previous + retry_section + [f"## Stage Instructions\n{stage_instructions.get(stage, f'Complete the {stage} stage.')}" ])
 
     def _summarize_result(self, stage: str, output_text: str, verdict: Optional[str]) -> tuple[str, str]:
         lines = [line.strip() for line in output_text.splitlines() if line.strip()]
@@ -1293,6 +1417,82 @@ def create_api_app(runner: PipelineRunner) -> Flask:
                 time.sleep(1)
 
         return Response(generate(), mimetype="text/event-stream")
+
+    # ==================== Memory APIs ====================
+    
+    @app.route("/api/memory/history")
+    def api_memory_history():
+        """获取任务历史"""
+        limit = request.args.get("limit", 50, type=int)
+        status = request.args.get("status")
+        since = request.args.get("since")
+        summaries = runner.memory_store.get_task_history(limit=limit, status=status, since=since)
+        return jsonify([{
+            "task_id": s.task_id,
+            "title": s.title,
+            "request_text": s.request_text[:200],
+            "status": s.status,
+            "duration_seconds": s.duration_seconds,
+            "total_tokens": s.total_tokens,
+            "stages_passed": s.stages_passed,
+            "stages_failed": s.stages_failed,
+            "tags": s.tags,
+            "created_at": s.created_at,
+            "completed_at": s.completed_at,
+        } for s in summaries])
+
+    @app.route("/api/memory/statistics")
+    def api_memory_statistics():
+        """获取任务统计"""
+        return jsonify(runner.memory_store.get_task_statistics())
+
+    @app.route("/api/memory/lessons")
+    def api_memory_lessons():
+        """获取经验教训"""
+        stage = request.args.get("stage")
+        limit = request.args.get("limit", 20, type=int)
+        if stage:
+            lessons = runner.memory_store.get_lessons_for_stage(stage, limit=limit)
+        else:
+            lessons = runner.memory_store.get_all_lessons(limit=limit)
+        return jsonify([{
+            "lesson_id": l.lesson_id,
+            "task_id": l.task_id,
+            "stage": l.stage,
+            "failure_type": l.failure_type,
+            "failure_summary": l.failure_summary,
+            "root_cause": l.root_cause,
+            "prevention_strategy": l.prevention_strategy,
+            "created_at": l.created_at,
+        } for l in lessons])
+
+    @app.route("/api/memory/project")
+    def api_memory_project():
+        """获取项目记忆"""
+        category = request.args.get("category")
+        limit = request.args.get("limit", 20, type=int)
+        memories = runner.memory_store.get_project_memories(category=category, limit=limit)
+        return jsonify([{
+            "memory_id": m.memory_id,
+            "category": m.category,
+            "content": m.content,
+            "confidence": m.confidence,
+            "usage_count": m.usage_count,
+            "created_at": m.created_at,
+        } for m in memories])
+
+    @app.route("/api/memory/import", methods=["POST"])
+    def api_memory_import():
+        """从现有任务导入历史记录"""
+        imported = 0
+        for task in runner.runtime.get("tasks", []):
+            if task.get("status") in ("completed", "failed"):
+                try:
+                    runner.memory_extractor.extract_from_completed_task(task)
+                    imported += 1
+                except Exception:
+                    pass
+        return jsonify({"imported": imported})
 
     @app.route("/api/health")
     def api_health():

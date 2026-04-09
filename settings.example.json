@@ -8,6 +8,7 @@
     "output_format": "stream-json",
     "simulate": true,
     "hard_timeout_seconds": 1800,
+    "idle_timeout_seconds": 300,
     "max_tokens_per_run": 0
   },
   "feishu": {
