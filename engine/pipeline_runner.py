@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -595,6 +596,24 @@ class PipelineRunner:
                 task["updated_at"] = datetime.now().isoformat()
                 self._persist_runtime()
 
+            # ADB probe: run once before the testing stage and cache result in context
+            if stage == "testing" and "adb_probe" not in context:
+                probe = self._probe_adb()
+                context["adb_probe"] = probe
+                status_msg = (
+                    f"ADB connected — serial={probe['serial']} ({probe['device_count']} device(s))"
+                    if probe["connected"]
+                    else f"ADB not connected — {probe['devices_output']}"
+                )
+                self._emit(
+                    "adb_probe",
+                    status_msg,
+                    source="pipeline",
+                    task_id=task_id,
+                    stage=stage,
+                    data=probe,
+                )
+
             if self._requires_manual_gate(task, stage):
                 approval = self._create_approval(task, stage, "Risky request requires human confirmation before continuing")
                 approved = self._wait_for_approval(task, approval)
@@ -1180,6 +1199,23 @@ class PipelineRunner:
             (f"Complete the {stage} stage.", "Stage output", "Stage complete."),
         )
 
+        # ADB probe section — injected for the testing stage only
+        adb_section = ""
+        if stage == "testing" and "adb_probe" in context:
+            probe = context["adb_probe"]
+            status = "connected" if probe.get("connected") else "not_connected"
+            serial = probe.get("serial") or ""
+            count = probe.get("device_count", 0)
+            raw = probe.get("devices_output", "")
+            adb_section = (
+                f"\n  <adb_probe>"
+                f"\n    <status>{status}</status>"
+                f"\n    <serial>{serial}</serial>"
+                f"\n    <device_count>{count}</device_count>"
+                f"\n    <raw_output>{raw}</raw_output>"
+                f"\n  </adb_probe>"
+            )
+
         return (
             f"<task>\n"
             f"  <id>{task['id']}</id>\n"
@@ -1202,6 +1238,48 @@ class PipelineRunner:
         """Extract F-number requirement IDs from text."""
         import re as _re
         return list(dict.fromkeys(_re.findall(r'F\d{3}', text)))
+
+    @staticmethod
+    def _probe_adb() -> Dict:
+        """
+        Run `adb devices` to check whether a real device (台架) is reachable.
+        Returns a plain dict that is safe to embed in the XML prompt.
+        """
+        if not shutil.which("adb"):
+            return {
+                "available": False,
+                "connected": False,
+                "serial": None,
+                "device_count": 0,
+                "devices_output": "adb binary not found in PATH",
+            }
+        try:
+            result = subprocess.run(
+                ["adb", "devices"],
+                capture_output=True, text=True, timeout=10,
+            )
+            lines = result.stdout.strip().splitlines()
+            # Lines after the header that contain a tab and are not "offline"
+            devices = [
+                line.split("\t")[0].strip()
+                for line in lines[1:]
+                if "\t" in line and "offline" not in line and line.strip()
+            ]
+            return {
+                "available": True,
+                "connected": len(devices) > 0,
+                "serial": devices[0] if devices else None,
+                "device_count": len(devices),
+                "devices_output": result.stdout.strip(),
+            }
+        except Exception as exc:
+            return {
+                "available": False,
+                "connected": False,
+                "serial": None,
+                "device_count": 0,
+                "devices_output": str(exc),
+            }
 
     def _summarize_result(self, stage: str, output_text: str, verdict: Optional[str]) -> tuple[str, str]:
         lines = [line.strip() for line in output_text.splitlines() if line.strip()]

@@ -1,0 +1,174 @@
+# IVI 集成测试用例模板
+
+# 元信息
+meta:
+  suite_id: "IVI-SUITE-001"
+  suite_name: "导航应用集成测试"
+  package: "com.example.navigation"       # 目标应用包名
+  main_activity: ".MainActivity"
+  device_ip: "192.168.1.100"              # 台架 IP，也可通过 CLI 传入
+  req_mapping:                            # 需求追溯（Fxxx → 用例列表）
+    F001: ["TC-001", "TC-002"]
+    F002: ["TC-003"]
+    F003: ["TC-004", "TC-005"]
+
+# 性能门限（覆盖脚本默认值）
+thresholds:
+  cold_start_ms: 5000
+  warm_start_ms: 2000
+  jank_rate_pct: 5.0
+  memory_kb: 524288   # 512 MB
+
+# 测试用例列表
+test_cases:
+
+  # --------------------------------------------------
+  # 环境检查（每次测试前必跑）
+  # --------------------------------------------------
+  - id: TC-ENV-001
+    name: "台架 ADB 连接检查"
+    priority: P0
+    category: environment
+    steps:
+      - action: adb_check                  # 特殊 action，由测试框架处理
+    expected: "adb devices 返回目标设备且状态为 device"
+
+  - id: TC-ENV-002
+    name: "目标应用已安装"
+    priority: P0
+    category: environment
+    steps:
+      - action: shell
+        cmd: "pm list packages | grep com.example.navigation"
+    expected: "输出包含包名"
+
+  # --------------------------------------------------
+  # F001：应用启动
+  # --------------------------------------------------
+  - id: TC-001
+    name: "导航应用冷启动 ≤ 5s"
+    priority: P0
+    category: startup
+    req: F001
+    steps:
+      - action: shell
+        cmd: "pm clear com.example.navigation"
+      - action: wait
+        seconds: 1
+      - action: launch_app
+        package: "com.example.navigation"
+        activity: ".MainActivity"
+        assert_total_time_ms: 5000        # 断言 TotalTime ≤ 5000ms
+    expected: "应用启动并进入主界面，TotalTime ≤ 5000ms"
+
+  - id: TC-002
+    name: "导航应用热启动 ≤ 2s"
+    priority: P1
+    category: startup
+    req: F001
+    steps:
+      - action: launch_app
+        package: "com.example.navigation"
+        activity: ".MainActivity"
+      - action: wait
+        seconds: 2
+      - action: shell
+        cmd: "am force-stop com.example.navigation"
+      - action: wait
+        seconds: 0.5
+      - action: launch_app
+        package: "com.example.navigation"
+        activity: ".MainActivity"
+        assert_total_time_ms: 2000
+    expected: "热启动 TotalTime ≤ 2000ms"
+
+  # --------------------------------------------------
+  # F002：HMI 核心路径
+  # --------------------------------------------------
+  - id: TC-003
+    name: "主页 → 搜索目的地 → 选择结果"
+    priority: P0
+    category: hmi
+    req: F002
+    steps:
+      - action: go_home
+      - action: tap_element
+        resource_id: "com.example.navigation:id/btn_nav_entry"
+        wait: 5.0
+      - action: assert_activity
+        expected: "NavigationActivity"
+      - action: tap_element
+        resource_id: "com.example.navigation:id/search_box"
+        wait: 3.0
+      - action: input_text
+        text: "北京"
+      - action: wait
+        seconds: 2
+      - action: assert_text
+        resource_id: "com.example.navigation:id/first_result"
+        expected: "北京"
+      - action: screenshot
+        tag: "search_result"
+    expected: "搜索框可输入，结果列表出现，首条包含'北京'"
+
+  # --------------------------------------------------
+  # F003：连接性
+  # --------------------------------------------------
+  - id: TC-004
+    name: "蓝牙设置界面可访问"
+    priority: P1
+    category: connectivity
+    req: F003
+    steps:
+      - action: shell
+        cmd: "am start -n com.android.settings/.bluetooth.BluetoothSettings"
+      - action: wait
+        seconds: 2
+      - action: assert_activity
+        expected: "BluetoothSettings"
+      - action: screenshot
+        tag: "bt_settings"
+    expected: "蓝牙设置界面正常打开"
+
+  - id: TC-005
+    name: "Wi-Fi 状态检查"
+    priority: P2
+    category: connectivity
+    req: F003
+    steps:
+      - action: shell
+        cmd: "dumpsys wifi | grep mWifiState"
+        assert_contains: "WifiState"
+    expected: "Wi-Fi 子系统状态正常输出"
+
+  # --------------------------------------------------
+  # 性能基准
+  # --------------------------------------------------
+  - id: TC-PERF-001
+    name: "渲染帧率基准（前台操作 10s）"
+    priority: P1
+    category: performance
+    steps:
+      - action: launch_app
+        package: "com.example.navigation"
+        activity: ".MainActivity"
+      - action: wait
+        seconds: 1
+      - action: measure_frame_stats
+        duration_s: 10
+        assert_jank_rate_pct: 5.0
+    expected: "卡顿率 ≤ 5%，估算 FPS ≥ 30"
+
+  - id: TC-PERF-002
+    name: "内存基线检查"
+    priority: P1
+    category: performance
+    steps:
+      - action: launch_app
+        package: "com.example.navigation"
+        activity: ".MainActivity"
+      - action: wait
+        seconds: 3
+      - action: measure_memory
+        assert_total_pss_kb: 524288    # 512 MB
+    expected: "Total PSS ≤ 512 MB"
