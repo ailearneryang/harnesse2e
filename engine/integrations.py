@@ -75,7 +75,7 @@ class ClaudeCLIAdapter:
         ])
 
         if system_prompt:
-            cli_command.extend(["--system", system_prompt])
+            cli_command.extend(["--system-prompt", system_prompt])
 
         # stream-json requires --verbose in Claude Code CLI 2.x
         if output_format == "stream-json":
