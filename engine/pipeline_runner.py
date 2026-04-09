@@ -126,6 +126,10 @@ class PipelineRunner:
             self.specs_processed,
             self.transcript_dir,
             self.report_dir,
+            os.path.join(harness_dir, "requirements"),
+            os.path.join(harness_dir, "design"),
+            os.path.join(harness_dir, "tests", "reports"),
+            os.path.join(self.data_dir, "threads"),
         ]:
             os.makedirs(directory, exist_ok=True)
 
@@ -834,6 +838,7 @@ class PipelineRunner:
             task["status"] = "waiting_human"
             task["updated_at"] = datetime.now().isoformat()
             self._persist_runtime()
+        self._write_handoff(task)
         self._emit("approval_required", reason, source="system", task_id=task["id"], stage=stage, level="warning", data={"approval_id": approval["id"]})
         self.engine.add_alert("warning", stage, reason, action_required=True)
         return approval
@@ -851,7 +856,30 @@ class PipelineRunner:
             time.sleep(1)
         return False
 
+    def _write_handoff(self, task: Dict) -> None:
+        """Persist a HANDOFF.json snapshot so retry/resume has full context."""
+        task_dir = os.path.join(self.tasks_dir, task["id"])
+        os.makedirs(task_dir, exist_ok=True)
+        completed = [
+            s for s in self.pipeline_order
+            if task["stages"].get(s, {}).get("status") in ("passed", "completed")
+        ]
+        handoff = {
+            "task_id": task["id"],
+            "title": task["title"],
+            "paused_at": datetime.now().isoformat(),
+            "paused_stage": task.get("current_stage"),
+            "completed_stages": completed,
+            "context_snapshot": {s: v for s, v in task.get("context", {}).items()},
+            "resume_hint": (
+                f"Resume from {task.get('current_stage')} stage. "
+                f"{len(completed)} prior stage(s) are locked and must not be repeated."
+            ),
+        }
+        self._save_json(os.path.join(task_dir, "HANDOFF.json"), handoff)
+
     def _fail_task(self, task: Dict, reason: str) -> None:
+        self._write_handoff(task)
         failed_stage = task.get("current_stage", "unknown")
         with self.lock:
             task["status"] = "failed"
@@ -994,60 +1022,186 @@ class PipelineRunner:
         if status == "idle" and task_id is None and stage:
             agent["completed_tasks"] += 1
 
+    # Stage-level XML prompt specs: (action, expected_files, done_criteria)
+    _STAGE_SPECS = {
+        "intake": (
+            "Produce a concise intake summary and identify risky areas.",
+            "Intake summary",
+            "Summary written, risky areas identified.",
+        ),
+        "planning": (
+            "Break the request into a sprint contract with clear subtasks, dependencies, and definition of done.",
+            "Sprint contract with subtasks and dependencies",
+            "Sprint contract complete.",
+        ),
+        "requirements": (
+            "Write a traceable requirement spec with unique F-numbers (F001, F002…), "
+            "Given/When/Then acceptance criteria, and quantified non-functional constraints. "
+            "No vague terms like 'fast' or 'suitable'.",
+            "requirements_spec.md",
+            "Every Fxxx has at least one AC. All NFRs have numeric thresholds.",
+        ),
+        "design": (
+            "Create an implementation design covering architecture, APIs, data flow, observability, "
+            "and recovery paths. Every design decision MUST trace back to a requirement ID [REQ-Fxxx].",
+            "design/architecture.md, design/api_design.md, design/data_model.md",
+            "All decisions have requirement traceability. Every API has Request/Response/Error codes.",
+        ),
+        "development": (
+            "Implement the feature in the target repo following the design docs exactly. "
+            "API paths, field names, and error codes must match design/api_design.md precisely. "
+            "Core modules require ≥80% unit test coverage.",
+            "src/ (source code), tests/cases/ (unit tests)",
+            "Code matches design docs. Lint passes. Core modules have ≥80% test coverage.",
+        ),
+        "code_review": (
+            "Review the latest changes critically against design docs and requirements. "
+            "End your report with VERDICT: PASS, FAIL, or NEED_HUMAN.",
+            "Code review report",
+            "VERDICT declared.",
+        ),
+        "security_review": (
+            "Review for security issues: secrets exposure, auth bypass, injection vectors, "
+            "unsafe side effects. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
+            "Security review report",
+            "VERDICT declared.",
+        ),
+        "safety_review": (
+            "Review ISO 26262, AUTOSAR, OTA rollback safety, WP.29, and vehicle-side functional safety impacts. "
+            "End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
+            "Safety review report",
+            "VERDICT declared.",
+        ),
+        "testing": (
+            "First check <adb_probe><status> in context.\n"
+            "--- IF status=connected ---\n"
+            "Execute REAL on-device IVI integration tests on the connected 台架 using:\n"
+            "  .claude/skills/ivi-integration-test/scripts/adb_runner.py   (device connection, logcat, screenshots)\n"
+            "  .claude/skills/ivi-integration-test/scripts/hmi_helper.py   (HMI interaction via UIAutomator)\n"
+            "  .claude/skills/ivi-integration-test/scripts/perf_capture.py (startup/FPS/memory/CPU)\n"
+            "Follow the 5-step workflow in .claude/skills/ivi-integration-test/SKILL.md.\n"
+            "Collect logcat to tests/reports/logcat/, screenshots to tests/reports/screenshots/.\n"
+            "Write tests/reports/ivi_test_report.md using the report_template.md format.\n"
+            "--- IF status=not_connected ---\n"
+            "Design test cases (Happy Path, Sad Path, Boundary) for every Fxxx requirement.\n"
+            "Write tests/cases/test_plan.md with TC-xxx | precondition | steps | expected | priority.\n"
+            "Write tests/reports/test_report.md with execution summary, pass rate, defect list.\n"
+            "--- BOTH modes ---\n"
+            "End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
+            "tests/cases/, tests/reports/ivi_test_report.md (IVI) or tests/reports/test_report.md (standard)",
+            "VERDICT declared. All Fxxx requirements have at least one test case.",
+        ),
+        "build_verification": (
+            "Summarize CI build, static analysis, SBOM, and signing checks. End with VERDICT: PASS or FAIL.",
+            "Build verification report",
+            "VERDICT declared.",
+        ),
+    }
+
     def _build_prompt(self, task: Dict, stage: str, context: Dict, retry_info: Optional[Dict] = None) -> str:
-        previous = []
-        for prev_stage in self.pipeline_order:
-            if prev_stage == stage:
-                break
-            if prev_stage in context:
-                previous.append(f"## {prev_stage}\n{context[prev_stage].get('summary', '')}")
-        preamble = [
-            f"Task ID: {task['id']}",
-            f"Task Title: {task['title']}",
-            f"Current Stage: {stage}",
-            "",
-            "## User Request",
-            task["request_text"],
-            "",
+        task_dir = os.path.join(self.tasks_dir, task["id"])
+
+        # Load locked decisions persisted in CONTEXT.md
+        locked_decisions = self.distiller.load_locked_decisions(task_dir)
+
+        # Build distilled snapshot from completed prior stages
+        completed_stages = [
+            s for s in self.pipeline_order
+            if s != stage and s in context
         ]
-        
+        snapshot = self.distiller.build_task_context_snapshot(task, completed_stages)
+
+        # Render prior stages as XML
+        prior_stages_xml = ""
+        for s, s_data in snapshot.items():
+            handoff = s_data.get("handoff_summary", "")
+            decisions = s_data.get("key_decisions", [])
+            decisions_xml = ""
+            if decisions:
+                items = "\n".join(
+                    f"        - {d.get('id','?')}: {d.get('description','')}"
+                    if isinstance(d, dict) else f"        - {d}"
+                    for d in decisions
+                )
+                decisions_xml = f"\n      <decisions>\n{items}\n      </decisions>"
+            prior_stages_xml += (
+                f"\n    <stage name=\"{s}\">"
+                f"\n      <summary>{handoff}</summary>"
+                f"{decisions_xml}"
+                f"\n    </stage>"
+            )
+
+        locked_section = (
+            f"\n  <locked_decisions>\n{locked_decisions}\n  </locked_decisions>"
+            if locked_decisions else ""
+        )
+
         # Inject memory context (historical experience)
-        memory_section = []
+        memory_xml = ""
         try:
             agent_id = STAGE_TO_AGENT.get(stage, stage)
             memory_ctx = self.memory_injector.build_memory_context(stage, task["request_text"], agent_id)
             if memory_ctx:
-                memory_section = [self.memory_injector.format_for_prompt(memory_ctx), ""]
+                memory_xml = f"\n  <memory>\n{self.memory_injector.format_for_prompt(memory_ctx)}\n  </memory>"
         except Exception:
             pass  # Memory injection is optional
-        
-        # Add retry context if this is a retry attempt
-        retry_section = []
+
+        # Retry context
+        retry_xml = ""
         if retry_info:
-            retry_section = [
-                "",
-                "## ⚠️ RETRY ATTEMPT",
-                f"This is attempt {retry_info['attempt']} of {retry_info['max_retries']}.",
-                f"Previous attempt failed with: {retry_info['previous_summary']}",
-                f"Verdict: {retry_info['previous_verdict']}",
-                "",
-                "Please address the issues from the previous attempt and try again.",
-                "",
-            ]
-        
-        stage_instructions = {
-            "intake": "Produce a concise intake summary and identify risky areas.",
-            "planning": "Break the request into a sprint contract with clear subtasks, dependencies, and definition of done.",
-            "requirements": "Write a traceable requirement spec with IDs, acceptance criteria, and non-functional constraints.",
-            "design": "Create an implementation design covering architecture, APIs, data flow, observability, and recovery paths.",
-            "development": "Describe the implementation plan for Claude Code CLI in the target repo. Mention expected files, tests, and git workflow.",
-            "code_review": "Review the latest changes critically. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
-            "security_review": "Review security, secrets, auth, and unsafe side effects. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
-            "safety_review": "Review ISO 26262, AUTOSAR, OTA rollback safety, WP.29, and vehicle-side functional safety impacts. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
-            "testing": "Report validation strategy, tests to run, and quality gates. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
-            "build_verification": "Summarize CI build, static analysis, SBOM, and signing checks. End with VERDICT: PASS or FAIL.",
-        }
-        return "\n".join(preamble + memory_section + previous + retry_section + [f"## Stage Instructions\n{stage_instructions.get(stage, f'Complete the {stage} stage.')}" ])
+            retry_xml = (
+                f"\n  <retry>"
+                f"\n    <attempt>{retry_info['attempt']} of {retry_info['max_retries']}</attempt>"
+                f"\n    <previous_summary>{retry_info['previous_summary']}</previous_summary>"
+                f"\n    <previous_verdict>{retry_info['previous_verdict']}</previous_verdict>"
+                f"\n    <instruction>Address the issues from the previous attempt.</instruction>"
+                f"\n  </retry>"
+            )
+
+        # ADB probe section — injected for the testing stage only
+        adb_section = ""
+        if stage == "testing" and "adb_probe" in context:
+            probe = context["adb_probe"]
+            status = "connected" if probe.get("connected") else "not_connected"
+            serial = probe.get("serial") or ""
+            count = probe.get("device_count", 0)
+            raw = probe.get("devices_output", "")
+            adb_section = (
+                f"\n  <adb_probe>"
+                f"\n    <status>{status}</status>"
+                f"\n    <serial>{serial}</serial>"
+                f"\n    <device_count>{count}</device_count>"
+                f"\n    <raw_output>{raw}</raw_output>"
+                f"\n  </adb_probe>"
+            )
+
+        action, files, done = self._STAGE_SPECS.get(
+            stage,
+            (f"Complete the {stage} stage.", "Stage output", "Stage complete."),
+        )
+
+        return (
+            f"<task>\n"
+            f"  <id>{task['id']}</id>\n"
+            f"  <title>{task['title']}</title>\n"
+            f"  <stage>{stage}</stage>\n"
+            f"  <request>\n{task['request_text']}\n  </request>\n"
+            f"  <context>{locked_section}\n"
+            f"    <prior_stages>{prior_stages_xml}\n    </prior_stages>\n"
+            f"  </context>"
+            f"{memory_xml}"
+            f"{retry_xml}"
+            f"{adb_section}\n"
+            f"  <action>\n{action}\n  </action>\n"
+            f"  <files>{files}</files>\n"
+            f"  <done>{done}</done>\n"
+            f"</task>"
+        )
+
+    def _extract_req_ids(self, text: str) -> List[str]:
+        """Extract F-number requirement IDs from text."""
+        import re as _re
+        return list(dict.fromkeys(_re.findall(r'F\d{3}', text)))
 
     def _summarize_result(self, stage: str, output_text: str, verdict: Optional[str]) -> tuple[str, str]:
         lines = [line.strip() for line in output_text.splitlines() if line.strip()]
@@ -1132,9 +1286,22 @@ class PipelineRunner:
                     try:
                         distilled = self.distiller.distill(stage, content, os.path.basename(path))
                         task["context"][stage] = {"handoff_summary": distilled.handoff_summary, "compression_ratio": distilled.compression_ratio}
+                        # Save locked decisions to CONTEXT.md so later stages see them
+                        if distilled.key_decisions:
+                            task_dir = os.path.join(self.tasks_dir, task["id"])
+                            self.distiller.save_locked_decisions(task_dir, stage, distilled.key_decisions)
                     except Exception as exc:
                         task["context"].setdefault(stage, {})["distill_error"] = str(exc)
                     break
+
+        # Append requirement-level knowledge threads for cross-task reuse
+        if stage in {"requirements", "design"}:
+            req_ids = self._extract_req_ids(summary)
+            for req_id in req_ids[:5]:
+                try:
+                    self.distiller.append_thread(req_id, stage, summary[:300])
+                except Exception:
+                    pass
 
         if stage in {"design", "testing"}:
             try:

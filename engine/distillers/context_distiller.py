@@ -375,6 +375,94 @@ class ContextDistiller:
         ctx.handoff_summary = f"{ctx.handoff_summary}\n\n## Protected Sections\n{protected_text}".strip()
 
     # --------------------------------------------------
+    # GSD 风格上下文管理 - 快照、锁定决策、知识线
+    # --------------------------------------------------
+
+    def build_task_context_snapshot(self, task: dict, stages_completed: list) -> dict:
+        """
+        为当前阶段构建压缩的上下文快照。
+        优先使用已蒸馏版本，回退到 runtime context summary。
+        返回轻量结构，直接用于 prompt 构建。
+        """
+        snapshot = {}
+        for stage in stages_completed:
+            distilled_path = os.path.join(self.distill_dir, stage, "latest.json")
+            if os.path.exists(distilled_path):
+                with open(distilled_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                snapshot[stage] = {
+                    "handoff_summary": data.get("handoff_summary", ""),
+                    "key_decisions": data.get("key_decisions", [])[:10],
+                    "unresolved_issues": data.get("unresolved_issues", [])[:5],
+                    "compression_ratio": data.get("compression_ratio", 0),
+                }
+            else:
+                stage_ctx = task.get("context", {}).get(stage, {})
+                if stage_ctx:
+                    snapshot[stage] = {
+                        "handoff_summary": stage_ctx.get("summary", stage_ctx.get("handoff_summary", "")),
+                    }
+        return snapshot
+
+    def save_locked_decisions(self, task_dir: str, stage: str, decisions: list) -> None:
+        """
+        将本阶段的关键决策追加写入任务级 CONTEXT.md。
+        后续阶段 prompt 会加载此文件，确保已锁定的决策不被重新讨论。
+        """
+        context_path = os.path.join(task_dir, "CONTEXT.md")
+        if os.path.exists(context_path):
+            with open(context_path, "r", encoding="utf-8") as f:
+                existing = f.read()
+        else:
+            existing = (
+                "# Task Context — Locked Decisions\n\n"
+                "Decisions recorded here are locked. Later stages must not contradict them.\n\n"
+            )
+            os.makedirs(task_dir, exist_ok=True)
+
+        entry_lines = [f"## {stage} ({datetime.now().strftime('%Y-%m-%d %H:%M')})"]
+        for d in decisions:
+            if isinstance(d, dict):
+                entry_lines.append(f"- **{d.get('id', '?')}**: {d.get('description', '')}")
+            else:
+                entry_lines.append(f"- {d}")
+        entry_lines.append("")
+
+        with open(context_path, "w", encoding="utf-8") as f:
+            f.write(existing + "\n".join(entry_lines) + "\n")
+
+    def load_locked_decisions(self, task_dir: str) -> str:
+        """读取 CONTEXT.md 中已锁定的决策文本，注入到 prompt 中。"""
+        context_path = os.path.join(task_dir, "CONTEXT.md")
+        if not os.path.exists(context_path):
+            return ""
+        with open(context_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def append_thread(self, req_id: str, stage: str, summary: str) -> None:
+        """
+        向需求知识线追加一条记录。
+        同一需求 ID 横跨多个任务时，此 thread 累积跨任务的上下文。
+        """
+        thread_dir = os.path.join(self.harness_dir, "data", "threads")
+        os.makedirs(thread_dir, exist_ok=True)
+        thread_path = os.path.join(thread_dir, f"{req_id}.md")
+        entry = (
+            f"\n## {stage} — {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            f"{summary.strip()}\n"
+        )
+        with open(thread_path, "a", encoding="utf-8") as f:
+            f.write(entry)
+
+    def load_thread(self, req_id: str) -> str:
+        """读取需求知识线，供跨任务复用历史上下文。"""
+        thread_path = os.path.join(self.harness_dir, "data", "threads", f"{req_id}.md")
+        if not os.path.exists(thread_path):
+            return ""
+        with open(thread_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    # --------------------------------------------------
     # 持久化
     # --------------------------------------------------
     def _save_distilled(self, stage: str, filename: str,
