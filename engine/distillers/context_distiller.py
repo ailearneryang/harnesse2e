@@ -17,6 +17,11 @@ from datetime import datetime
 from typing import Optional
 from dataclasses import dataclass, field
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
 
 @dataclass
 class DistilledContext:
@@ -47,9 +52,33 @@ class ContextDistiller:
         self.harness_dir = harness_dir
         self.distill_dir = os.path.join(harness_dir, "data", "distilled")
         os.makedirs(self.distill_dir, exist_ok=True)
-
-        # 蒸馏阈值（超过此大小触发蒸馏）
         self.distill_threshold_chars = 10000
+        self.summary_retention_ratio = 0.3
+        self.protected_section_markers = [
+            "安全约束",
+            "接口定义",
+            "数据模型",
+            "api",
+            "schema",
+            "iso 26262",
+            "autosar",
+        ]
+        self._load_budget_config()
+
+    def _load_budget_config(self) -> None:
+        if yaml is None:
+            return
+        budget_path = os.path.join(self.harness_dir, "budget.yaml")
+        if not os.path.exists(budget_path):
+            return
+        with open(budget_path, "r", encoding="utf-8") as handle:
+            loaded = yaml.safe_load(handle) or {}
+        context_cfg = loaded.get("context_management", {})
+        self.distill_threshold_chars = int(context_cfg.get("distill_threshold_chars", self.distill_threshold_chars))
+        self.summary_retention_ratio = float(context_cfg.get("summary_retention_ratio", self.summary_retention_ratio))
+        extra_markers = context_cfg.get("protected_section_markers", [])
+        if isinstance(extra_markers, list):
+            self.protected_section_markers.extend(str(item).lower() for item in extra_markers)
 
     def should_distill(self, content: str) -> bool:
         """判断是否需要蒸馏"""
@@ -187,6 +216,7 @@ class ContextDistiller:
             f"验收标准数量: {len(acs)}\n"
             f"性能指标: {', '.join(metrics[:10])}\n"
         )
+        self._append_protected_sections(ctx, content)
 
         return ctx
 
@@ -218,6 +248,7 @@ class ContextDistiller:
             f"数据实体: {', '.join(ctx.data_entities[:10])}\n"
             f"需求追溯点: {len(req_refs)}个\n"
         )
+        self._append_protected_sections(ctx, content)
 
         return ctx
 
@@ -253,6 +284,7 @@ class ContextDistiller:
             f"函数数量: {len(functions)}\n"
             f"未解决问题: {len(ctx.unresolved_issues)}\n"
         )
+        self._append_protected_sections(ctx, content)
 
         return ctx
 
@@ -276,6 +308,8 @@ class ContextDistiller:
         if failures:
             ctx.unresolved_issues = failures[:10]
 
+        self._append_protected_sections(ctx, content)
+
         return ctx
 
     def _distill_generic(self, content: str) -> DistilledContext:
@@ -284,6 +318,7 @@ class ContextDistiller:
         ctx.key_decisions = self._extract_decisions(content)
         ctx.unresolved_issues = self._extract_issues(content)
         ctx.handoff_summary = f"文档大小: {len(content)} 字符"
+        self._append_protected_sections(ctx, content)
         return ctx
 
     # --------------------------------------------------
@@ -323,6 +358,21 @@ class ContextDistiller:
                     issues.append(m.strip()[:200])
 
         return issues[:15]
+
+    def _append_protected_sections(self, ctx: DistilledContext, content: str) -> None:
+        snippets = []
+        for block in re.split(r"\n\s*\n", content):
+            lowered = block.lower()
+            if any(marker in lowered for marker in self.protected_section_markers):
+                snippets.append(block.strip()[:800])
+        if not snippets:
+            return
+        ctx.key_decisions.append({
+            "id": f"DEC-{len(ctx.key_decisions) + 1:03d}",
+            "description": "保留不可压缩安全/接口/数据模型段落",
+        })
+        protected_text = "\n\n".join(snippets[:3])
+        ctx.handoff_summary = f"{ctx.handoff_summary}\n\n## Protected Sections\n{protected_text}".strip()
 
     # --------------------------------------------------
     # 持久化

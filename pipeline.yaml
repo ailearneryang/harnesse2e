@@ -5,6 +5,9 @@ stages:
 - id: intake
   name: Request Intake
   agent: planner
+- id: planning
+  name: Sprint Planning
+  agent: planner
 - id: requirements
   name: Requirements
   agent: requirements-analyst
@@ -17,9 +20,21 @@ stages:
 - id: code_review
   name: Code Review
   agent: code-reviewer
+- id: security_review
+  name: Security Review
+  agent: security-reviewer
+- id: safety_review
+  name: Safety Review
+  agent: safety-reviewer
+- id: testing
+  name: QA Testing
+  agent: qa-engineer
 - id: delivery
   name: Gerrit Delivery
   agent: delivery-manager
+- id: build_verification
+  name: Build Verification
+  agent: build-verifier
 loop_control:
   poll_interval_seconds: 2
   max_parallel_tasks: 1
@@ -55,3 +70,7 @@ integrations:
     - PASS
     - FAIL
     - NEED_HUMAN
+  hil:
+    status: reserved_stub
+  build_verification:
+    status: reserved_stub

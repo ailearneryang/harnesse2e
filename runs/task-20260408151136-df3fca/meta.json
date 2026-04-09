@@ -1,0 +1,328 @@
+{
+  "task_id": "task-20260408151136-df3fca",
+  "title": "Untitled request",
+  "source": "web",
+  "spec_file": "task-20260408151136-df3fca.md",
+  "run_dir": "/Users/xing/harness-e2e/runs/task-20260408151136-df3fca",
+  "status": "completed",
+  "current_stage": "delivery",
+  "failure_reason": "",
+  "created_at": "2026-04-08T15:11:36.892762",
+  "updated_at": "2026-04-08T15:14:06.742730",
+  "budget": {
+    "used": 71022,
+    "limit": 500000,
+    "percent": 14.2,
+    "status": "ok"
+  },
+  "stages": {
+    "intake": {
+      "title": "Request Intake",
+      "status": "passed",
+      "agent_id": "planner",
+      "attempts": 1,
+      "summary": "planner produced an artifact for intake. Key assumptions, risks, and next actions were captured for handoff. VERDICT: PASS",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.695519",
+      "ended_at": "2026-04-08T15:14:06.699102",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/intake.json",
+        "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/intake.md"
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-04-08T15:14:06.696547",
+          "message": "planner accepted the task."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.697168",
+          "message": "planner is working on intake."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.697777",
+          "message": "planner finished intake."
+        }
+      ]
+    },
+    "planning": {
+      "title": "Sprint Planning",
+      "status": "passed",
+      "agent_id": "planner",
+      "attempts": 1,
+      "summary": "planner produced an artifact for planning. Key assumptions, risks, and next actions were captured for handoff. VERDICT: PASS",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.700787",
+      "ended_at": "2026-04-08T15:14:06.705214",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/planning.json",
+        "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/sprint_contract.md"
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-04-08T15:14:06.702080",
+          "message": "planner accepted the task."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.702830",
+          "message": "planner is working on planning."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.703544",
+          "message": "planner finished planning."
+        }
+      ]
+    },
+    "requirements": {
+      "title": "Requirements",
+      "status": "passed",
+      "agent_id": "requirements-analyst",
+      "attempts": 1,
+      "summary": "requirements-analyst produced an artifact for requirements. Key assumptions, risks, and next actions were captured for handoff. VERDICT: PASS",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.706884",
+      "ended_at": "2026-04-08T15:14:06.710182",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/requirements.json",
+        "/Users/xing/harness-e2e/requirements/requirements_spec.md",
+        "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/requirements_spec.md",
+        "/Users/xing/harness-e2e/data/reports/task-20260408151136-df3fca-change-impact.md"
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-04-08T15:14:06.707799",
+          "message": "requirements-analyst accepted the task."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.708355",
+          "message": "requirements-analyst is working on requirements."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.708925",
+          "message": "requirements-analyst finished requirements."
+        }
+      ]
+    },
+    "design": {
+      "title": "System Design",
+      "status": "passed",
+      "agent_id": "system-architect",
+      "attempts": 1,
+      "summary": "system-architect produced an artifact for design. Key assumptions, risks, and next actions were captured for handoff. VERDICT: PASS",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.713899",
+      "ended_at": "2026-04-08T15:14:06.717063",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/design.json",
+        "/Users/xing/harness-e2e/design/architecture.md",
+        "/Users/xing/harness-e2e/design/api_design.md",
+        "/Users/xing/harness-e2e/design/data_model.md",
+        "/Users/xing/harness-e2e/data/reports/task-20260408151136-df3fca-design-consistency.json"
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-04-08T15:14:06.714754",
+          "message": "system-architect accepted the task."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.715312",
+          "message": "system-architect is working on design."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.715847",
+          "message": "system-architect finished design."
+        }
+      ]
+    },
+    "development": {
+      "title": "Implementation",
+      "status": "passed",
+      "agent_id": "developer",
+      "attempts": 1,
+      "summary": "developer produced an artifact for development. Key assumptions, risks, and next actions were captured for handoff. VERDICT: PASS",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.720500",
+      "ended_at": "2026-04-08T15:14:06.723854",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/development.json",
+        "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/development.md"
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-04-08T15:14:06.721514",
+          "message": "developer accepted the task."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.722135",
+          "message": "developer is working on development."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.722736",
+          "message": "developer finished development."
+        }
+      ]
+    },
+    "code_review": {
+      "title": "Code Review",
+      "status": "passed",
+      "agent_id": "code-reviewer",
+      "attempts": 1,
+      "summary": "code-reviewer completed checks for code_review. Findings are within tolerance. VERDICT: PASS",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.725583",
+      "ended_at": "2026-04-08T15:14:06.728987",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/code_review.json",
+        "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/code_review.md"
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-04-08T15:14:06.726622",
+          "message": "code-reviewer accepted the task."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.727230",
+          "message": "code-reviewer is working on code_review."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.727844",
+          "message": "code-reviewer finished code_review."
+        }
+      ]
+    },
+    "security_review": {
+      "title": "Security Review",
+      "status": "passed",
+      "agent_id": "security-reviewer",
+      "attempts": 1,
+      "summary": "security-reviewer completed checks for security_review. Findings are within tolerance. VERDICT: PASS",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.730682",
+      "ended_at": "2026-04-08T15:14:06.733848",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/security_review.json",
+        "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/security_review.md"
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-04-08T15:14:06.731547",
+          "message": "security-reviewer accepted the task."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.732113",
+          "message": "security-reviewer is working on security_review."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.732691",
+          "message": "security-reviewer finished security_review."
+        }
+      ]
+    },
+    "testing": {
+      "title": "QA Testing",
+      "status": "passed",
+      "agent_id": "qa-engineer",
+      "attempts": 1,
+      "summary": "qa-engineer completed checks for testing. Findings are within tolerance. VERDICT: PASS",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.735836",
+      "ended_at": "2026-04-08T15:14:06.739271",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/testing.json",
+        "/Users/xing/harness-e2e/tests/reports/test_report.md",
+        "/Users/xing/harness-e2e/data/reports/task-20260408151136-df3fca-testing-consistency.json"
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-04-08T15:14:06.736768",
+          "message": "qa-engineer accepted the task."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.737358",
+          "message": "qa-engineer is working on testing."
+        },
+        {
+          "timestamp": "2026-04-08T15:14:06.737973",
+          "message": "qa-engineer finished testing."
+        }
+      ]
+    },
+    "delivery": {
+      "title": "Gerrit Delivery",
+      "status": "passed",
+      "agent_id": "delivery-manager",
+      "attempts": 0,
+      "summary": "Gerrit integration disabled",
+      "verdict": "PASS",
+      "started_at": "2026-04-08T15:14:06.741950",
+      "ended_at": "2026-04-08T15:14:06.742043",
+      "artifact_paths": [
+        "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/delivery.md"
+      ],
+      "logs": []
+    },
+    "safety_review": {
+      "title": "Safety Review",
+      "status": "pending",
+      "agent_id": "safety-reviewer",
+      "attempts": 0,
+      "summary": "",
+      "verdict": null,
+      "started_at": null,
+      "ended_at": null,
+      "artifact_paths": [],
+      "logs": []
+    },
+    "build_verification": {
+      "title": "Build Verification",
+      "status": "pending",
+      "agent_id": "build-verifier",
+      "attempts": 0,
+      "summary": "",
+      "verdict": null,
+      "started_at": null,
+      "ended_at": null,
+      "artifact_paths": [],
+      "logs": []
+    }
+  },
+  "artifacts": {
+    "intake": [
+      "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/intake.json",
+      "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/intake.md"
+    ],
+    "planning": [
+      "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/planning.json",
+      "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/sprint_contract.md"
+    ],
+    "requirements": [
+      "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/requirements.json",
+      "/Users/xing/harness-e2e/requirements/requirements_spec.md",
+      "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/requirements_spec.md",
+      "/Users/xing/harness-e2e/data/reports/task-20260408151136-df3fca-change-impact.md"
+    ],
+    "design": [
+      "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/design.json",
+      "/Users/xing/harness-e2e/design/architecture.md",
+      "/Users/xing/harness-e2e/design/api_design.md",
+      "/Users/xing/harness-e2e/design/data_model.md",
+      "/Users/xing/harness-e2e/data/reports/task-20260408151136-df3fca-design-consistency.json"
+    ],
+    "development": [
+      "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/development.json",
+      "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/development.md"
+    ],
+    "code_review": [
+      "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/code_review.json",
+      "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/code_review.md"
+    ],
+    "security_review": [
+      "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/security_review.json",
+      "/Users/xing/harness-e2e/data/tasks/task-20260408151136-df3fca/security_review.md"
+    ],
+    "testing": [
+      "/Users/xing/harness-e2e/data/transcripts/task-20260408151136-df3fca/testing.json",
+      "/Users/xing/harness-e2e/tests/reports/test_report.md",
+      "/Users/xing/harness-e2e/data/reports/task-20260408151136-df3fca-testing-consistency.json"
+    ]
+  }
+}

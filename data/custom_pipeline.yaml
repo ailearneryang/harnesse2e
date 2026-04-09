@@ -2,15 +2,42 @@ stages:
 - id: intake
   name: Request Intake
   agent: planner
+  fallback:
+    enabled: false
+    targetStageId: ''
+    maxRetries: 3
 - id: requirements
   name: Requirements
   agent: requirements-analyst
+  fallback:
+    enabled: false
+    targetStageId: ''
+    maxRetries: 3
+- id: design
+  name: System Design
+  agent: system-architect
+  fallback:
+    enabled: false
+    targetStageId: ''
+    maxRetries: 3
 - id: development
   name: Implementation
   agent: developer
-- id: code_review
-  name: Code Review
-  agent: code-reviewer
+  fallback:
+    enabled: false
+    targetStageId: ''
+    maxRetries: 3
+- id: testing
+  name: QA Testing
+  agent: qa-engineer
+  fallback:
+    enabled: true
+    targetStageId: development
+    maxRetries: 3
 - id: delivery
   name: Gerrit Delivery
   agent: delivery-manager
+  fallback:
+    enabled: false
+    targetStageId: ''
+    maxRetries: 3

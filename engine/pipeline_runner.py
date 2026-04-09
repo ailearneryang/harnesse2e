@@ -28,9 +28,10 @@ except ImportError as exc:
 
 from distillers.context_distiller import ContextDistiller
 from event_bus import EventBus
-from integrations import ClaudeCLIAdapter, FeishuAdapter, GerritAdapter
+from integrations import BuildVerificationAdapter, ClaudeCLIAdapter, FeishuAdapter, GerritAdapter, HILAdapter
 from reviewers.change_impact_analyzer import ChangeImpactAnalyzer
 from reviewers.consistency_checker import ConsistencyChecker
+from state_store import StateStore
 from state_machine import PipelineEngine
 
 
@@ -42,8 +43,10 @@ DEFAULT_PIPELINE_ORDER = [
     "development",
     "code_review",
     "security_review",
+    "safety_review",
     "testing",
     "delivery",
+    "build_verification",
 ]
 
 DEFAULT_AGENTS = [
@@ -53,8 +56,10 @@ DEFAULT_AGENTS = [
     {"id": "developer", "name": "Developer", "model": "claude-sonnet", "role": "implement changes in the target workspace"},
     {"id": "code-reviewer", "name": "Code Reviewer", "model": "claude-opus", "role": "independently review code quality and logic"},
     {"id": "security-reviewer", "name": "Security Reviewer", "model": "claude-opus", "role": "independently review security and compliance risks"},
+    {"id": "safety-reviewer", "name": "Safety Reviewer", "model": "claude-opus", "role": "review ISO 26262, AUTOSAR, and vehicle safety compliance impacts"},
     {"id": "qa-engineer", "name": "QA Engineer", "model": "claude-sonnet", "role": "execute validation, tests, and acceptance checks"},
     {"id": "debugger", "name": "Debugger", "model": "claude-sonnet", "role": "apply narrow fixes after failed review or QA"},
+    {"id": "build-verifier", "name": "Build Verifier", "model": "system", "role": "trigger downstream build, static analysis, SBOM, and signing checks"},
     {"id": "delivery-manager", "name": "Delivery Manager", "model": "system", "role": "submit changes to Gerrit and notify Feishu"},
 ]
 
@@ -66,8 +71,10 @@ STAGE_TO_AGENT = {
     "development": "developer",
     "code_review": "code-reviewer",
     "security_review": "security-reviewer",
+    "safety_review": "safety-reviewer",
     "testing": "qa-engineer",
     "delivery": "delivery-manager",
+    "build_verification": "build-verifier",
     "debugger": "debugger",
 }
 
@@ -79,8 +86,10 @@ STAGE_TITLES = {
     "development": "Implementation",
     "code_review": "Code Review",
     "security_review": "Security Review",
+    "safety_review": "Safety Review",
     "testing": "QA Testing",
     "delivery": "Gerrit Delivery",
+    "build_verification": "Build Verification",
     "debugger": "Targeted Debugging",
 }
 
@@ -92,8 +101,10 @@ class PipelineRunner:
 
     def __init__(self, harness_dir: str):
         self.harness_dir = harness_dir
+        self.state_store = StateStore(harness_dir)
         self.data_dir = os.path.join(harness_dir, "data")
         self.tasks_dir = os.path.join(self.data_dir, "tasks")
+        self.runs_dir = os.path.join(harness_dir, "runs")
         self.specs_pending = os.path.join(harness_dir, "specs", "pending")
         self.specs_processed = os.path.join(harness_dir, "specs", "processed")
         self.settings_file = os.path.join(self.data_dir, "integration_settings.json")
@@ -108,13 +119,11 @@ class PipelineRunner:
         for directory in [
             self.data_dir,
             self.tasks_dir,
+            self.runs_dir,
             self.specs_pending,
             self.specs_processed,
             self.transcript_dir,
             self.report_dir,
-            os.path.join(harness_dir, "requirements"),
-            os.path.join(harness_dir, "design"),
-            os.path.join(harness_dir, "tests", "reports"),
         ]:
             os.makedirs(directory, exist_ok=True)
 
@@ -136,8 +145,14 @@ class PipelineRunner:
         self.consistency_checker = ConsistencyChecker(harness_dir)
         self.change_impact_analyzer = ChangeImpactAnalyzer(harness_dir)
         self.claude = ClaudeCLIAdapter(self.settings["claude"])
-        self.feishu = FeishuAdapter(self.settings["feishu"])
+        self.feishu = FeishuAdapter(self.settings["feishu"], state_store=self.state_store)
         self.gerrit = GerritAdapter(self.settings["gerrit"])
+        self.hil = HILAdapter(self.settings["hil"])
+        self.build_verifier = BuildVerificationAdapter(self.settings["build_verification"])
+        self.agent_identities = self._load_yaml(
+            os.path.join(harness_dir, "agents", "identities.yaml"),
+            {},
+        )
 
         self.pipeline_order = self._resolve_pipeline_order()
         self.agents = self._build_agent_state()
@@ -161,16 +176,27 @@ class PipelineRunner:
                 "max_turns": int(os.environ.get("HARNESS_CLAUDE_MAX_TURNS", "30")),
                 "output_format": "stream-json",
                 "simulate": os.environ.get("HARNESS_SIMULATE_CLAUDE", "1") == "1",
+                "hard_timeout_seconds": int(os.environ.get("HARNESS_CLAUDE_HARD_TIMEOUT", "1800")),
+                "max_tokens_per_run": int(os.environ.get("HARNESS_CLAUDE_MAX_TOKENS_PER_RUN", "0")),
             },
             "feishu": {
                 "enabled": False,
                 "webhook": "",
+                "signing_secret": "",
+                "dedup_ttl_seconds": 3600,
+                "rate_limit_per_minute": 30,
             },
             "gerrit": {
                 "enabled": False,
                 "remote": "origin",
                 "branch": "master",
                 "topic_prefix": "harness",
+            },
+            "hil": {
+                "enabled": False,
+            },
+            "build_verification": {
+                "enabled": False,
             },
         }
 
@@ -204,7 +230,9 @@ class PipelineRunner:
     def _resolve_pipeline_order(self) -> List[str]:
         configured = [stage.get("id") for stage in self.pipeline_config.get("stages", []) if stage.get("id")]
         if configured:
-            # Respect user-defined pipeline order from pipeline.yaml
+            missing_required = [stage for stage in DEFAULT_PIPELINE_ORDER if stage not in configured]
+            if missing_required:
+                return list(DEFAULT_PIPELINE_ORDER)
             seen = set()
             order = []
             for stage in configured:
@@ -215,6 +243,9 @@ class PipelineRunner:
         return list(DEFAULT_PIPELINE_ORDER)
 
     def _load_runtime_state(self) -> Dict:
+        stored = self.state_store.load_document("runtime_state")
+        if stored is not None:
+            return stored
         if not os.path.exists(self.runtime_file):
             return {
                 "tasks": [],
@@ -236,7 +267,12 @@ class PipelineRunner:
             task.setdefault("artifacts", {})
             task.setdefault("gerrit", {})
             task.setdefault("source_metadata", {})
-            task.setdefault("stages", self._empty_stage_map())
+            task.setdefault("run_dir", self._ensure_run_layout(task["id"]))
+            stage_defaults = self._empty_stage_map()
+            existing = task.setdefault("stages", {})
+            for stage_id, stage_payload in stage_defaults.items():
+                existing.setdefault(stage_id, stage_payload)
+            self._write_run_metadata(task)
 
     def _empty_stage_map(self) -> Dict[str, Dict]:
         return {
@@ -257,6 +293,7 @@ class PipelineRunner:
 
     def _persist_runtime(self) -> None:
         self.runtime["updated_at"] = datetime.now().isoformat()
+        self.state_store.save_document("runtime_state", self.runtime)
         self._save_json(self.runtime_file, self.runtime)
 
     def _save_json(self, path: str, payload: Dict) -> None:
@@ -304,6 +341,7 @@ class PipelineRunner:
         spec_path = os.path.join(self.specs_pending, spec_file)
         content = f"# {title or 'User Request'}\n\n{text.strip()}\n"
         self._save_text(spec_path, content)
+        run_dir = self._ensure_run_layout(task_id)
 
         task = {
             "id": task_id,
@@ -312,6 +350,7 @@ class PipelineRunner:
             "source": source,
             "source_metadata": metadata or {},
             "spec_file": spec_file,
+            "run_dir": run_dir,
             "status": "queued",
             "current_stage": "intake",
             "created_at": datetime.now().isoformat(),
@@ -321,11 +360,14 @@ class PipelineRunner:
             "artifacts": {},
             "gerrit": {},
             "stages": self._empty_stage_map(),
+            "pipeline_snapshot": list(self.pipeline_order),  # Record pipeline at task creation time
         }
 
         with self.lock:
             self.runtime["tasks"].append(task)
             self._persist_runtime()
+        self._update_latest_run_link(run_dir)
+        self._write_run_metadata(task)
 
         self._emit("task_submitted", f"New request submitted from {source}", source=source, task_id=task_id, data={"title": task["title"]})
         return task
@@ -360,6 +402,7 @@ class PipelineRunner:
                 "agents": list(self.agents.values()),
                 "settings": self.settings,
                 "events": self.event_bus.latest(200),
+                "budget": self.engine.check_budget(),
             }
 
     def update_settings(self, payload: Dict) -> Dict:
@@ -367,8 +410,10 @@ class PipelineRunner:
             self.settings = self._deep_merge(self.settings, payload)
             self._save_json(self.settings_file, self.settings)
             self.claude = ClaudeCLIAdapter(self.settings["claude"])
-            self.feishu = FeishuAdapter(self.settings["feishu"])
+            self.feishu = FeishuAdapter(self.settings["feishu"], state_store=self.state_store)
             self.gerrit = GerritAdapter(self.settings["gerrit"])
+            self.hil = HILAdapter(self.settings["hil"])
+            self.build_verifier = BuildVerificationAdapter(self.settings["build_verification"])
             self._persist_runtime()
         self._emit("settings_updated", "Integration settings updated", source="system")
         return self.settings
@@ -426,7 +471,15 @@ class PipelineRunner:
 
         self.engine.snapshot.current_spec = task["spec_file"]
         self.engine.reset_for_new_iteration()
-        self.engine.transition("new_spec")
+        # 确保状态机在正确的初始状态
+        if self.engine.snapshot.current_state != "idle":
+            self.engine.snapshot.current_state = "idle"
+            self.engine._save_state()
+        result = self.engine.transition("new_spec")
+        if result is None:
+            self._fail_task(task, "Failed to transition pipeline to REQUIREMENTS state")
+            return
+        self._update_latest_run_link(task["run_dir"])
         self._emit("task_started", f"Processing {task['title']}", task_id=task_id, source="pipeline")
 
         # Rebuild context from previously passed stages
@@ -458,6 +511,12 @@ class PipelineRunner:
                     return
                 continue
 
+            if stage == "build_verification":
+                if not self._run_build_verification_stage(task, context):
+                    self._fail_task(task, "Build verification stage failed")
+                    return
+                continue
+
             if not self._run_stage_with_retries(task, stage, context):
                 return
 
@@ -466,6 +525,14 @@ class PipelineRunner:
     def _run_stage_with_retries(self, task: Dict, stage: str, context: Dict) -> bool:
         stage_state = task["stages"][stage]
         max_retries = self._stage_max_retries(stage)
+        budget = self.engine.check_budget()
+        if budget["status"] == "exceeded":
+            self._fail_task(task, f"Budget hard stop reached before {stage}")
+            return False
+
+        previous_summary = None
+        previous_verdict = None
+        
         for attempt in range(1, max_retries + 1):
             with self.lock:
                 stage_state["attempts"] = attempt
@@ -476,14 +543,27 @@ class PipelineRunner:
             self.engine.start_stage(stage)
             agent_id = stage_state["agent_id"]
             self._set_agent_status(agent_id, "running", task["id"], stage, f"Running {stage}")
-            self._emit("stage_started", f"{STAGE_TITLES.get(stage, stage)} started", source="pipeline", task_id=task["id"], stage=stage)
+            self._emit("stage_started", f"{STAGE_TITLES.get(stage, stage)} started (attempt {attempt}/{max_retries})", source="pipeline", task_id=task["id"], stage=stage)
 
-            prompt = self._build_prompt(task, stage, context)
+            # Build prompt with retry context if this is a retry
+            retry_info = None
+            if attempt > 1 and previous_summary:
+                retry_info = {
+                    "attempt": attempt,
+                    "max_retries": max_retries,
+                    "previous_summary": previous_summary,
+                    "previous_verdict": previous_verdict,
+                }
+            prompt = self._build_prompt(task, stage, context, retry_info)
+            
+            remaining_tokens = max(0, self.engine.snapshot.budget_limit - self.engine.snapshot.total_tokens_used)
             result = self.claude.run_agent(
                 agent_id=agent_id,
                 prompt=prompt,
                 cwd=self.settings["target_repo"],
                 stage=stage,
+                system_prompt=self._agent_identity(agent_id),
+                max_tokens=remaining_tokens,
                 event_callback=lambda event: self._record_agent_event(task, stage, agent_id, event),
             )
 
@@ -493,7 +573,7 @@ class PipelineRunner:
             context[stage] = {"summary": summary, "verdict": verdict, "artifact_paths": artifact_paths}
 
             passed = result.success and verdict != "FAIL"
-            if stage in {"code_review", "security_review", "testing"}:
+            if stage in {"code_review", "security_review", "safety_review", "testing"}:
                 passed = passed and verdict != "NEED_HUMAN"
 
             with self.lock:
@@ -506,12 +586,20 @@ class PipelineRunner:
             self.engine.complete_stage(stage, token_usage=result.tokens_estimate, success=passed)
             self._set_agent_status(agent_id, "idle", None, stage, summary)
 
+            if result.budget_exceeded:
+                self._fail_task(task, f"Budget hard stop triggered during {stage}")
+                return False
+
             if passed:
                 self._post_stage_processing(task, stage, summary, artifact_paths)
                 self._emit("stage_completed", f"{STAGE_TITLES.get(stage, stage)} passed", source="pipeline", task_id=task["id"], stage=stage, data={"verdict": verdict})
                 return True
 
-            self._emit("stage_failed", f"{STAGE_TITLES.get(stage, stage)} failed on attempt {attempt}", source="pipeline", task_id=task["id"], stage=stage, level="error", data={"summary": summary, "verdict": verdict})
+            # Save failure info for retry
+            previous_summary = summary
+            previous_verdict = verdict
+            
+            self._emit("stage_failed", f"{STAGE_TITLES.get(stage, stage)} failed on attempt {attempt}/{max_retries}", source="pipeline", task_id=task["id"], stage=stage, level="error", data={"summary": summary, "verdict": verdict})
 
             if verdict == "NEED_HUMAN":
                 approval = self._create_approval(task, stage, summary or f"Manual action required at {stage}")
@@ -520,9 +608,17 @@ class PipelineRunner:
                     self._fail_task(task, f"Approval rejected at {stage}")
                     return False
 
-            if attempt < max_retries and stage in {"development", "code_review", "security_review", "testing"}:
-                if not self._run_debugger(task, stage, summary, context):
-                    break
+            if attempt < max_retries:
+                # Stages that benefit from debugger agent for targeted fixes
+                debugger_stages = {"development", "code_review", "security_review", "safety_review", "testing"}
+                if stage in debugger_stages:
+                    if not self._run_debugger(task, stage, summary, context):
+                        break
+                else:
+                    # For early stages (requirements, design, etc.), allow self-retry with feedback
+                    self._emit("stage_retry", f"{STAGE_TITLES.get(stage, stage)} will retry (attempt {attempt + 1}/{max_retries})", 
+                              source="pipeline", task_id=task["id"], stage=stage, level="warning")
+                    # Continue to next iteration - retry_info will be passed to prompt
 
         self._fail_task(task, f"Stage {stage} exhausted retries")
         return False
@@ -542,6 +638,13 @@ class PipelineRunner:
         }
         task["stages"]["debugger"] = debugger_stage
         self._set_agent_status("debugger", "running", task["id"], "debugger", f"Fixing {failed_stage}")
+
+        # 检查预算
+        budget = self.engine.check_budget()
+        if budget["status"] == "exceeded":
+            self._emit("budget_exceeded", "Budget exceeded before debugger stage", source="system", task_id=task["id"], level="error")
+            return False
+
         prompt = (
             f"Task: {task['title']}\n"
             f"Failed stage: {failed_stage}\n"
@@ -549,11 +652,14 @@ class PipelineRunner:
             "Apply the smallest possible correction plan and report the fix scope.\n"
             "Finish with VERDICT: PASS when a targeted fix is prepared."
         )
+        remaining_tokens = max(0, self.engine.snapshot.budget_limit - self.engine.snapshot.total_tokens_used)
         result = self.claude.run_agent(
             agent_id="debugger",
             prompt=prompt,
             cwd=self.settings["target_repo"],
             stage="debugger",
+            system_prompt=self._agent_identity("debugger"),
+            max_tokens=remaining_tokens,
             event_callback=lambda event: self._record_agent_event(task, "debugger", "debugger", event),
         )
         transcript_path = self._write_transcript(task, "debugger", result)
@@ -575,7 +681,7 @@ class PipelineRunner:
         summary = "All quality gates passed. Preparing Gerrit submission."
         result = self.gerrit.submit_change(self.settings["target_repo"], task["id"], summary)
         task["gerrit"] = result
-        artifact_path = os.path.join(self.tasks_dir, task["id"], "delivery.md")
+        artifact_path = os.path.join(task["run_dir"], "delivery", "delivery.md")
         report = [
             f"# Delivery Report - {task['title']}",
             "",
@@ -591,10 +697,33 @@ class PipelineRunner:
         stage_state["verdict"] = "PASS" if result.get("success") or result.get("status") in {"disabled", "unavailable"} else "FAIL"
         stage_state["status"] = "passed" if stage_state["verdict"] == "PASS" else "failed"
         stage_state["ended_at"] = datetime.now().isoformat()
+        context[stage] = {"summary": stage_state["summary"], "artifact_paths": [artifact_path]}
         self._persist_runtime()
+        self._write_run_metadata(task)
         self._set_agent_status("delivery-manager", "idle", None, stage, stage_state["summary"])
         self._emit("stage_completed", "Delivery stage finished", source="pipeline", task_id=task["id"], stage=stage, data=result)
         return stage_state["verdict"] == "PASS"
+
+    def _run_build_verification_stage(self, task: Dict, context: Dict) -> bool:
+        stage = "build_verification"
+        stage_state = task["stages"][stage]
+        stage_state["status"] = "running"
+        stage_state["started_at"] = datetime.now().isoformat()
+        self._set_agent_status("build-verifier", "running", task["id"], stage, "Running build verification")
+        result = self.build_verifier.run(task["id"], self.settings["target_repo"])
+        report_path = os.path.join(task["run_dir"], "reports", "build_verification.json")
+        self._save_json(report_path, result)
+        stage_state["artifact_paths"] = [report_path]
+        stage_state["summary"] = result.get("message", "Build verification completed")
+        stage_state["verdict"] = "PASS" if result.get("success") else "FAIL"
+        stage_state["status"] = "passed" if result.get("success") else "failed"
+        stage_state["ended_at"] = datetime.now().isoformat()
+        context[stage] = {"summary": stage_state["summary"], "artifact_paths": [report_path], "hil": self.hil.describe_capabilities()}
+        self._persist_runtime()
+        self._write_run_metadata(task)
+        self._set_agent_status("build-verifier", "idle", None, stage, stage_state["summary"])
+        self._emit("stage_completed", "Build verification stage finished", source="pipeline", task_id=task["id"], stage=stage, data=result, level="success" if result.get("success") else "error")
+        return bool(result.get("success"))
 
     def _requires_manual_gate(self, task: Dict, stage: str) -> bool:
         if stage not in {"design", "delivery"}:
@@ -632,6 +761,7 @@ class PipelineRunner:
             task["updated_at"] = datetime.now().isoformat()
             self.runtime["current_task_id"] = None
             self._persist_runtime()
+        self._write_run_metadata(task, final_status="failed", failure_reason=reason)
         self.engine.add_alert("critical", task.get("current_stage", "pipeline"), reason, action_required=True)
         self._emit("task_failed", reason, source="pipeline", task_id=task["id"], level="error")
         self._notify_task_update(task, f"Task failed: {reason}")
@@ -702,6 +832,7 @@ class PipelineRunner:
             task["updated_at"] = datetime.now().isoformat()
             self.runtime["current_task_id"] = None
             self._persist_runtime()
+        self._write_run_metadata(task, final_status="completed")
         self.engine.transition("all_pass")
         self._emit("task_completed", f"Task completed: {task['title']}", source="pipeline", task_id=task["id"], level="success")
         self._notify_task_update(task, f"Task completed: {task['title']}")
@@ -712,8 +843,10 @@ class PipelineRunner:
             self.feishu.send_text(chat_id, text)
 
     def _stage_max_retries(self, stage: str) -> int:
+        """Get max retry count for a stage. Default is 2 for all stages."""
         stage_config = next((item for item in self.pipeline_config.get("stages", []) if item.get("id") == stage), {})
-        return int(stage_config.get("max_retries", 2 if stage in {"code_review", "security_review", "testing"} else 1))
+        # Default: 2 retries for all stages (can be overridden in pipeline config)
+        return int(stage_config.get("max_retries", 2))
 
     def _record_agent_event(self, task: Dict, stage: str, agent_id: str, event: Dict) -> None:
         event_type = event.get("type", "")
@@ -747,7 +880,7 @@ class PipelineRunner:
         if status == "idle" and task_id is None and stage:
             agent["completed_tasks"] += 1
 
-    def _build_prompt(self, task: Dict, stage: str, context: Dict) -> str:
+    def _build_prompt(self, task: Dict, stage: str, context: Dict, retry_info: Optional[Dict] = None) -> str:
         previous = []
         for prev_stage in self.pipeline_order:
             if prev_stage == stage:
@@ -763,6 +896,21 @@ class PipelineRunner:
             task["request_text"],
             "",
         ]
+        
+        # Add retry context if this is a retry attempt
+        retry_section = []
+        if retry_info:
+            retry_section = [
+                "",
+                "## ⚠️ RETRY ATTEMPT",
+                f"This is attempt {retry_info['attempt']} of {retry_info['max_retries']}.",
+                f"Previous attempt failed with: {retry_info['previous_summary']}",
+                f"Verdict: {retry_info['previous_verdict']}",
+                "",
+                "Please address the issues from the previous attempt and try again.",
+                "",
+            ]
+        
         stage_instructions = {
             "intake": "Produce a concise intake summary and identify risky areas.",
             "planning": "Break the request into a sprint contract with clear subtasks, dependencies, and definition of done.",
@@ -771,9 +919,11 @@ class PipelineRunner:
             "development": "Describe the implementation plan for Claude Code CLI in the target repo. Mention expected files, tests, and git workflow.",
             "code_review": "Review the latest changes critically. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "security_review": "Review security, secrets, auth, and unsafe side effects. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
+            "safety_review": "Review ISO 26262, AUTOSAR, OTA rollback safety, WP.29, and vehicle-side functional safety impacts. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "testing": "Report validation strategy, tests to run, and quality gates. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
+            "build_verification": "Summarize CI build, static analysis, SBOM, and signing checks. End with VERDICT: PASS or FAIL.",
         }
-        return "\n".join(preamble + previous + [f"## Stage Instructions\n{stage_instructions.get(stage, f'Complete the {stage} stage.')}" ])
+        return "\n".join(preamble + previous + retry_section + [f"## Stage Instructions\n{stage_instructions.get(stage, f'Complete the {stage} stage.')}" ])
 
     def _summarize_result(self, stage: str, output_text: str, verdict: Optional[str]) -> tuple[str, str]:
         lines = [line.strip() for line in output_text.splitlines() if line.strip()]
@@ -783,7 +933,7 @@ class PipelineRunner:
         return summary, verdict
 
     def _write_transcript(self, task: Dict, stage: str, result) -> str:
-        transcript_path = os.path.join(self.transcript_dir, task["id"], f"{stage}.json")
+        transcript_path = os.path.join(task["run_dir"], "transcripts", f"{stage}.json")
         payload = {
             "task_id": task["id"],
             "stage": stage,
@@ -803,54 +953,50 @@ class PipelineRunner:
         task_dir = os.path.join(self.tasks_dir, task["id"])
         os.makedirs(task_dir, exist_ok=True)
         artifact_paths = [transcript_path]
+        run_dir = task["run_dir"]
 
         if stage == "planning":
-            path = os.path.join(task_dir, "sprint_contract.md")
+            path = os.path.join(run_dir, "planning", "sprint_contract.md")
             self._save_text(path, f"# Sprint Contract - {task['title']}\n\n{output_text}\n")
             artifact_paths.append(path)
         elif stage == "requirements":
-            path = os.path.join(self.harness_dir, "requirements", "requirements_spec.md")
+            path = os.path.join(run_dir, "requirements", "requirements_spec.md")
             content = self._wrap_output(task, stage, output_text)
             self._save_text(path, content)
             copy_path = os.path.join(task_dir, "requirements_spec.md")
             self._save_text(copy_path, content)
             artifact_paths.extend([path, copy_path])
         elif stage == "design":
-            architecture = os.path.join(self.harness_dir, "design", "architecture.md")
-            api = os.path.join(self.harness_dir, "design", "api_design.md")
-            data_model = os.path.join(self.harness_dir, "design", "data_model.md")
+            architecture = os.path.join(run_dir, "design", "architecture.md")
+            api = os.path.join(run_dir, "design", "api_design.md")
+            data_model = os.path.join(run_dir, "design", "data_model.md")
             self._save_text(architecture, self._wrap_output(task, stage, output_text, heading="Architecture"))
             self._save_text(api, self._design_api_content(task, output_text))
             self._save_text(data_model, self._design_data_content(task, output_text))
             artifact_paths.extend([architecture, api, data_model])
         elif stage == "testing":
-            path = os.path.join(self.harness_dir, "tests", "reports", "test_report.md")
+            path = os.path.join(run_dir, "tests", "reports", "test_report.md")
             self._save_text(path, self._wrap_output(task, stage, output_text))
+            self._snapshot_repo_tree("tests", os.path.join(run_dir, "tests", "workspace_snapshot"))
             artifact_paths.append(path)
         elif stage == "development":
-            path = os.path.join(task_dir, f"{stage}.md")
+            path = os.path.join(run_dir, "src", f"{stage}.md")
             self._save_text(path, self._wrap_output(task, stage, output_text))
             artifact_paths.append(path)
-            # Collect source code and test files created by the developer agent
+            self._snapshot_repo_tree("src", os.path.join(run_dir, "src", "workspace_snapshot"))
+            self._snapshot_repo_tree("tests", os.path.join(run_dir, "tests", "workspace_snapshot"))
             for scan_dir in ["src", "tests"]:
                 abs_dir = os.path.join(self.harness_dir, scan_dir)
-                if not os.path.isdir(abs_dir):
-                    continue
-                for root, _dirs, files in os.walk(abs_dir):
-                    # skip __pycache__, .pyc, hidden dirs
-                    if "__pycache__" in root or "/." in root:
-                        continue
-                    for fname in sorted(files):
-                        if fname.startswith(".") or fname.endswith(".pyc"):
-                            continue
-                        artifact_paths.append(os.path.join(root, fname))
+                if os.path.isdir(abs_dir):
+                    artifact_paths.append(abs_dir)
         else:
-            path = os.path.join(task_dir, f"{stage}.md")
+            path = os.path.join(run_dir, stage, f"{stage}.md")
             self._save_text(path, self._wrap_output(task, stage, output_text))
             artifact_paths.append(path)
 
         task["artifacts"][stage] = artifact_paths
         self._persist_runtime()
+        self._write_run_metadata(task)
         return artifact_paths
 
     def _post_stage_processing(self, task: Dict, stage: str, summary: str, artifact_paths: List[str]) -> None:
@@ -885,6 +1031,53 @@ class PipelineRunner:
                 task["context"].setdefault(stage, {})["impact_error"] = str(exc)
 
         self._persist_runtime()
+        self._write_run_metadata(task)
+
+    def _ensure_run_layout(self, task_id: str) -> str:
+        run_dir = os.path.join(self.runs_dir, task_id)
+        for rel in ["requirements", "design", "src", "tests/reports", "planning", "reports", "transcripts", "delivery", "build_verification", "safety_review"]:
+            os.makedirs(os.path.join(run_dir, rel), exist_ok=True)
+        return run_dir
+
+    def _update_latest_run_link(self, run_dir: str) -> None:
+        latest = os.path.join(self.runs_dir, "latest")
+        if os.path.lexists(latest):
+            os.remove(latest)
+        os.symlink(run_dir, latest)
+
+    def _write_run_metadata(self, task: Dict, final_status: Optional[str] = None, failure_reason: str = "") -> None:
+        payload = {
+            "task_id": task["id"],
+            "title": task["title"],
+            "source": task["source"],
+            "spec_file": task["spec_file"],
+            "run_dir": task["run_dir"],
+            "status": final_status or task["status"],
+            "current_stage": task.get("current_stage"),
+            "failure_reason": failure_reason,
+            "created_at": task.get("created_at"),
+            "updated_at": task.get("updated_at"),
+            "budget": self.engine.check_budget(),
+            "stages": task.get("stages", {}),
+            "artifacts": task.get("artifacts", {}),
+        }
+        self._save_json(os.path.join(task["run_dir"], "meta.json"), payload)
+
+    def _snapshot_repo_tree(self, relative_dir: str, destination_dir: str) -> None:
+        source_dir = os.path.join(self.harness_dir, relative_dir)
+        if not os.path.isdir(source_dir):
+            return
+        if os.path.exists(destination_dir):
+            shutil.rmtree(destination_dir)
+        shutil.copytree(
+            source_dir,
+            destination_dir,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store"),
+        )
+
+    def _agent_identity(self, agent_id: str) -> Optional[str]:
+        identity = self.agent_identities.get(agent_id)
+        return identity if isinstance(identity, str) and identity.strip() else None
 
     def _wrap_output(self, task: Dict, stage: str, output_text: str, heading: Optional[str] = None) -> str:
         title = heading or STAGE_TITLES.get(stage, stage)
@@ -998,7 +1191,11 @@ def create_api_app(runner: PipelineRunner) -> Flask:
 
     @app.route("/api/feishu/webhook", methods=["POST"])
     def api_feishu_webhook():
-        payload = request.get_json(force=True, silent=True) or {}
+        raw_body = request.get_data(cache=False) or b"{}"
+        validation = runner.feishu.validate_webhook(raw_body, dict(request.headers), remote_addr=request.remote_addr or "unknown")
+        if not validation.get("ok"):
+            return jsonify({"error": validation.get("error"), "dedup_key": validation.get("dedup_key")}), int(validation.get("status", 400))
+        payload = validation.get("payload") or {}
         extracted = runner.feishu.extract_request(payload)
         if not extracted.get("text"):
             return jsonify({"error": "Unable to extract request text from Feishu payload"}), 400
@@ -1050,6 +1247,11 @@ def create_api_app(runner: PipelineRunner) -> Flask:
         new_stages = payload.get("stages", [])
         if not new_stages:
             return jsonify({"error": "stages list is required"}), 400
+        # 验证所有 stage 有对应的 agent 和 title
+        stage_ids = [s.get("id") for s in new_stages if s.get("id")]
+        invalid_stages = [s for s in stage_ids if s not in STAGE_TO_AGENT or s not in STAGE_TITLES]
+        if invalid_stages:
+            return jsonify({"error": f"Unknown stage IDs: {invalid_stages}. Valid stages: {list(STAGE_TO_AGENT.keys())}"}), 400
         # Save to custom file, never touch pipeline.yaml
         runner.pipeline_config = {"stages": new_stages}
         runner.pipeline_order = runner._resolve_pipeline_order()

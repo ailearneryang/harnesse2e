@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
 import os
+import select
 import shlex
 import shutil
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -14,6 +19,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Dict, List, Optional
+
+from state_store import StateStore
 
 
 EventCallback = Callable[[Dict], None]
@@ -30,6 +37,8 @@ class AgentRunResult:
     verdict: Optional[str] = None
     tokens_estimate: int = 0
     duration_seconds: float = 0.0
+    usage: Dict = field(default_factory=dict)
+    budget_exceeded: bool = False
 
 
 class ClaudeCLIAdapter:
@@ -45,6 +54,8 @@ class ClaudeCLIAdapter:
         cwd: str,
         event_callback: Optional[EventCallback] = None,
         stage: Optional[str] = None,
+        system_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ) -> AgentRunResult:
         command_text = self.settings.get("command", "claude")
         simulate = self.settings.get("simulate", False)
@@ -62,6 +73,9 @@ class ClaudeCLIAdapter:
             "--output-format",
             output_format,
         ])
+
+        if system_prompt:
+            cli_command.extend(["--system", system_prompt])
 
         # stream-json requires --verbose in Claude Code CLI 2.x
         if output_format == "stream-json":
@@ -85,6 +99,9 @@ class ClaudeCLIAdapter:
         start_time = datetime.now()
         transcript: List[Dict] = []
         output_lines: List[str] = []
+        total_usage = 0
+        hard_timeout_seconds = int(self.settings.get("hard_timeout_seconds", 900))
+        budget_limit = max_tokens if max_tokens is not None else int(self.settings.get("max_tokens_per_run", 0) or 0)
 
         process = subprocess.Popen(
             cli_command,
@@ -97,24 +114,78 @@ class ClaudeCLIAdapter:
         )
 
         assert process.stdout is not None
-        for raw_line in process.stdout:
-            line = raw_line.rstrip("\n")
-            if not line:
-                continue
-            event = self._parse_stream_line(line, agent_id, stage)
-            transcript.append(event)
-            if event_callback:
-                event_callback(event)
+        budget_exceeded = False
+        timeout_exceeded = False
+        start_monotonic = time.monotonic()
+        while True:
+            if hard_timeout_seconds and time.monotonic() - start_monotonic > hard_timeout_seconds:
+                timeout_exceeded = True
+                process.kill()
+                break
 
-            text_value = (event.get("text") or "").strip()
-            # Only collect meaningful output, skip bare type labels and system/user noise
-            if text_value and text_value not in ("system", "assistant", "user", "result"):
-                output_lines.append(text_value)
+            ready, _, _ = select.select([process.stdout], [], [], 0.5)
+            if ready:
+                raw_line = process.stdout.readline()
+                if raw_line == "":
+                    if process.poll() is not None:
+                        break
+                    continue
+                line = raw_line.rstrip("\n")
+                if not line:
+                    continue
+                event = self._parse_stream_line(line, agent_id, stage)
+                transcript.append(event)
+                if event_callback:
+                    event_callback(event)
+
+                usage_tokens = self._extract_usage_tokens(event)
+                if usage_tokens:
+                    total_usage = max(total_usage, usage_tokens)
+                    if budget_limit and total_usage >= budget_limit:
+                        budget_exceeded = True
+                        process.kill()
+                        break
+
+                text_value = (event.get("text") or "").strip()
+                if text_value and text_value not in ("system", "assistant", "user", "result"):
+                    output_lines.append(text_value)
+            elif process.poll() is not None:
+                break
 
         process.wait()
         duration = (datetime.now() - start_time).total_seconds()
         output_text = "\n".join(output_lines).strip()
         verdict = self._extract_verdict(output_text)
+        usage = {"total_tokens": total_usage}
+
+        if timeout_exceeded:
+            return AgentRunResult(
+                success=False,
+                output_text=output_text,
+                transcript=transcript,
+                command=cli_command,
+                return_code=process.returncode or -9,
+                error=f"Claude CLI exceeded hard timeout of {hard_timeout_seconds}s",
+                verdict=verdict,
+                tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
+                duration_seconds=duration,
+                usage=usage,
+            )
+
+        if budget_exceeded:
+            return AgentRunResult(
+                success=False,
+                output_text=output_text,
+                transcript=transcript,
+                command=cli_command,
+                return_code=process.returncode or -9,
+                error=f"Claude CLI exceeded token budget limit ({budget_limit})",
+                verdict=verdict,
+                tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
+                duration_seconds=duration,
+                usage=usage,
+                budget_exceeded=True,
+            )
 
         if process.returncode != 0:
             # max_turns exceeded still produces useful output — treat as soft success
@@ -131,8 +202,9 @@ class ClaudeCLIAdapter:
                 return_code=process.returncode,
                 error=None if soft_success else f"Claude CLI exited with code {process.returncode}",
                 verdict=verdict,
-                tokens_estimate=self._estimate_tokens(prompt, output_text),
+                tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
                 duration_seconds=duration,
+                usage=usage,
             )
 
         return AgentRunResult(
@@ -142,8 +214,9 @@ class ClaudeCLIAdapter:
             command=cli_command,
             return_code=process.returncode,
             verdict=verdict,
-            tokens_estimate=self._estimate_tokens(prompt, output_text),
+            tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
             duration_seconds=duration,
+            usage=usage,
         )
 
     def _parse_stream_line(self, line: str, agent_id: str, stage: Optional[str]) -> Dict:
@@ -218,7 +291,26 @@ class ClaudeCLIAdapter:
             verdict=verdict,
             tokens_estimate=self._estimate_tokens(prompt, output_text),
             duration_seconds=1.0,
+            usage={"total_tokens": self._estimate_tokens(prompt, output_text)},
         )
+
+    def _extract_usage_tokens(self, event: Dict) -> int:
+        payload = event.get("payload") or {}
+        candidates = [payload]
+        if isinstance(payload.get("message"), dict):
+            candidates.append(payload["message"])
+        for candidate in candidates:
+            usage = candidate.get("usage")
+            if isinstance(usage, dict):
+                for key in ("total_tokens", "totalTokens", "output_tokens", "outputTokens"):
+                    value = usage.get(key)
+                    if isinstance(value, int):
+                        return value
+            for key in ("usage", "total_tokens", "totalTokens"):
+                value = candidate.get(key)
+                if isinstance(value, int):
+                    return value
+        return 0
 
     def _simulation_output(self, agent_id: str, stage: Optional[str]) -> Dict:
         stage_name = stage or agent_id
@@ -262,8 +354,76 @@ class ClaudeCLIAdapter:
 class FeishuAdapter:
     """Minimal Feishu integration for inbound requests and outbound notifications."""
 
-    def __init__(self, settings: Dict):
+    def __init__(self, settings: Dict, state_store: Optional[StateStore] = None):
         self.settings = settings
+        self.state_store = state_store
+        self._rate_lock = threading.Lock()
+        self._recent_requests: Dict[str, List[float]] = {}
+
+    def validate_webhook(self, raw_body: bytes, headers: Dict[str, str], remote_addr: str = "unknown") -> Dict:
+        if not self.settings.get("enabled"):
+            return {"ok": True, "dedup_key": None}
+
+        rate_limit = int(self.settings.get("rate_limit_per_minute", 30))
+        if rate_limit > 0 and not self._allow_request(remote_addr, rate_limit):
+            return {"ok": False, "error": "Feishu webhook rate limit exceeded", "status": 429}
+
+        secret = self.settings.get("signing_secret") or ""
+        if secret:
+            timestamp = headers.get("X-Lark-Request-Timestamp") or headers.get("X-Timestamp") or ""
+            signature = headers.get("X-Lark-Signature") or headers.get("X-Signature") or ""
+            if not timestamp or not signature:
+                return {"ok": False, "error": "Missing Feishu signature headers", "status": 401}
+            if not self._verify_signature(secret, timestamp, raw_body, signature):
+                return {"ok": False, "error": "Invalid Feishu signature", "status": 401}
+
+        try:
+            payload = json.loads(raw_body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            return {"ok": False, "error": "Invalid JSON payload", "status": 400}
+
+        dedup_key = self._build_dedup_key(payload, headers, raw_body)
+        ttl = int(self.settings.get("dedup_ttl_seconds", 3600))
+        if dedup_key and self.state_store and not self.state_store.claim_webhook_event(dedup_key, "feishu", ttl_seconds=ttl):
+            return {"ok": False, "error": "Duplicate Feishu event", "status": 202, "dedup_key": dedup_key}
+
+        return {"ok": True, "payload": payload, "dedup_key": dedup_key}
+
+    def _allow_request(self, remote_addr: str, rate_limit: int) -> bool:
+        now = time.time()
+        cutoff = now - 60
+        with self._rate_lock:
+            timestamps = [ts for ts in self._recent_requests.get(remote_addr, []) if ts >= cutoff]
+            if len(timestamps) >= rate_limit:
+                self._recent_requests[remote_addr] = timestamps
+                return False
+            timestamps.append(now)
+            self._recent_requests[remote_addr] = timestamps
+            return True
+
+    def _verify_signature(self, secret: str, timestamp: str, raw_body: bytes, signature: str) -> bool:
+        body_text = raw_body.decode("utf-8", errors="replace")
+        payload = f"{timestamp}\n{body_text}".encode("utf-8")
+        digest = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).digest()
+        expected_base64 = base64.b64encode(digest).decode("utf-8")
+        expected_hex = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(signature, expected_base64) or hmac.compare_digest(signature, expected_hex)
+
+    def _build_dedup_key(self, payload: Dict, headers: Dict[str, str], raw_body: bytes) -> str:
+        candidates = [
+            headers.get("X-Request-Id"),
+            headers.get("X-Lark-Request-Id"),
+            payload.get("header", {}).get("event_id") if isinstance(payload.get("header"), dict) else None,
+            payload.get("event_id"),
+            payload.get("uuid"),
+        ]
+        message = payload.get("event", {}).get("message", {}) if isinstance(payload.get("event"), dict) else {}
+        if isinstance(message, dict):
+            candidates.extend([message.get("message_id"), message.get("chat_id")])
+        for candidate in candidates:
+            if candidate:
+                return str(candidate)
+        return hashlib.sha256(raw_body).hexdigest()
 
     def extract_request(self, payload: Dict) -> Dict:
         event = payload.get("event", payload)
@@ -347,4 +507,44 @@ class GerritAdapter:
             "stdout": process.stdout.strip(),
             "stderr": process.stderr.strip(),
             "summary": summary,
+        }
+
+
+class HILAdapter:
+    """Stub interface for future HIL and vehicle-bus integration."""
+
+    def __init__(self, settings: Dict):
+        self.settings = settings
+
+    def describe_capabilities(self) -> Dict:
+        return {
+            "enabled": bool(self.settings.get("enabled", False)),
+            "status": "stub",
+            "supported_backends": ["canoe", "carla", "lgsvl", "ecu-rig"],
+            "message": "HIL adapter placeholder ready for CAN/LIN, simulator, and ECU integration.",
+        }
+
+
+class BuildVerificationAdapter:
+    """Stub CI/CD bridge for build, static analysis, and release verification."""
+
+    def __init__(self, settings: Dict):
+        self.settings = settings
+
+    def run(self, task_id: str, repo_dir: str) -> Dict:
+        if not self.settings.get("enabled"):
+            return {
+                "success": True,
+                "status": "stub",
+                "task_id": task_id,
+                "repo_dir": repo_dir,
+                "checks": ["build", "static-analysis", "sbom", "signing"],
+                "message": "Build verification adapter is configured as a stub.",
+            }
+        return {
+            "success": False,
+            "status": "unimplemented",
+            "task_id": task_id,
+            "repo_dir": repo_dir,
+            "message": "External CI integration is enabled in config but not implemented yet.",
         }

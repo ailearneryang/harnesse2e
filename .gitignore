@@ -24,3 +24,5 @@ env/
 # Test and runtime artifacts
 tests/reports/
 *.log
+data/harness_state.db
+data/harness_state.db-*

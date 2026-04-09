@@ -130,7 +130,7 @@ harness/
 │
 ├── agents/                       # Agent 角色定义
 │   ├── agents.yaml               # 角色 Prompt 模板与能力定义
-│   └── identities.yaml           # WorkBuddy IDENTITY.md 模板
+│   └── identities.yaml           # Claude Code CLI System Prompt 模板
 │
 ├── engine/                       # 核心引擎
 │   ├── state_machine.py          # 状态机（状态转移、重试、告警、持久化）
@@ -270,12 +270,22 @@ harness/
 | **qa-engineer** | 质量测试 | 源码+需求 | 测试用例 + 测试报告 |
 | **review-agent** | 独立评审 | 阶段产物 | 评分 + 改进建议 |
 
-### 5.2 在 WorkBuddy 多 Agent 模式中的使用
+### 5.2 Claude Code CLI Agent 模式
 
-1. 为每个 Agent 创建独立的 `.workbuddy/IDENTITY.md`（`agents/identities.yaml` 提供模板）
-2. Team Lead 通过 `send_message` 串行调度
-3. 每个 Agent 完成后通过 `send_message` 向 Team Lead 汇报
-4. Team Lead 根据评审结果决定下一步
+Agent 定义文件存放在 `.claude/agents/` 目录下：
+
+```
+.claude/agents/
+├── requirements-analyst.md
+├── system-architect.md
+├── developer.md
+├── qa-engineer.md
+├── code-reviewer.md
+├── security-reviewer.md
+└── debugger.md
+```
+
+Pipeline 通过 `claude --agent <agent_id>` 调用对应的 agent 定义。
 
 ---
 
@@ -324,15 +334,17 @@ POST /api/control/stop    - 停止流水线
 
 ## 七、快速启动指南
 
-### 方式一：配合 WorkBuddy 多 Agent（推荐）
+### 方式一：使用启动脚本（推荐）
 
+```bash
+# 一键启动（自动配置虚拟环境、安装依赖、启动服务）
+./start.sh
+
+# 指定端口
+./start.sh 9000
 ```
-1. 复制 harness/ 模板到项目目录
-2. 在 WorkBuddy 中创建团队，添加 5 个 Agent 成员
-3. 为每个 Agent 配置 IDENTITY.md（参考 agents/identities.yaml）
-4. 将功能规范放入 specs/pending/
-5. Team Lead 启动流水线调度
-```
+
+浏览器访问 `http://localhost:8080` 即可使用 Web Dashboard。
 
 ### 方式二：命令行运行
 

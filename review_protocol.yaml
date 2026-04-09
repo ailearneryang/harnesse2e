@@ -135,6 +135,36 @@ stage_reviews:
         weight: 10
         check: "测试步骤可直接映射为代码操作"
 
+  safety_review:
+    reviewer: review-agent
+    description: "评审车载功能安全、网络安全与合规风险"
+    criteria:
+      - id: SAF-C01
+        name: ISO 26262 影响评估
+        description: "需求与设计是否识别功能安全影响与危害"
+        weight: 25
+        check: "明确 HARA / ASIL 影响或说明不适用"
+      - id: SAF-C02
+        name: AUTOSAR 一致性
+        description: "接口、组件边界与 AUTOSAR/域控架构兼容"
+        weight: 20
+        check: "说明与 Classic/Adaptive AUTOSAR 的契合点或偏差"
+      - id: SAF-C03
+        name: OTA 回滚安全
+        description: "升级失败时有安全回滚与状态恢复策略"
+        weight: 20
+        check: "设计中包含回滚、降级或 fail-safe 说明"
+      - id: SAF-C04
+        name: UNECE WP.29 / ISO 21434
+        description: "网络安全威胁与供应链要求被显式考虑"
+        weight: 20
+        check: "列出关键威胁面、鉴权、日志与供应链控制"
+      - id: SAF-C05
+        name: HIL / 车端验证准备度
+        description: "需求和设计是否为后续台架或实车验证预留接口"
+        weight: 15
+        check: "说明 CAN/LIN/HIL/仿真所需注入点和观测点"
+
 # --------------------------------------------------
 # 一致性交叉检查（跨阶段）
 # --------------------------------------------------

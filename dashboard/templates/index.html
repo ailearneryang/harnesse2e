@@ -6,35 +6,58 @@
     <title>Harness Console</title>
     <style>
         :root {
-            --bg-base: #0a0e1a;
-            --bg-surface: #111827;
-            --bg-elevated: #1a2236;
-            --bg-hover: #1e2a42;
-            --border: rgba(148,163,184,0.10);
-            --border-strong: rgba(148,163,184,0.20);
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --text-muted: #64748b;
-            --accent: #06b6d4;
-            --accent-soft: rgba(6,182,212,0.12);
-            --accent-glow: rgba(6,182,212,0.25);
-            --green: #22c55e;
-            --green-soft: rgba(34,197,94,0.12);
+            /* Harness Enterprise Purple Theme */
+            --bg-base: #0d0d14;
+            --bg-surface: #16161f;
+            --bg-elevated: #1e1e2a;
+            --bg-hover: #262636;
+            --bg-active: #2d2d40;
+            --border: rgba(139, 92, 246, 0.12);
+            --border-strong: rgba(139, 92, 246, 0.24);
+            --border-focus: rgba(139, 92, 246, 0.5);
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            /* Harness Brand Purple */
+            --accent: #8b5cf6;
+            --accent-hover: #a78bfa;
+            --accent-soft: rgba(139, 92, 246, 0.15);
+            --accent-glow: rgba(139, 92, 246, 0.35);
+            /* Status Colors */
+            --green: #10b981;
+            --green-soft: rgba(16, 185, 129, 0.15);
+            --green-glow: rgba(16, 185, 129, 0.3);
             --amber: #f59e0b;
-            --amber-soft: rgba(245,158,11,0.12);
-            --rose: #f43f5e;
-            --rose-soft: rgba(244,63,94,0.12);
-            --blue: #3b82f6;
-            --blue-soft: rgba(59,130,246,0.12);
+            --amber-soft: rgba(245, 158, 11, 0.15);
+            --amber-glow: rgba(245, 158, 11, 0.3);
+            --rose: #ef4444;
+            --rose-soft: rgba(239, 68, 68, 0.15);
+            --rose-glow: rgba(239, 68, 68, 0.3);
+            --blue: #6366f1;
+            --blue-soft: rgba(99, 102, 241, 0.15);
+            --blue-glow: rgba(99, 102, 241, 0.3);
             --purple: #a78bfa;
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --radius-xl: 20px;
+            --purple-soft: rgba(167, 139, 250, 0.15);
+            --cyan: #06b6d4;
+            --cyan-soft: rgba(6, 182, 212, 0.15);
+            /* Radii */
+            --radius-xs: 4px;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-xl: 18px;
+            /* Shadows */
             --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
             --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
             --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+            --shadow-glow: 0 0 20px var(--accent-glow);
+            --shadow-glow-green: 0 0 15px var(--green-glow);
+            --shadow-glow-rose: 0 0 15px var(--rose-glow);
+            --shadow-glow-amber: 0 0 15px var(--amber-glow);
+            /* Transitions */
+            --transition-fast: 0.1s ease;
             --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+            --transition-slow: 0.3s cubic-bezier(0.4,0,0.2,1);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -56,94 +79,169 @@
         /* ── Layout Shell ── */
         .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
 
-        /* ── Sidebar ── */
+        /* ── Sidebar (Enhanced Harness Style) ── */
         .sidebar {
             position: sticky; top: 0; height: 100vh;
-            background: var(--bg-surface);
+            background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-base) 100%);
             border-right: 1px solid var(--border);
             display: flex; flex-direction: column;
             overflow-y: auto;
         }
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
         .sidebar-header {
             padding: 20px 20px 16px;
             border-bottom: 1px solid var(--border);
+            background: var(--bg-surface);
         }
         .logo { display: flex; align-items: center; gap: 12px; }
         .logo-icon {
-            width: 36px; height: 36px; border-radius: 10px;
-            background: linear-gradient(135deg, var(--accent), var(--blue));
+            width: 38px; height: 38px; border-radius: var(--radius-md);
+            background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
             display: grid; place-items: center;
             font-weight: 800; font-size: 15px; color: #fff;
+            box-shadow: 0 4px 12px var(--accent-glow);
         }
-        .logo-text { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
-        .logo-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+        .logo-text { font-size: 16px; font-weight: 700; letter-spacing: 0.06em; }
+        .logo-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.02em; }
 
         .runner-widget {
             margin: 16px 16px 0;
-            padding: 14px;
+            padding: 16px;
             border-radius: var(--radius-md);
             background: var(--bg-elevated);
             border: 1px solid var(--border);
+            transition: all var(--transition);
         }
-        .runner-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
-        .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
-        .dot.paused { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+        .runner-widget:hover { border-color: var(--border-strong); }
+        .runner-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .dot { 
+            width: 8px; height: 8px; border-radius: 50%; 
+            background: var(--text-muted); flex-shrink: 0;
+            transition: all var(--transition);
+        }
+        .dot.live { 
+            background: var(--green); 
+            box-shadow: 0 0 8px var(--green), 0 0 16px var(--green-glow);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        .dot.paused { 
+            background: var(--amber); 
+            box-shadow: 0 0 8px var(--amber); 
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
         .runner-label { font-size: 13px; font-weight: 600; }
-        .runner-detail { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+        .runner-detail { 
+            font-size: 12px; color: var(--text-secondary); 
+            margin-bottom: 14px; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
         .runner-btns { display: flex; gap: 8px; }
 
-        .nav-section { padding: 16px; }
+        .nav-section { padding: 16px; flex: 1; }
         .nav-label {
-            font-size: 11px; font-weight: 600; text-transform: uppercase;
-            letter-spacing: 0.08em; color: var(--text-muted);
-            padding: 0 8px; margin-bottom: 6px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.1em; color: var(--text-muted);
+            padding: 0 12px; margin-bottom: 8px;
         }
         .nav-link {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 9px 12px; border-radius: var(--radius-sm);
+            padding: 10px 12px; border-radius: var(--radius-sm);
             color: var(--text-secondary); cursor: pointer;
             transition: all var(--transition);
+            margin-bottom: 2px;
+            position: relative;
         }
         .nav-link:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .nav-link.active { background: var(--accent-soft); color: var(--accent); }
-        .nav-link .count {
-            font-size: 11px; padding: 2px 7px; border-radius: 99px;
-            background: rgba(255,255,255,0.06); color: var(--text-muted);
+        .nav-link.active { 
+            background: var(--accent-soft); 
+            color: var(--accent);
         }
-        .nav-link.active .count { background: var(--accent-soft); color: var(--accent); }
+        .nav-link.active::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 50%; transform: translateY(-50%);
+            width: 3px; height: 60%;
+            background: var(--accent);
+            border-radius: 0 2px 2px 0;
+        }
+        .nav-link .count {
+            font-size: 10px; padding: 2px 8px; border-radius: 99px;
+            background: var(--bg-hover); color: var(--text-muted);
+            font-weight: 600;
+        }
+        .nav-link.active .count { background: var(--accent); color: #fff; }
 
         .sidebar-footer {
             margin-top: auto; padding: 16px;
             border-top: 1px solid var(--border);
-            font-size: 12px; color: var(--text-muted);
+            font-size: 11px; color: var(--text-muted);
+            background: var(--bg-base);
         }
-        .sidebar-footer .info-row { display: flex; justify-content: space-between; padding: 4px 0; }
-        .sidebar-footer .info-val { color: var(--text-secondary); }
+        .sidebar-footer .info-row { 
+            display: flex; justify-content: space-between; 
+            padding: 5px 0;
+        }
+        .sidebar-footer .info-val { color: var(--text-secondary); font-weight: 500; }
 
         /* ── Main Content ── */
-        .main { padding: 24px 28px; overflow-x: hidden; }
+        .main { 
+            padding: 24px 32px; 
+            overflow-x: hidden; 
+            background: var(--bg-base);
+        }
 
-        /* ── Metric Cards ── */
-        .metrics { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-bottom: 24px; }
+        /* ── Metric Cards (Enhanced) ── */
+        .metrics { display: grid; grid-template-columns: repeat(6,1fr); gap: 16px; margin-bottom: 28px; }
         .metric-card {
-            padding: 16px 18px;
+            padding: 18px 20px;
             border-radius: var(--radius-lg);
             background: var(--bg-surface);
             border: 1px solid var(--border);
-            transition: border-color var(--transition);
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
         }
-        .metric-card:hover { border-color: var(--border-strong); }
-        .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 8px; }
-        .metric-value { font-size: 28px; font-weight: 700; line-height: 1; }
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--border);
+            transition: all var(--transition);
+        }
+        .metric-card:hover { 
+            border-color: var(--border-strong); 
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .metric-label { 
+            font-size: 10px; text-transform: uppercase; 
+            letter-spacing: 0.08em; color: var(--text-muted); 
+            margin-bottom: 10px; font-weight: 600;
+        }
+        .metric-value { font-size: 30px; font-weight: 700; line-height: 1; }
         .metric-value.total { color: var(--blue); }
         .metric-value.running { color: var(--accent); }
         .metric-value.waiting { color: var(--amber); }
         .metric-value.done { color: var(--green); }
         .metric-value.failed { color: var(--rose); }
-        .metric-hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+        .metric-card:has(.metric-value.running)::before { background: linear-gradient(90deg, var(--accent), var(--purple)); }
+        .metric-card:has(.metric-value.done)::before { background: var(--green); }
+        .metric-card:has(.metric-value.failed)::before { background: var(--rose); }
+        .metric-card:has(.metric-value.waiting)::before { background: var(--amber); }
+        .metric-card:has(.metric-value.total)::before { background: var(--blue); }
+        .metric-hint { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
 
-        /* ── Section Panel ── */
+        /* Token Card Special */
+        .metric-card.token-card::before {
+            background: linear-gradient(90deg, var(--accent), var(--blue), var(--green));
+        }
+
+        /* ── Section Panel (Enhanced) ── */
         .section {
             background: var(--bg-surface);
             border: 1px solid var(--border);
@@ -152,27 +250,39 @@
         }
         .section-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 18px 22px;
+            padding: 18px 24px;
             border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-surface) 100%);
         }
-        .section-title { font-size: 16px; font-weight: 700; }
-        .section-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-        .section-body { padding: 18px 22px; }
+        .section-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+        .section-desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+        .section-body { padding: 20px 24px; }
 
-        /* ── Pipeline Stepper ── */
-        .pipeline { display: flex; gap: 0; overflow-x: auto; padding: 4px 0; }
+        /* ── Pipeline Stepper (Enhanced Harness Style) ── */
+        .pipeline { 
+            display: flex; gap: 0; overflow-x: auto; padding: 8px 0;
+            scrollbar-width: thin;
+        }
+        .pipeline::-webkit-scrollbar { height: 4px; }
+        .pipeline::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
         .stage-step {
-            flex: 1; min-width: 110px; position: relative;
+            flex: 1; min-width: 120px; position: relative;
             display: flex; flex-direction: column; align-items: center;
-            padding: 14px 8px; text-align: center;
+            padding: 16px 10px; text-align: center;
+            transition: all var(--transition);
+        }
+        .stage-step:hover {
+            background: var(--bg-hover);
+            border-radius: var(--radius-md);
         }
         .stage-step::after {
-            content: ''; position: absolute; top: 24px; left: 50%; width: 100%; height: 2px;
+            content: ''; position: absolute; top: 30px; left: 50%; width: 100%; height: 2px;
             background: var(--border); z-index: 0;
+            transition: all var(--transition);
         }
         .stage-step:last-child::after { display: none; }
         .stage-num {
-            width: 32px; height: 32px; border-radius: 50%;
+            width: 34px; height: 34px; border-radius: 50%;
             display: grid; place-items: center;
             font-size: 12px; font-weight: 700;
             background: var(--bg-elevated); border: 2px solid var(--border-strong);
@@ -180,21 +290,52 @@
             transition: all var(--transition);
         }
         .stage-step.passed .stage-num,
-        .stage-step.completed .stage-num { background: var(--green-soft); border-color: var(--green); color: var(--green); }
-        .stage-step.running .stage-num { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); animation: pulse 2s infinite; }
-        .stage-step.failed .stage-num { background: var(--rose-soft); border-color: var(--rose); color: var(--rose); }
-        .stage-step.waiting_human .stage-num { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+        .stage-step.completed .stage-num { 
+            background: var(--green); border-color: var(--green); color: #fff; 
+            box-shadow: 0 0 12px var(--green-glow);
+        }
+        .stage-step.running .stage-num { 
+            background: var(--accent); border-color: var(--accent); color: #fff; 
+            box-shadow: 0 0 16px var(--accent-glow);
+            animation: pulse-stage 2s ease-in-out infinite;
+        }
+        @keyframes pulse-stage {
+            0%, 100% { box-shadow: 0 0 12px var(--accent-glow); }
+            50% { box-shadow: 0 0 24px var(--accent-glow); }
+        }
+        .stage-step.failed .stage-num { 
+            background: var(--rose); border-color: var(--rose); color: #fff;
+            box-shadow: 0 0 12px var(--rose-glow);
+        }
+        .stage-step.waiting_human .stage-num { 
+            background: var(--amber); border-color: var(--amber); color: #fff;
+            box-shadow: 0 0 12px var(--amber-glow);
+            animation: pulse-amber 2s ease-in-out infinite;
+        }
+        @keyframes pulse-amber {
+            0%, 100% { box-shadow: 0 0 8px var(--amber-glow); }
+            50% { box-shadow: 0 0 20px var(--amber-glow); }
+        }
         .stage-step.passed::after,
-        .stage-step.completed::after { background: var(--green); opacity: 0.4; }
-        .stage-step.running::after { background: var(--accent); opacity: 0.4; }
-        .stage-name { font-size: 11px; font-weight: 600; margin-top: 8px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+        .stage-step.completed::after { background: var(--green); }
+        .stage-step.running::after { 
+            background: linear-gradient(90deg, var(--accent), var(--border));
+        }
+        .stage-name { 
+            font-size: 10px; font-weight: 600; margin-top: 10px; 
+            color: var(--text-secondary); text-transform: uppercase; 
+            letter-spacing: 0.05em;
+        }
         .stage-step.running .stage-name { color: var(--accent); }
         .stage-step.passed .stage-name,
         .stage-step.completed .stage-name { color: var(--green); }
         .stage-status-tag {
-            font-size: 10px; margin-top: 4px; padding: 2px 8px;
-            border-radius: 99px; background: rgba(255,255,255,0.05);
+            font-size: 9px; margin-top: 6px; padding: 3px 10px;
+            border-radius: 99px; background: var(--bg-hover);
             color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
         .stage-step.running .stage-status-tag { background: var(--accent-soft); color: var(--accent); }
         .stage-step.passed .stage-status-tag,
@@ -202,151 +343,811 @@
         .stage-step.failed .stage-status-tag { background: var(--rose-soft); color: var(--rose); }
         .stage-step.waiting_human .stage-status-tag { background: var(--amber-soft); color: var(--amber); }
 
-        /* ── Focus Card (Active Task) ── */
-        .focus-grid { display: grid; grid-template-columns: 1fr 320px; gap: 18px; margin-bottom: 18px; }
+        /* ── Mission Center Hero ── */
+        .mission-hero {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        .mission-main {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .mission-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+        }
+        .mission-status-icon {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        .mission-status-icon.running {
+            background: var(--accent-soft);
+            box-shadow: 0 0 20px var(--accent-glow);
+            animation: pulse-icon 2s ease-in-out infinite;
+        }
+        .mission-status-icon.completed { background: var(--green-soft); }
+        .mission-status-icon.failed { background: var(--rose-soft); }
+        .mission-status-icon.waiting_human { background: var(--amber-soft); animation: pulse-icon 2s ease-in-out infinite; }
+        .mission-status-icon.idle { background: var(--bg-base); }
+        @keyframes pulse-icon {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .mission-status-info { flex: 1; min-width: 0; }
+        .mission-status-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .mission-status-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .mission-status-subtitle .sep { color: var(--border-strong); }
+        .mission-status-badge {
+            padding: 6px 14px;
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .mission-status-badge.running {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 12px var(--accent-glow);
+        }
+        .mission-status-badge.completed { background: var(--green); color: #fff; }
+        .mission-status-badge.failed { background: var(--rose); color: #fff; }
+        .mission-status-badge.waiting_human { background: var(--amber); color: #fff; }
+        .mission-status-badge.idle { background: var(--bg-hover); color: var(--text-muted); }
+
+        /* Task Details Card */
+        .task-detail-card {
+            padding: 20px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+        }
+        .task-detail-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 16px;
+            max-height: 60px;
+            overflow: hidden;
+        }
+        .task-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .task-detail-item {
+            padding: 12px;
+            background: var(--bg-base);
+            border-radius: var(--radius-md);
+            text-align: center;
+        }
+        .task-detail-item .tdi-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .task-detail-item .tdi-value {
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .task-detail-item .tdi-value.highlight { color: var(--accent); }
+
+        /* Progress Ring */
+        .progress-ring-card {
+            padding: 24px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .progress-ring-container {
+            position: relative;
+            width: 160px;
+            height: 160px;
+        }
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        .progress-ring-bg {
+            fill: none;
+            stroke: var(--bg-base);
+            stroke-width: 12;
+        }
+        .progress-ring-fill {
+            fill: none;
+            stroke: url(#progressGradient);
+            stroke-width: 12;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .progress-ring-text {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .progress-ring-pct {
+            font-size: 36px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .progress-ring-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .progress-stats {
+            width: 100%;
+            display: grid;
+            gap: 10px;
+        }
+        .progress-stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            padding: 8px 12px;
+            background: var(--bg-base);
+            border-radius: var(--radius-sm);
+        }
+        .progress-stat-row span:first-child { color: var(--text-muted); }
+        .progress-stat-row strong { font-weight: 600; }
+
+        /* ── Pipeline Visual (Redesigned) ── */
+        .pipeline-visual {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        .pipeline-visual::-webkit-scrollbar { height: 6px; }
+        .pipeline-visual::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+        .pipeline-stages {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            min-width: max-content;
+        }
+        .pipeline-stage {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 100px;
+            position: relative;
+        }
+        .pipeline-stage-connector {
+            width: 32px;
+            min-width: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-top: 8px;
+        }
+        .pipeline-stage-connector svg {
+            width: 40px;
+            height: 8px;
+        }
+        .pipeline-stage-connector path {
+            stroke: var(--border-strong);
+            stroke-width: 2;
+            fill: none;
+        }
+        .pipeline-stage.passed + .pipeline-stage-connector path,
+        .pipeline-stage.completed + .pipeline-stage-connector path {
+            stroke: var(--green);
+        }
+        .pipeline-stage.running + .pipeline-stage-connector path {
+            stroke: var(--accent);
+            stroke-dasharray: 4 2;
+            animation: dash-flow 0.5s linear infinite;
+        }
+        .pipeline-stage-node {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 18px;
+            background: var(--bg-base);
+            border: 3px solid var(--border-strong);
+            transition: all var(--transition);
+            position: relative;
+        }
+        .pipeline-stage.pending .pipeline-stage-node {
+            color: var(--text-muted);
+            border-color: var(--border);
+        }
+        .pipeline-stage.running .pipeline-stage-node {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 24px var(--accent-glow);
+            animation: pulse-node 2s ease-in-out infinite;
+        }
+        @keyframes pulse-node {
+            0%, 100% { box-shadow: 0 0 16px var(--accent-glow); }
+            50% { box-shadow: 0 0 32px var(--accent-glow); }
+        }
+        .pipeline-stage.passed .pipeline-stage-node,
+        .pipeline-stage.completed .pipeline-stage-node {
+            background: var(--green);
+            border-color: var(--green);
+            color: #fff;
+        }
+        .pipeline-stage.failed .pipeline-stage-node {
+            background: var(--rose);
+            border-color: var(--rose);
+            color: #fff;
+            box-shadow: 0 0 16px var(--rose-glow);
+        }
+        .pipeline-stage.waiting_human .pipeline-stage-node {
+            background: var(--amber);
+            border-color: var(--amber);
+            color: #fff;
+            animation: pulse-amber-node 2s ease-in-out infinite;
+        }
+        @keyframes pulse-amber-node {
+            0%, 100% { box-shadow: 0 0 12px var(--amber-glow); }
+            50% { box-shadow: 0 0 24px var(--amber-glow); }
+        }
+        .pipeline-stage-info {
+            margin-top: 12px;
+            text-align: center;
+            max-width: 90px;
+        }
+        .psi-name, .pipeline-stage-name {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
+            white-space: nowrap;
+        }
+        .pipeline-stage.running .psi-name { color: var(--accent); }
+        .pipeline-stage.passed .psi-name { color: var(--green); }
+        .pipeline-stage.failed .psi-name { color: var(--rose); }
+        .psi-status {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        .psi-status.passed { color: var(--green); }
+        .psi-status.running { color: var(--accent); }
+        .psi-status.failed { color: var(--rose); }
+        .psi-status.waiting_human { color: var(--amber); }
+        .psi-time {
+            font-size: 9px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-variant-numeric: tabular-nums;
+        }
+        .pipeline-stage.running .psi-time { color: var(--accent); }
+        .pipeline-stage.passed .psi-time { color: var(--green); opacity: 0.8; }
+        
+        /* Retry Badge */
+        .retry-badge {
+            position: absolute;
+            top: -6px; right: -6px;
+            min-width: 18px; height: 18px;
+            border-radius: 9px;
+            background: var(--amber);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            display: grid;
+            place-items: center;
+            padding: 0 4px;
+            box-shadow: 0 2px 6px var(--amber-glow);
+        }
+        
+        /* Fallback Source Stage */
+        .pipeline-stage.fallback-source .pipeline-stage-node {
+            border-color: var(--amber);
+            box-shadow: 0 0 12px var(--amber-glow);
+        }
+        
+        /* Fallback Banner */
+        .pipeline-fallback-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
+            background: var(--amber-soft);
+            border: 1px solid var(--amber);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            color: var(--amber);
+        }
+        .pfb-icon {
+            font-size: 16px;
+            animation: bounce-left 1s ease-in-out infinite;
+        }
+        @keyframes bounce-left {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(-4px); }
+        }
+        .pfb-text strong { color: var(--text-primary); }
+        
+        /* Pipeline Empty State */
+        .pipeline-visual.pipeline-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 24px;
+            text-align: center;
+        }
+        .pipeline-empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        .pipeline-empty-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .pipeline-empty-hint {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        
+        /* Pipeline Status Header (for completed/failed tasks) */
+        .pipeline-status-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+        }
+        .pipeline-status-header.completed {
+            background: var(--green-soft);
+            color: var(--green);
+        }
+        .pipeline-status-header.failed {
+            background: var(--rose-soft);
+            color: var(--rose);
+        }
+        .psh-icon {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .psh-text {
+            font-weight: 600;
+        }
+        .psh-time {
+            margin-left: auto;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        .psh-retry-btn {
+            margin-left: 12px;
+            padding: 6px 12px;
+            background: #fff;
+            border: 1px solid var(--rose);
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--rose);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .psh-retry-btn:hover {
+            background: var(--rose);
+            color: #fff;
+        }
+        
+        /* Stage Retry Button */
+        .stage-retry-btn {
+            position: absolute;
+            bottom: -8px;
+            right: -8px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--rose);
+            border: 2px solid var(--bg-elevated);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            transition: all var(--transition);
+            z-index: 10;
+        }
+        .stage-retry-btn:hover {
+            transform: scale(1.15);
+            box-shadow: 0 2px 8px var(--rose-glow);
+        }
+        
+        /* Connector line between stages */
+        .connector-line {
+            width: 100%;
+            height: 2px;
+            background: var(--border-strong);
+            position: relative;
+        }
+        .pipeline-stage.passed + .pipeline-stage-connector .connector-line {
+            background: var(--green);
+        }
+        .pipeline-stage.running + .pipeline-stage-connector .connector-line {
+            background: linear-gradient(90deg, var(--accent), var(--border-strong));
+            animation: flow-pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes flow-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pipeline-stage.running .pipeline-stage-name { color: var(--accent); }
+        .pipeline-stage.passed .pipeline-stage-name,
+        .pipeline-stage.completed .pipeline-stage-name { color: var(--green); }
+        .pipeline-stage.failed .pipeline-stage-name { color: var(--rose); }
+        .pipeline-stage-time {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        /* ── Focus Card (Active Task) Enhanced ── */
+        .focus-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; margin-bottom: 20px; }
         .focus-card {
-            padding: 18px; border-radius: var(--radius-lg);
-            background: var(--bg-elevated); border: 1px solid var(--border);
+            padding: 22px; border-radius: var(--radius-lg);
+            background: var(--bg-elevated); 
+            border: 1px solid var(--border);
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
         }
-        .focus-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 6px; }
-        .focus-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-        .focus-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 14px; max-height: 60px; overflow: hidden; }
-        .focus-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .focus-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--purple));
+        }
+        .focus-card:hover { border-color: var(--border-strong); }
+        .focus-label { 
+            font-size: 10px; text-transform: uppercase; 
+            letter-spacing: 0.08em; color: var(--text-muted); 
+            margin-bottom: 10px; font-weight: 600;
+        }
+        .focus-name { font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; }
+        .focus-desc { 
+            font-size: 13px; color: var(--text-secondary); 
+            line-height: 1.6; margin-bottom: 18px; 
+            max-height: 65px; overflow: hidden;
+        }
+        .focus-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .focus-meta-item {
-            padding: 10px 12px; border-radius: var(--radius-sm);
-            background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+            padding: 12px 14px; border-radius: var(--radius-md);
+            background: var(--bg-base); border: 1px solid var(--border);
+            transition: all var(--transition);
         }
-        .focus-meta-item .fm-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-        .focus-meta-item .fm-value { font-size: 13px; font-weight: 600; margin-top: 3px; }
+        .focus-meta-item:hover { border-color: var(--border-strong); }
+        .focus-meta-item .fm-label { 
+            font-size: 9px; text-transform: uppercase; 
+            letter-spacing: 0.08em; color: var(--text-muted); 
+            font-weight: 600;
+        }
+        .focus-meta-item .fm-value { font-size: 13px; font-weight: 600; margin-top: 5px; }
 
         .health-card {
-            padding: 18px; border-radius: var(--radius-lg);
+            padding: 22px; border-radius: var(--radius-lg);
             background: var(--bg-elevated); border: 1px solid var(--border);
-            display: flex; flex-direction: column; gap: 14px;
+            display: flex; flex-direction: column; gap: 16px;
+            transition: all var(--transition);
         }
-        .health-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-        .health-big { font-size: 42px; font-weight: 800; line-height: 1; color: var(--accent); }
-        .progress-track { width: 100%; height: 6px; border-radius: 99px; background: rgba(255,255,255,0.06); overflow: hidden; }
-        .progress-bar { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--blue)); transition: width 0.4s ease; }
-        .health-rows { display: grid; gap: 8px; }
-        .health-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
-        .health-row strong { color: var(--text-primary); }
+        .health-card:hover { border-color: var(--border-strong); }
+        .health-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .health-big { 
+            font-size: 48px; font-weight: 800; line-height: 1; 
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .progress-track { 
+            width: 100%; height: 8px; border-radius: 99px; 
+            background: var(--bg-base); overflow: hidden; 
+        }
+        .progress-bar { 
+            height: 100%; border-radius: inherit; 
+            background: linear-gradient(90deg, var(--accent), var(--purple)); 
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        .health-rows { display: grid; gap: 10px; }
+        .health-row { 
+            display: flex; justify-content: space-between; 
+            font-size: 12px; color: var(--text-secondary);
+            padding: 4px 0;
+        }
+        .health-row strong { color: var(--text-primary); font-weight: 600; }
 
         /* ── Two Column Layout ── */
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
 
-        /* ── Agent Grid ── */
-        .agent-grid { display: grid; grid-template-columns: 1fr; gap: 10px; max-height: 360px; overflow-y: auto; }
+        /* ── Agent Grid (Enhanced) ── */
+        .agent-grid { display: grid; grid-template-columns: 1fr; gap: 12px; max-height: 380px; overflow-y: auto; }
+        .agent-grid::-webkit-scrollbar { width: 4px; }
+        .agent-grid::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
         .agent-card {
-            padding: 14px; border-radius: var(--radius-md);
+            padding: 16px; border-radius: var(--radius-md);
             background: var(--bg-elevated); border: 1px solid var(--border);
-            transition: border-color var(--transition);
+            transition: all var(--transition);
         }
-        .agent-card:hover { border-color: var(--border-strong); }
-        .agent-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+        .agent-card:hover { 
+            border-color: var(--border-strong); 
+            transform: translateX(4px);
+            box-shadow: var(--shadow-sm);
+        }
+        .agent-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
         .agent-name { font-size: 13px; font-weight: 700; }
-        .agent-model { font-size: 11px; color: var(--text-muted); }
-        .agent-role { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+        .agent-model { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+        .agent-role { font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.4; }
         .agent-badges { display: flex; gap: 6px; flex-wrap: wrap; }
 
-        /* ── Badges ── */
+        /* ── Badges (Enhanced) ── */
         .badge {
-            display: inline-flex; align-items: center; gap: 4px;
-            padding: 3px 9px; border-radius: 99px;
-            font-size: 11px; font-weight: 600;
-            background: rgba(255,255,255,0.06); color: var(--text-muted);
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 4px 10px; border-radius: 99px;
+            font-size: 10px; font-weight: 600;
+            background: var(--bg-hover); color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            transition: all var(--transition);
         }
-        .badge.running { background: var(--accent-soft); color: var(--accent); }
+        .badge.running { 
+            background: var(--accent-soft); color: var(--accent);
+            animation: badge-pulse 2s ease-in-out infinite;
+        }
+        @keyframes badge-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
         .badge.passed,.badge.completed { background: var(--green-soft); color: var(--green); }
         .badge.failed,.badge.error { background: var(--rose-soft); color: var(--rose); }
         .badge.waiting_human { background: var(--amber-soft); color: var(--amber); }
         .badge.idle { background: rgba(255,255,255,0.04); color: var(--text-muted); }
         .badge.queued { background: var(--blue-soft); color: var(--blue); }
 
-        /* ── Buttons ── */
+        /* ── Buttons (Harness Enterprise Style) ── */
         .btn {
             appearance: none; border: none; border-radius: var(--radius-sm);
-            padding: 8px 14px; font-size: 12px; font-weight: 600;
+            padding: 9px 16px; font-size: 12px; font-weight: 600;
             cursor: pointer; color: var(--text-primary);
-            background: rgba(255,255,255,0.07);
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
             transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
         }
-        .btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-1px); }
-        .btn.primary { background: var(--accent); color: #fff; }
-        .btn.primary:hover { background: #0891b2; }
-        .btn.warn { background: var(--amber); color: #1a0d00; }
-        .btn.warn:hover { background: #d97706; }
-        .btn.danger { background: var(--rose); color: #fff; }
+        .btn::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.05) 100%);
+            opacity: 0; transition: opacity var(--transition);
+        }
+        .btn:hover { 
+            background: var(--bg-active); 
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+        .btn:hover::before { opacity: 1; }
+        .btn:active { transform: translateY(0); box-shadow: none; }
+        .btn:disabled, .btn.loading { 
+            opacity: 0.5; cursor: not-allowed; 
+            pointer-events: none;
+        }
+        .btn.loading::after {
+            content: ''; position: absolute; 
+            width: 12px; height: 12px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 6px;
+        }
+        .btn.primary { 
+            background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%); 
+            color: #fff; 
+            border-color: transparent;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+        .btn.primary:hover { 
+            background: linear-gradient(135deg, var(--accent-hover) 0%, #8b5cf6 100%);
+            box-shadow: 0 4px 16px var(--accent-glow);
+        }
+        .btn.warn { 
+            background: linear-gradient(135deg, var(--amber) 0%, #ea580c 100%); 
+            color: #fff;
+            border-color: transparent;
+        }
+        .btn.warn:hover { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
+        .btn.danger { 
+            background: linear-gradient(135deg, var(--rose) 0%, #dc2626 100%); 
+            color: #fff;
+            border-color: transparent;
+        }
+        .btn.danger:hover { box-shadow: 0 4px 12px var(--rose-glow); }
+        .btn.success {
+            background: linear-gradient(135deg, var(--green) 0%, #059669 100%);
+            color: #fff;
+            border-color: transparent;
+        }
         .btn.ghost { background: transparent; border: 1px solid var(--border); }
-        .btn.sm { padding: 5px 10px; font-size: 11px; }
+        .btn.ghost:hover { background: var(--bg-hover); border-color: var(--accent); color: var(--accent); }
+        .btn.sm { padding: 6px 12px; font-size: 11px; }
+        .btn.lg { padding: 12px 24px; font-size: 14px; }
+        .btn.icon-only { padding: 8px; min-width: 32px; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ── Request Composer ── */
-        .composer { display: grid; gap: 12px; }
-        .composer-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .field-group { display: grid; gap: 4px; }
+        .composer { display: grid; gap: 14px; }
+        .composer-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .field-group { display: grid; gap: 6px; }
         .field-group.full { grid-column: 1 / -1; }
-        .field-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        .field-label { 
+            font-size: 11px; font-weight: 600; 
+            color: var(--text-muted); 
+            text-transform: uppercase; 
+            letter-spacing: 0.06em; 
+        }
         input, textarea, select {
-            width: 100%; padding: 10px 14px;
+            width: 100%; padding: 11px 14px;
             border: 1px solid var(--border); border-radius: var(--radius-sm);
             background: var(--bg-base); color: var(--text-primary);
-            transition: border-color var(--transition);
+            transition: all var(--transition);
+            font-size: 13px;
         }
-        input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+        input::placeholder, textarea::placeholder { color: var(--text-muted); }
+        input:hover, textarea:hover { border-color: var(--border-strong); }
+        input:focus, textarea:focus { 
+            outline: none; 
+            border-color: var(--accent); 
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
         textarea { min-height: 100px; resize: vertical; }
         .composer-actions { display: flex; gap: 8px; margin-top: 4px; }
 
-        /* ── Task Board (Kanban) ── */
-        .kanban { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; max-height: 420px; overflow-y: auto; }
-        .kanban-col {
-            min-height: 160px; max-height: 400px; overflow-y: auto; padding: 12px;
-            border-radius: var(--radius-lg);
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border);
+        /* ── Task Board (Kanban) Enhanced ── */
+        .kanban { 
+            display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; 
+            max-height: 450px; overflow-y: auto;
+            padding: 4px;
         }
+        .kanban::-webkit-scrollbar { width: 6px; }
+        .kanban::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+        .kanban-col {
+            min-height: 180px; max-height: 420px; overflow-y: auto; padding: 14px;
+            border-radius: var(--radius-lg);
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            transition: all var(--transition);
+        }
+        .kanban-col:hover { border-color: var(--border-strong); }
         .kanban-col-head {
             display: flex; justify-content: space-between; align-items: center;
-            padding-bottom: 10px; margin-bottom: 10px;
+            padding-bottom: 12px; margin-bottom: 12px;
             border-bottom: 1px solid var(--border);
         }
-        .kanban-col-title { font-size: 13px; font-weight: 700; }
+        .kanban-col-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
         .kanban-col-count {
-            font-size: 11px; padding: 2px 8px; border-radius: 99px;
-            background: rgba(255,255,255,0.06); color: var(--text-muted);
+            font-size: 10px; padding: 3px 10px; border-radius: 99px;
+            background: var(--bg-hover); color: var(--text-muted);
+            font-weight: 600;
         }
-        .kanban-col.progress { border-top: 2px solid var(--accent); }
-        .kanban-col.review { border-top: 2px solid var(--amber); }
-        .kanban-col.done { border-top: 2px solid var(--green); }
-        .kanban-col.attention { border-top: 2px solid var(--rose); }
-        .kanban-cards { display: grid; gap: 10px; }
+        .kanban-col.progress { border-top: 3px solid var(--accent); }
+        .kanban-col.progress .kanban-col-count { background: var(--accent-soft); color: var(--accent); }
+        .kanban-col.review { border-top: 3px solid var(--amber); }
+        .kanban-col.review .kanban-col-count { background: var(--amber-soft); color: var(--amber); }
+        .kanban-col.done { border-top: 3px solid var(--green); }
+        .kanban-col.done .kanban-col-count { background: var(--green-soft); color: var(--green); }
+        .kanban-col.attention { border-top: 3px solid var(--rose); }
+        .kanban-col.attention .kanban-col-count { background: var(--rose-soft); color: var(--rose); }
+        .kanban-cards { display: grid; gap: 12px; }
 
         .task-card {
-            padding: 14px; border-radius: var(--radius-md);
-            background: var(--bg-elevated); border: 1px solid var(--border);
-            border-left: 3px solid var(--text-muted);
-            transition: border-color var(--transition);
-        }
-        .task-card:hover { border-color: var(--border-strong); }
-        .task-card.running { border-left-color: var(--accent); }
-        .task-card.waiting_human { border-left-color: var(--amber); }
-        .task-card.completed,.task-card.passed { border-left-color: var(--green); }
-        .task-card.failed { border-left-color: var(--rose); }
-        .task-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-        .task-card-title { font-size: 13px; font-weight: 700; }
-        .task-card-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-        .task-card-body { font-size: 12px; color: var(--text-secondary); margin: 8px 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .task-card-progress { margin-top: 8px; }
-        .task-card-progress-top { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
-        .task-microbar { height: 4px; border-radius: 99px; background: rgba(255,255,255,0.06); overflow: hidden; }
-        .task-microbar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--blue)); }
-        .task-card-badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
-
-        /* ── Approval Cards ── */
-        .approval-card {
             padding: 16px; border-radius: var(--radius-md);
-            background: var(--bg-elevated); border: 1px solid var(--amber-soft);
-            border-left: 3px solid var(--amber);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            border-left: 4px solid var(--text-muted);
+            transition: all var(--transition);
+            cursor: pointer;
+        }
+        .task-card:hover { 
+            border-color: var(--border-strong); 
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .task-card.running { 
+            border-left-color: var(--accent); 
+            background: linear-gradient(135deg, var(--bg-elevated) 0%, rgba(139,92,246,0.05) 100%);
+        }
+        .task-card.waiting_human { 
+            border-left-color: var(--amber);
+            background: linear-gradient(135deg, var(--bg-elevated) 0%, rgba(245,158,11,0.05) 100%);
+        }
+        .task-card.completed,.task-card.passed { 
+            border-left-color: var(--green);
+            background: linear-gradient(135deg, var(--bg-elevated) 0%, rgba(16,185,129,0.05) 100%);
+        }
+        .task-card.failed { 
+            border-left-color: var(--rose);
+            background: linear-gradient(135deg, var(--bg-elevated) 0%, rgba(239,68,68,0.05) 100%);
+        }
+        .task-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .task-card-title { font-size: 13px; font-weight: 700; line-height: 1.3; }
+        .task-card-sub { font-size: 10px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+        .task-card-body { 
+            font-size: 12px; color: var(--text-secondary); margin: 10px 0; 
+            line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; 
+            -webkit-box-orient: vertical; overflow: hidden; 
+        }
+        .task-card-progress { margin-top: 10px; }
+        .task-card-progress-top { 
+            display: flex; justify-content: space-between; 
+            font-size: 10px; color: var(--text-muted); margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .task-microbar { height: 5px; border-radius: 99px; background: var(--bg-base); overflow: hidden; }
+        .task-microbar span { 
+            display: block; height: 100%; border-radius: inherit; 
+            background: linear-gradient(90deg, var(--accent), var(--purple)); 
+            transition: width 0.5s ease;
+        }
+        .task-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+
+        /* ── Approval Cards (Enhanced) ── */
+        .approval-card {
+            padding: 18px; border-radius: var(--radius-md);
+            background: var(--bg-elevated); 
+            border: 1px solid var(--amber-soft);
+            border-left: 4px solid var(--amber);
+            transition: all var(--transition);
+        }
+        .approval-card:hover {
+            border-color: var(--amber);
+            box-shadow: 0 4px 16px var(--amber-glow);
         }
         .approval-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
         .approval-title { font-size: 14px; font-weight: 700; }
@@ -357,52 +1158,164 @@
         /* ── Event Feed ── */
         .feed { max-height: 400px; overflow-y: auto; display: grid; gap: 6px; }
         .feed-item {
-            padding: 10px 14px; border-radius: var(--radius-sm);
-            background: rgba(255,255,255,0.02);
-            border: 1px solid transparent;
-            transition: background var(--transition);
+            padding: 12px 16px; border-radius: var(--radius-md);
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            transition: all var(--transition);
         }
-        .feed-item:hover { background: rgba(255,255,255,0.04); }
-        .feed-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-        .feed-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted); }
-        .feed-dot.info { background: var(--blue); }
-        .feed-dot.success { background: var(--green); }
-        .feed-dot.warning { background: var(--amber); }
-        .feed-dot.error { background: var(--rose); }
-        .feed-time { font-size: 11px; color: var(--text-muted); }
-        .feed-source { font-size: 11px; color: var(--text-muted); }
-        .feed-stage-tag { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: rgba(255,255,255,0.05); color: var(--text-muted); }
+        .feed-item:hover { 
+            background: var(--bg-hover); 
+            border-color: var(--border-strong);
+            transform: translateX(4px);
+        }
+        .feed-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .feed-dot { 
+            width: 8px; height: 8px; border-radius: 50%; 
+            flex-shrink: 0; background: var(--text-muted);
+            transition: all var(--transition);
+        }
+        .feed-dot.info { background: var(--blue); box-shadow: 0 0 8px var(--blue-glow); }
+        .feed-dot.success { background: var(--green); box-shadow: 0 0 8px var(--green-glow); }
+        .feed-dot.warning { background: var(--amber); box-shadow: 0 0 8px var(--amber-glow); }
+        .feed-dot.error { background: var(--rose); box-shadow: 0 0 8px var(--rose-glow); }
+        .feed-time { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+        .feed-source { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .feed-stage-tag { 
+            font-size: 9px; padding: 2px 8px; border-radius: 99px; 
+            background: var(--bg-hover); color: var(--text-muted);
+            font-weight: 600;
+        }
         .feed-msg { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 
-        .feed-filter { display: flex; gap: 6px; flex-wrap: wrap; }
-        .feed-filter .btn { font-size: 11px; padding: 4px 10px; }
-        .feed-filter .btn.active { background: var(--accent-soft); color: var(--accent); }
+        .feed-filter { display: flex; gap: 8px; flex-wrap: wrap; }
+        .feed-filter .btn { font-size: 10px; padding: 5px 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .feed-filter .btn.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 
-        /* ── Empty State ── */
+        /* ── Empty State (Enhanced) ── */
         .empty {
-            padding: 24px; text-align: center;
+            padding: 40px 24px; text-align: center;
             border: 1px dashed var(--border-strong);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-lg);
             color: var(--text-muted); font-size: 13px;
+            background: var(--bg-base);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .empty::before {
+            content: '📭';
+            font-size: 32px;
+            opacity: 0.6;
+        }
+        .empty.no-icon::before { display: none; }
+        .empty-title {
+            font-size: 14px; font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .empty-desc {
+            font-size: 12px; color: var(--text-muted);
+            max-width: 280px; line-height: 1.5;
         }
 
-        /* ── Artifact Panel ── */
-        .artifact-stages { display: grid; gap: 14px; max-height: 500px; overflow-y: auto; }
+        /* ── Loading States ── */
+        .loading-spinner {
+            width: 20px; height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .loading-spinner.lg { width: 32px; height: 32px; border-width: 3px; }
+        .loading-overlay {
+            position: absolute; inset: 0;
+            background: rgba(13,13,20,0.7);
+            display: flex; align-items: center; justify-content: center;
+            border-radius: inherit;
+            backdrop-filter: blur(2px);
+        }
+        
+        /* ── Skeleton Loading ── */
+        .skeleton {
+            background: linear-gradient(
+                90deg,
+                var(--bg-hover) 0%,
+                var(--bg-active) 50%,
+                var(--bg-hover) 100%
+            );
+            background-size: 200% 100%;
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+            border-radius: var(--radius-sm);
+        }
+        .skeleton-text { height: 14px; margin-bottom: 8px; }
+        .skeleton-text.sm { height: 10px; width: 60%; }
+        .skeleton-circle { width: 40px; height: 40px; border-radius: 50%; }
+        .skeleton-card {
+            padding: 16px;
+            border-radius: var(--radius-md);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+        }
+        @keyframes skeleton-pulse {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* ── Error State ── */
+        .error-state {
+            padding: 32px 24px; text-align: center;
+            border: 1px solid var(--rose-soft);
+            border-radius: var(--radius-lg);
+            background: var(--rose-soft);
+        }
+        .error-state::before {
+            content: '⚠️';
+            font-size: 28px;
+            display: block;
+            margin-bottom: 12px;
+        }
+        .error-title {
+            font-size: 14px; font-weight: 600;
+            color: var(--rose); margin-bottom: 6px;
+        }
+        .error-desc {
+            font-size: 12px; color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        /* ── Artifact Panel (Enhanced) ── */
+        .artifact-stages { display: grid; gap: 16px; max-height: 520px; overflow-y: auto; }
+        .artifact-stages::-webkit-scrollbar { width: 4px; }
+        .artifact-stages::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
         .artifact-stage-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 14px; border-radius: var(--radius-sm);
+            padding: 14px 18px; border-radius: var(--radius-md);
             background: var(--bg-elevated); border: 1px solid var(--border);
             cursor: pointer; user-select: none;
-            transition: background var(--transition);
+            transition: all var(--transition);
         }
-        .artifact-stage-header:hover { background: var(--bg-hover); }
-        .artifact-stage-name { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-        .artifact-stage-count { font-size: 11px; color: var(--text-muted); }
-        .artifact-files { display: grid; gap: 8px; padding: 8px 0 0 0; }
+        .artifact-stage-header:hover { 
+            background: var(--bg-hover); 
+            border-color: var(--border-strong);
+        }
+        .artifact-stage-name { 
+            font-size: 12px; font-weight: 700; 
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .artifact-stage-count { 
+            font-size: 10px; color: var(--text-muted);
+            background: var(--bg-base);
+            padding: 3px 10px;
+            border-radius: 99px;
+            font-weight: 600;
+        }
+        .artifact-files { display: grid; gap: 10px; padding: 12px 0 0 0; }
         .artifact-file {
             border: 1px solid var(--border); border-radius: var(--radius-md);
             overflow: hidden;
+            transition: all var(--transition);
         }
+        .artifact-file:hover { border-color: var(--border-strong); }
         .artifact-file-header {
             display: flex; align-items: center; justify-content: space-between;
             padding: 10px 14px;
@@ -427,74 +1340,650 @@
             color: var(--text-secondary);
         }
         .artifact-task-select {
-            padding: 6px 12px; border-radius: var(--radius-sm);
+            padding: 10px 14px; border-radius: var(--radius-sm);
             background: var(--bg-base); border: 1px solid var(--border);
             color: var(--text-primary); font-size: 12px;
+            cursor: pointer;
+            transition: all var(--transition);
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2371717a' d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+        .artifact-task-select:hover { border-color: var(--border-strong); }
+        .artifact-task-select:focus { 
+            outline: none; 
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
         }
 
-        /* ── Pipeline Editor ── */
-        .pipe-editor { display: grid; gap: 8px; }
-        .pipe-item {
-            display: flex; align-items: center; gap: 10px;
-            padding: 10px 14px; border-radius: var(--radius-sm);
-            background: var(--bg-elevated); border: 1px solid var(--border);
-            cursor: grab; user-select: none;
+        /* ── Pipeline Editor V2 (Enhanced Visual Flow) ── */
+        .pipe-editor-v2 {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
         }
-        .pipe-item:active { cursor: grabbing; }
-        .pipe-item.dragging { opacity: 0.4; }
-        .pipe-item.drag-over { border-color: var(--accent); background: var(--accent-soft); }
-        .pipe-item .pipe-num {
-            width: 24px; height: 24px; border-radius: 50%;
-            display: grid; place-items: center;
-            font-size: 11px; font-weight: 700;
-            background: rgba(255,255,255,0.06); color: var(--text-muted); flex-shrink: 0;
+        .pipe-tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-base);
+            padding: 4px;
+            border-radius: var(--radius-md);
+            width: fit-content;
         }
-        .pipe-item .pipe-name { font-size: 13px; font-weight: 600; flex: 1; }
-        .pipe-item .pipe-agent { font-size: 11px; color: var(--text-muted); }
-        .pipe-item .pipe-remove {
-            width: 24px; height: 24px; border-radius: 50%;
-            display: grid; place-items: center;
-            background: transparent; border: 1px solid var(--border);
-            color: var(--text-muted); cursor: pointer; font-size: 14px;
-            transition: all var(--transition); flex-shrink: 0;
+        .pipe-tab {
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            transition: all var(--transition);
         }
-        .pipe-item .pipe-remove:hover { background: var(--rose-soft); color: var(--rose); border-color: var(--rose); }
-        .pipe-add-row { display: flex; gap: 8px; margin-top: 8px; }
-        .pipe-add-select { flex: 1; }
+        .pipe-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+        .pipe-tab.active { color: var(--accent); background: var(--accent-soft); }
 
-        /* ── Tabs ── */
-        .tabs { display: flex; gap: 2px; margin-bottom: 16px; }
+        /* Flow Canvas */
+        .pipe-canvas {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            padding-bottom: 80px; /* Extra space for fallback arrows */
+            min-height: 300px;
+            position: relative;
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+        .pipe-flow {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            min-width: max-content;
+            padding: 20px 0;
+            position: relative;
+            z-index: 2;
+        }
+        
+        /* Stage Node */
+        .pipe-node {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 140px;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .pipe-node:hover .pipe-node-card { 
+            border-color: var(--accent);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 0 0 1px var(--accent-soft);
+        }
+        .pipe-node.selected .pipe-node-card {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-md);
+        }
+        .pipe-node.has-fallback .pipe-node-card::after {
+            content: '↩';
+            position: absolute;
+            top: -8px; right: -8px;
+            width: 20px; height: 20px;
+            background: var(--amber);
+            color: #fff;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .pipe-node-card {
+            background: var(--bg-elevated);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+            text-align: center;
+            transition: all var(--transition);
+            position: relative;
+        }
+        .pipe-node-num {
+            position: absolute;
+            top: -12px; left: 50%;
+            transform: translateX(-50%);
+            width: 24px; height: 24px;
+            background: var(--accent);
+            color: #fff;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 11px;
+            font-weight: 700;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+        .pipe-node-name {
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            margin-top: 4px;
+        }
+        .pipe-node-agent {
+            font-size: 10px;
+            color: var(--text-muted);
+            background: var(--bg-base);
+            padding: 3px 8px;
+            border-radius: 99px;
+        }
+        .pipe-node-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+            opacity: 0;
+            transition: opacity var(--transition);
+        }
+        .pipe-node:hover .pipe-node-actions { opacity: 1; }
+        .pipe-node-btn {
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--bg-base);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            transition: all var(--transition);
+        }
+        .pipe-node-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .pipe-node-btn.delete:hover { background: var(--rose-soft); color: var(--rose); border-color: var(--rose); }
+        .pipe-node-btn.settings:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+        /* Connector Arrow */
+        .pipe-connector {
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            color: var(--border-strong);
+            font-size: 18px;
+            transition: color var(--transition);
+        }
+        .pipe-connector svg {
+            width: 32px;
+            height: 12px;
+        }
+        .pipe-connector path {
+            stroke: var(--border-strong);
+            stroke-width: 2;
+            fill: none;
+        }
+        .pipe-node:hover + .pipe-connector path,
+        .pipe-connector:has(+ .pipe-node:hover) path {
+            stroke: var(--accent);
+        }
+
+        /* Fallback Arrow (curved return path) */
+        .pipe-fallback-layer {
+            position: absolute;
+            top: 0; left: 0;
+            pointer-events: none;
+            overflow: visible;
+            z-index: 1;
+        }
+        .pipe-fallback-layer g {
+            pointer-events: auto;
+        }
+        .pipe-fallback-arrow path {
+            stroke: var(--amber);
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 6 4;
+            animation: dash-flow 1s linear infinite;
+        }
+        .pipe-fallback-arrow:hover path {
+            stroke-width: 3;
+            filter: drop-shadow(0 0 6px var(--amber-glow));
+        }
+        .pipe-fallback-arrow polygon {
+            fill: var(--amber);
+        }
+        .pipe-fallback-label {
+            position: absolute;
+            background: var(--amber);
+            color: #fff;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 99px;
+            white-space: nowrap;
+            transform: translateX(-50%);
+            box-shadow: 0 2px 8px var(--amber-glow);
+        }
+        @keyframes dash-flow {
+            to { stroke-dashoffset: -10; }
+        }
+
+        /* Fallback Legend */
+        .pipe-legend {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 12px 16px;
+            background: var(--bg-base);
+            border-radius: var(--radius-md);
+            margin-top: 16px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .pipe-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pipe-legend-line {
+            width: 24px;
+            height: 2px;
+            background: var(--border-strong);
+        }
+        .pipe-legend-line.fallback {
+            background: var(--amber);
+            height: 2px;
+            background: repeating-linear-gradient(
+                90deg,
+                var(--amber) 0px,
+                var(--amber) 6px,
+                transparent 6px,
+                transparent 10px
+            );
+        }
+        
+        /* Editor Preview Section */
+        .pipe-preview-section {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px dashed var(--border);
+        }
+        .pipe-preview-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .pipe-preview-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .pipe-preview-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .psi-fallback-hint {
+            font-size: 9px;
+            color: var(--amber);
+            margin-top: 2px;
+        }
+        .preview-summary {
+            display: flex;
+            gap: 20px;
+            padding: 12px 0;
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .preview-stat strong {
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        /* Add Node Button */
+        .pipe-add-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 80px;
+            cursor: pointer;
+        }
+        .pipe-add-btn {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            border: 2px dashed var(--border-strong);
+            background: var(--bg-base);
+            color: var(--text-muted);
+            display: grid;
+            place-items: center;
+            font-size: 20px;
+            transition: all var(--transition);
+        }
+        .pipe-add-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+            transform: scale(1.1);
+        }
+        .pipe-add-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Stage Config Panel */
+        .pipe-config-panel {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        .pipe-config-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .pipe-config-title {
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .pipe-config-close {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            font-size: 16px;
+            transition: all var(--transition);
+        }
+        .pipe-config-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .pipe-config-body {
+            padding: 20px;
+        }
+        .pipe-config-section {
+            margin-bottom: 20px;
+        }
+        .pipe-config-section:last-child { margin-bottom: 0; }
+        .pipe-config-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 10px;
+        }
+
+        /* Fallback Rules */
+        .fallback-rules {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .fallback-rule {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            transition: all var(--transition);
+        }
+        .fallback-rule:hover { border-color: var(--border-strong); }
+        .fallback-rule.active { border-color: var(--amber); background: var(--amber-soft); }
+        .fallback-icon {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: var(--amber-soft);
+            color: var(--amber);
+            display: grid;
+            place-items: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .fallback-content { flex: 1; min-width: 0; }
+        .fallback-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .fallback-target {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .fallback-arrow {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .fallback-stage-tag {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 99px;
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .fallback-toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: var(--bg-hover);
+            border-radius: 99px;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .fallback-toggle.on { background: var(--amber); }
+        .fallback-toggle::after {
+            content: '';
+            position: absolute;
+            top: 3px; left: 3px;
+            width: 18px; height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            transition: all var(--transition);
+        }
+        .fallback-toggle.on::after { left: 23px; }
+        .fallback-select {
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-size: 12px;
+            min-width: 140px;
+        }
+        .fallback-select:focus { outline: none; border-color: var(--accent); }
+
+        /* Retry Config */
+        .retry-config {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .retry-input {
+            width: 60px;
+            padding: 8px 12px;
+            text-align: center;
+        }
+        .retry-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Add Stage Modal */
+        .pipe-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--transition);
+        }
+        .pipe-modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .pipe-modal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            width: 480px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow: hidden;
+            transform: scale(0.95);
+            transition: transform var(--transition);
+        }
+        .pipe-modal-overlay.open .pipe-modal {
+            transform: scale(1);
+        }
+        .pipe-modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .pipe-modal-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .pipe-modal-body {
+            padding: 20px 24px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .pipe-modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .stage-option {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 16px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .stage-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+        .stage-option.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .stage-option-icon {
+            width: 40px; height: 40px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-base);
+            display: grid;
+            place-items: center;
+            font-size: 18px;
+        }
+        .stage-option-info { flex: 1; min-width: 0; }
+        .stage-option-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+        .stage-option-agent { font-size: 11px; color: var(--text-muted); }
+        .stage-option-check {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            display: grid;
+            place-items: center;
+            color: transparent;
+            transition: all var(--transition);
+        }
+        .stage-option.selected .stage-option-check {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        /* ── Tabs (Enhanced) ── */
+        .tabs { display: flex; gap: 4px; margin-bottom: 18px; background: var(--bg-base); padding: 4px; border-radius: var(--radius-md); }
         .tab {
-            padding: 8px 16px; border-radius: var(--radius-sm);
+            padding: 10px 18px; border-radius: var(--radius-sm);
             font-size: 12px; font-weight: 600; cursor: pointer;
             color: var(--text-muted); background: transparent;
             border: none; transition: all var(--transition);
         }
-        .tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.04); }
-        .tab.active { color: var(--accent); background: var(--accent-soft); }
+        .tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+        .tab.active { 
+            color: var(--accent); 
+            background: var(--accent-soft);
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
 
         /* ── Animations ── */
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
 
-        /* ── Responsive ── */
+        /* ── Tooltips ── */
+        [data-tooltip] {
+            position: relative;
+        }
+        [data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%; left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 10px;
+            background: var(--bg-active);
+            color: var(--text-primary);
+            font-size: 11px;
+            border-radius: var(--radius-sm);
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all var(--transition);
+            z-index: 100;
+        }
+        [data-tooltip]:hover::after {
+            opacity: 1;
+            bottom: calc(100% + 6px);
+        }
+
+        /* ── Responsive (Enhanced) ── */
         @media (max-width: 1400px) {
             .metrics { grid-template-columns: repeat(3,1fr); }
+            .metric-card.token-card { grid-column: span 1; }
             .two-col { grid-template-columns: 1fr; }
             .three-col { grid-template-columns: 1fr 1fr; }
             .kanban { grid-template-columns: repeat(2,1fr); }
             .focus-grid { grid-template-columns: 1fr; }
+            .mission-hero { grid-template-columns: 1fr; }
+            .progress-ring-card { flex-direction: row; padding: 16px 20px; }
+            .progress-ring-container { width: 100px; height: 100px; }
+            .progress-ring { width: 100px; height: 100px; }
+            .progress-ring-pct { font-size: 24px; }
+            .progress-stats { flex: 1; grid-template-columns: repeat(3, 1fr); }
         }
         @media (max-width: 1100px) {
             .shell { grid-template-columns: 1fr; }
             .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; }
             .sidebar-footer { margin-top: 0; }
             .three-col { grid-template-columns: 1fr; }
+            .progress-ring-card { flex-direction: column; }
+            .progress-stats { grid-template-columns: 1fr; }
         }
         @media (max-width: 768px) {
             .main { padding: 16px; }
             .metrics { grid-template-columns: repeat(2,1fr); }
             .kanban { grid-template-columns: 1fr; }
             .agent-grid { grid-template-columns: 1fr; }
+            .task-detail-grid { grid-template-columns: 1fr; }
+            .mission-status-bar { flex-wrap: wrap; gap: 8px; }
         }
     </style>
 </head>
@@ -518,11 +2007,21 @@ const DEFAULT_STAGES = ['intake','planning','requirements','design','development
 let STAGES = DEFAULT_STAGES;
 
 function statusCls(s) { return s || 'pending'; }
-function completedCount(task) { return Object.values(task?.stages||{}).filter(s=>['passed','completed'].includes(s.status)).length; }
+function completedCount(task) { 
+    const pipelineStages = task?.pipeline_snapshot || STAGES;
+    return pipelineStages.filter(stageId => {
+        const stageData = task?.stages?.[stageId];
+        return stageData && ['passed','completed'].includes(stageData.status);
+    }).length;
+}
 function taskPct(task) {
     if (!task) return 0;
-    const total = Math.max(Object.keys(task.stages||{}).length, STAGES.length, 1);
+    const pipelineStages = task.pipeline_snapshot || STAGES;
+    const total = pipelineStages.length || 1;
     return Math.min(100, Math.round(completedCount(task) / total * 100));
+}
+function getTaskStageCount(task) {
+    return (task?.pipeline_snapshot || STAGES).length;
 }
 function classifyTask(t) {
     const s = (t?.status||'').toLowerCase(), st = (t?.current_stage||'').toLowerCase();
@@ -534,6 +2033,170 @@ function classifyTask(t) {
 function fmtTime(ts) {
     if (!ts) return '-';
     try { const d = new Date(ts); return d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); } catch(e) { return ts; }
+}
+function fmtTokens(n) {
+    if (!n || n === 0) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(n);
+}
+function tokenStatusCls(status) {
+    if (status === 'exceeded') return 'failed';
+    if (status === 'warning') return 'waiting';
+    return 'done';
+}
+
+/* ── Status Display Helpers ── */
+const STAGE_ICONS = {
+    intake: '📥', planning: '📋', requirements: '📝', design: '🏗️',
+    development: '💻', code_review: '👁️', security_review: '🔒',
+    safety_review: '🛡️', testing: '🧪', build_verification: '🔧', delivery: '🚀'
+};
+function getStageIcon(stage) { return STAGE_ICONS[stage] || '⚙️'; }
+
+function getStatusIcon(status) {
+    const s = String(status||'pending').toLowerCase();
+    if (['completed','done','passed'].includes(s)) return '✓';
+    if (['failed','error'].includes(s)) return '✗';
+    if (['running','in_progress'].includes(s)) return '▶';
+    if (['waiting_human'].includes(s)) return '⏸';
+    return '○';
+}
+
+function getStatusText(status) {
+    const s = String(status||'').toLowerCase();
+    if (!s || s==='pending') return '待处理';
+    if (['completed','done'].includes(s)) return '已完成';
+    if (s==='passed') return '已通过';
+    if (['running','in_progress'].includes(s)) return '进行中';
+    if (['waiting','waiting_human'].includes(s)) return '等待审批';
+    if (['failed','error'].includes(s)) return '失败';
+    if (s==='idle') return '空闲';
+    return s;
+}
+
+function taskDuration(task) {
+    if (!task?.started_at) return '—';
+    const start = new Date(task.started_at).getTime();
+    const end = task.completed_at ? new Date(task.completed_at).getTime() : Date.now();
+    const sec = Math.round((end - start) / 1000);
+    if (sec < 60) return `${sec}s`;
+    if (sec < 3600) return `${Math.floor(sec/60)}m ${sec%60}s`;
+    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
+    return `${h}h ${m}m`;
+}
+
+function stageDuration(stageData) {
+    if (!stageData?.started_at) return '';
+    const start = new Date(stageData.started_at).getTime();
+    const end = stageData.completed_at ? new Date(stageData.completed_at).getTime() : Date.now();
+    const sec = Math.round((end - start) / 1000);
+    if (sec < 60) return `${sec}s`;
+    if (sec < 3600) return `${Math.floor(sec/60)}m ${sec%60}s`;
+    return `${Math.floor(sec/3600)}h ${Math.floor((sec%3600)/60)}m`;
+}
+
+function renderPipelineVisual(task) {
+    const stages = task?.stages || {};
+    const currentStage = task?.current_stage || '';
+    const taskStatus = task?.status || '';
+    
+    // Use task's pipeline_snapshot if available, otherwise fall back to global STAGES
+    const stageList = task?.pipeline_snapshot || STAGES;
+    
+    // If no task or empty pipeline, show empty state
+    if (!task || stageList.length === 0) {
+        return `<div class="pipeline-visual pipeline-empty">
+            <div class="pipeline-empty-icon">📋</div>
+            <div class="pipeline-empty-text">暂无活动任务</div>
+            <div class="pipeline-empty-hint">提交新请求开始任务流程</div>
+        </div>`;
+    }
+    
+    // Determine display mode based on task status
+    const isCompleted = ['completed', 'done'].includes(taskStatus);
+    const isFailed = ['failed', 'error'].includes(taskStatus);
+    const isRunning = ['running', 'in_progress'].includes(taskStatus);
+    
+    let html = '<div class="pipeline-visual">';
+    
+    // Status header for completed/failed tasks
+    if (isCompleted || isFailed) {
+        const statusIcon = isCompleted ? '✓' : '✗';
+        const statusText = isCompleted ? '任务已完成' : '任务失败';
+        const statusClass = isCompleted ? 'completed' : 'failed';
+        const retryBtn = isFailed ? `<button class="psh-retry-btn" onclick="retryTask('${task.id}')" title="重试任务">🔄 重试</button>` : '';
+        html += `<div class="pipeline-status-header ${statusClass}">
+            <span class="psh-icon">${statusIcon}</span>
+            <span class="psh-text">${statusText}</span>
+            <span class="psh-time">${taskDuration(task)}</span>
+            ${retryBtn}
+        </div>`;
+    }
+    
+    // Check for active fallback (a stage that was passed but now we're at an earlier stage)
+    let fallbackInfo = null;
+    const currentIdx = stageList.indexOf(currentStage);
+    for (let i = currentIdx + 1; i < stageList.length; i++) {
+        const stageData = stages[stageList[i]] || {};
+        const retries = stageData.retry_count || stageData.attempts || 0;
+        if (retries > 1 || ['failed','error'].includes(stageData.status)) {
+            fallbackInfo = { from: stageList[i], fromIdx: i, to: currentStage, toIdx: currentIdx };
+            break;
+        }
+    }
+    
+    // Fallback indicator banner (only for running tasks)
+    if (fallbackInfo && isRunning) {
+        html += `<div class="pipeline-fallback-banner">
+            <span class="pfb-icon">↩</span>
+            <span class="pfb-text">回退执行: <strong>${esc(humanStage(fallbackInfo.from))}</strong> → <strong>${esc(humanStage(fallbackInfo.to))}</strong></span>
+        </div>`;
+    }
+    
+    html += '<div class="pipeline-stages">';
+    
+    stageList.forEach((stage, idx) => {
+        const stageData = stages[stage] || {};
+        const status = stageData.status || 'pending';
+        const isCurrent = stage === currentStage;
+        const isLast = idx === stageList.length - 1;
+        const duration = stageDuration(stageData);
+        // Support both retry_count (state_machine) and attempts (pipeline_runner)
+        const retryCount = Math.max((stageData.retry_count || 0), (stageData.attempts || 0) - 1, 0);
+        
+        // Check if this stage is the source of a fallback
+        const isFallbackSource = fallbackInfo?.from === stage;
+        
+        // Determine node status class
+        let nodeStatus = 'pending';
+        if (['completed','done','passed'].includes(status)) nodeStatus = 'passed';
+        else if (['failed','error'].includes(status)) nodeStatus = 'failed';
+        else if (['running','in_progress'].includes(status) || isCurrent) nodeStatus = 'running';
+        else if (['waiting','waiting_human'].includes(status)) nodeStatus = 'waiting_human';
+        
+        // Show retry button for failed stages when task is also failed
+        const showRetry = nodeStatus === 'failed' && isFailed;
+        
+        html += `
+            <div class="pipeline-stage ${nodeStatus} ${isCurrent ? 'current' : ''} ${isFallbackSource ? 'fallback-source' : ''}">
+                <div class="pipeline-stage-node">
+                    ${getStageIcon(stage)}
+                    ${retryCount > 0 ? `<span class="retry-badge" title="已重试 ${retryCount} 次">${retryCount}</span>` : ''}
+                    ${showRetry ? `<button class="stage-retry-btn" onclick="event.stopPropagation();retryTask('${task.id}')" title="从此阶段重试">↻</button>` : ''}
+                </div>
+                <div class="pipeline-stage-info">
+                    <div class="psi-name">${esc(humanStage(stage))}</div>
+                    <div class="psi-status ${nodeStatus}">${getStatusText(status)}${retryCount > 0 ? ` · 重试${retryCount}` : ''}</div>
+                    ${duration ? `<div class="psi-time">${duration}</div>` : ''}
+                </div>
+            </div>
+            ${!isLast ? '<div class="pipeline-stage-connector"><div class="connector-line"></div></div>' : ''}
+        `;
+    });
+    
+    html += '</div></div>';
+    return html;
 }
 
 /* ── API ── */
@@ -568,7 +2231,17 @@ async function resolveApproval(taskId, approvalId, resolution) {
     await fetchRuntime();
 }
 async function retryTask(taskId) {
-    await fetch(`/api/tasks/${taskId}/retry`, { method:'POST' });
+    try {
+        const r = await fetch(`/api/tasks/${taskId}/retry`, { method:'POST' });
+        if (r.ok) {
+            showToast('任务已重新加入队列');
+        } else {
+            const data = await r.json().catch(() => ({}));
+            showToast(data.error || '重试失败', true);
+        }
+    } catch (e) {
+        showToast('重试请求失败', true);
+    }
     await fetchRuntime();
 }
 async function deleteTask(taskId) {
@@ -595,9 +2268,13 @@ function render() {
     const stats = runtime.stats || {};
     const runner = runtime.runner || {};
     const settings = runtime.settings || {};
-    STAGES = runtime.pipeline_order || DEFAULT_STAGES;
+    // Only update STAGES if editor is not actively being used
+    if (!editorLoaded) {
+        STAGES = runtime.pipeline_order || DEFAULT_STAGES;
+    }
     const activeTask = tasks.find(t => t.id === runner.current_task_id) || tasks[0];
     const pct = taskPct(activeTask);
+    const budget = runtime.budget || {used: 0, limit: 500000, percent: 0, status: 'ok'};
     const isLive = runner.running && !runner.paused;
     const isPaused = runner.paused;
 
@@ -669,6 +2346,7 @@ function render() {
             <div class="metric-card"><div class="metric-label">等待人工</div><div class="metric-value waiting">${stats.waiting_human||0}</div><div class="metric-hint">需要人工处理</div></div>
             <div class="metric-card"><div class="metric-label">已交付</div><div class="metric-value done">${stats.completed||0}</div><div class="metric-hint">完成 delivery</div></div>
             <div class="metric-card"><div class="metric-label">失败</div><div class="metric-value failed">${stats.failed||0}</div><div class="metric-hint">需要关注</div></div>
+            <div class="metric-card token-card"><div class="metric-label">Token 用量</div><div class="metric-value ${tokenStatusCls(budget.status)}">${fmtTokens(budget.used)}</div><div class="metric-hint">${budget.percent}% · ${fmtTokens(budget.limit)} 限额</div></div>
         </div>
 
         <!-- Mission Center -->
@@ -678,34 +2356,100 @@ function render() {
                 <button class="btn ghost sm" onclick="fetchRuntime()">刷新</button>
             </div>
             <div class="section-body">
-                <div class="focus-grid">
-                    <div class="focus-card">
-                        <div class="focus-label">当前任务</div>
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-                            <div class="focus-name">${esc(activeTask?.title||'No active task')}</div>
-                            <span class="badge ${statusCls(activeTask?.status)}">${esc(activeTask?.status||'idle')}</span>
+                <!-- Mission Hero -->
+                <div class="mission-hero">
+                    <div class="mission-main">
+                        <!-- Status Bar -->
+                        <div class="mission-status-bar">
+                            <div class="mission-status-icon ${statusCls(activeTask?.status)}">
+                                ${getStatusIcon(activeTask?.status)}
+                            </div>
+                            <div class="mission-status-info">
+                                <div class="mission-status-title">${esc(activeTask?.title||'等待新任务')}</div>
+                                <div class="mission-status-subtitle">
+                                    <span>${esc(activeTask?.source||'web')}</span>
+                                    <span class="sep">•</span>
+                                    <span>${esc(humanStage(activeTask?.current_stage||'idle'))}</span>
+                                    <span class="sep">•</span>
+                                    <span>${taskDuration(activeTask)}</span>
+                                </div>
+                            </div>
+                            <div class="mission-status-badge ${statusCls(activeTask?.status)}">
+                                ${getStatusText(activeTask?.status)}
+                            </div>
                         </div>
-                        <div class="focus-desc">${esc(activeTask?.request_text||'等待新请求，或者从飞书、API、Web 提交需求。')}</div>
-                        <div class="focus-meta">
-                            <div class="focus-meta-item"><div class="fm-label">Stage</div><div class="fm-value">${esc(humanStage(activeTask?.current_stage||'idle'))}</div></div>
-                            <div class="focus-meta-item"><div class="fm-label">Progress</div><div class="fm-value">${completedCount(activeTask||{})} / ${STAGES.length}</div></div>
-                            <div class="focus-meta-item"><div class="fm-label">Total Time</div><div class="fm-value">${taskDuration(activeTask)}</div></div>
-                            <div class="focus-meta-item"><div class="fm-label">Source</div><div class="fm-value">${esc(activeTask?.source||'-')}</div></div>
-                            <div class="focus-meta-item"><div class="fm-label">Task ID</div><div class="fm-value" style="font-size:11px;word-break:break-all">${esc(activeTask?.id||'-')}</div></div>
+                        
+                        <!-- Task Details -->
+                        <div class="task-detail-card">
+                            <div class="task-detail-desc">${esc(activeTask?.request_text||'等待新请求，或者从飞书、API、Web 提交需求。')}</div>
+                            <div class="task-detail-grid">
+                                <div class="task-detail-item">
+                                    <div class="tdi-label">当前阶段</div>
+                                    <div class="tdi-value highlight">${esc(humanStage(activeTask?.current_stage||'-'))}</div>
+                                </div>
+                                <div class="task-detail-item">
+                                    <div class="tdi-label">进度</div>
+                                    <div class="tdi-value">${completedCount(activeTask||{})} / ${getTaskStageCount(activeTask)}</div>
+                                </div>
+                                <div class="task-detail-item">
+                                    <div class="tdi-label">耗时</div>
+                                    <div class="tdi-value">${taskDuration(activeTask)}</div>
+                                </div>
+                                <div class="task-detail-item">
+                                    <div class="tdi-label">Token 消耗</div>
+                                    <div class="tdi-value ${tokenStatusCls(budget.status)}">${fmtTokens(budget.used)}</div>
+                                </div>
+                                <div class="task-detail-item">
+                                    <div class="tdi-label">Token 限额</div>
+                                    <div class="tdi-value">${fmtTokens(budget.limit)}</div>
+                                </div>
+                                <div class="task-detail-item">
+                                    <div class="tdi-label">使用率</div>
+                                    <div class="tdi-value ${budget.percent>80?'highlight':''}">${budget.percent}%</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="health-card">
-                        <div class="health-title">Pipeline Completion</div>
-                        <div class="health-big">${pct}%</div>
-                        <div class="progress-track"><div class="progress-bar" style="width:${pct}%"></div></div>
-                        <div class="health-rows">
-                            <div class="health-row"><span>Failed Tasks</span><strong>${stats.failed||0}</strong></div>
-                            <div class="health-row"><span>Latest Event</span><strong>${esc(latestEvents.length?latestEvents[latestEvents.length-1].source:'—')}</strong></div>
-                            <div class="health-row"><span>Event Volume</span><strong>${latestEvents.length}</strong></div>
+                    
+                    <!-- Progress Ring -->
+                    <div class="progress-ring-card">
+                        <div class="progress-ring-container">
+                            <svg class="progress-ring" width="160" height="160" viewBox="0 0 160 160">
+                                <defs>
+                                    <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" style="stop-color:var(--accent)"/>
+                                        <stop offset="100%" style="stop-color:var(--purple)"/>
+                                    </linearGradient>
+                                </defs>
+                                <circle class="progress-ring-bg" cx="80" cy="80" r="68"/>
+                                <circle class="progress-ring-fill" cx="80" cy="80" r="68" 
+                                    stroke-dasharray="${Math.PI * 2 * 68}" 
+                                    stroke-dashoffset="${Math.PI * 2 * 68 * (1 - pct / 100)}"/>
+                            </svg>
+                            <div class="progress-ring-text">
+                                <div class="progress-ring-pct">${pct}%</div>
+                                <div class="progress-ring-label">完成度</div>
+                            </div>
+                        </div>
+                        <div class="progress-stats">
+                            <div class="progress-stat-row">
+                                <span>失败任务</span>
+                                <strong style="color:${stats.failed>0?'var(--rose)':'inherit'}">${stats.failed||0}</strong>
+                            </div>
+                            <div class="progress-stat-row">
+                                <span>事件数量</span>
+                                <strong>${latestEvents.length}</strong>
+                            </div>
+                            <div class="progress-stat-row">
+                                <span>最新事件</span>
+                                <strong>${esc(latestEvents.length?latestEvents[latestEvents.length-1].source:'—')}</strong>
+                            </div>
                         </div>
                     </div>
                 </div>
-                ${renderPipeline(activeTask)}
+                
+                <!-- Pipeline Visual -->
+                ${renderPipelineVisual(activeTask)}
             </div>
         </section>
 
@@ -729,21 +2473,46 @@ function render() {
             </div>
         </section>
 
-        <!-- Pipeline Editor -->
+        <!-- Pipeline Editor V2 -->
         <section id="pipeline-editor" class="section">
             <div class="section-header">
                 <div>
                     <div class="section-title">Pipeline Editor</div>
-                    <div class="section-desc">拖拽排序、增删 stage，保存后立即生效 · <span id="pipe-mode-tag" style="color:var(--text-muted)"></span></div>
+                    <div class="section-desc">可视化编排 · 点击节点配置回退规则 · <span id="pipe-mode-tag" style="color:var(--text-muted)"></span></div>
                 </div>
                 <div style="display:flex;gap:8px">
                     <button class="btn ghost sm" onclick="resetPipelineEditor()">撤销编辑</button>
-                    <button class="btn ghost sm" onclick="restoreDefaultPipeline()" id="pipe-restore-btn" style="display:none">恢复系统默认</button>
-                    <button class="btn primary sm" onclick="savePipeline()">保存</button>
+                    <button class="btn ghost sm" onclick="restoreDefaultPipeline()" id="pipe-restore-btn" style="display:none">恢复默认</button>
+                    <button class="btn primary sm" onclick="savePipeline()">保存配置</button>
                 </div>
             </div>
-            <div class="section-body" id="pipe-editor-body"></div>
+            <div class="section-body">
+                <div id="pipe-editor-body"></div>
+                <!-- Live Preview -->
+                <div class="pipe-preview-section">
+                    <div class="pipe-preview-header">
+                        <span class="pipe-preview-title">📺 实时预览</span>
+                        <span class="pipe-preview-hint">显示保存后 Mission Center 中的效果</span>
+                    </div>
+                    <div id="pipe-preview-content"></div>
+                </div>
+            </div>
         </section>
+
+        <!-- Add Stage Modal -->
+        <div class="pipe-modal-overlay" id="add-stage-modal">
+            <div class="pipe-modal">
+                <div class="pipe-modal-header">
+                    <div class="pipe-modal-title">添加 Pipeline Stage</div>
+                    <button class="pipe-config-close" onclick="closeAddStageModal()">×</button>
+                </div>
+                <div class="pipe-modal-body" id="stage-options-body"></div>
+                <div class="pipe-modal-footer">
+                    <button class="btn ghost" onclick="closeAddStageModal()">取消</button>
+                    <button class="btn primary" onclick="confirmAddStage()">添加</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Task Board -->
         <section id="tasks" class="section">
@@ -993,34 +2762,55 @@ function renderFeed(events) {
     `).join('')}</div>`;
 }
 
-/* ── Pipeline Editor ── */
+/* ── Pipeline Editor V2 ── */
 const ALL_STAGES = [
-    {id:'intake', name:'Request Intake', agent:'planner'},
-    {id:'planning', name:'Sprint Planning', agent:'planner'},
-    {id:'requirements', name:'Requirements', agent:'requirements-analyst'},
-    {id:'design', name:'System Design', agent:'system-architect'},
-    {id:'development', name:'Implementation', agent:'developer'},
-    {id:'code_review', name:'Code Review', agent:'code-reviewer'},
-    {id:'security_review', name:'Security Review', agent:'security-reviewer'},
-    {id:'testing', name:'QA Testing', agent:'qa-engineer'},
-    {id:'delivery', name:'Gerrit Delivery', agent:'delivery-manager'},
+    {id:'intake', name:'Request Intake', agent:'planner', icon:'📥'},
+    {id:'planning', name:'Sprint Planning', agent:'planner', icon:'📋'},
+    {id:'requirements', name:'Requirements', agent:'requirements-analyst', icon:'📝'},
+    {id:'design', name:'System Design', agent:'system-architect', icon:'🏗️'},
+    {id:'development', name:'Implementation', agent:'developer', icon:'💻'},
+    {id:'code_review', name:'Code Review', agent:'code-reviewer', icon:'👁️'},
+    {id:'security_review', name:'Security Review', agent:'security-reviewer', icon:'🔒'},
+    {id:'safety_review', name:'Safety Review', agent:'safety-reviewer', icon:'🛡️'},
+    {id:'testing', name:'QA Testing', agent:'qa-engineer', icon:'🧪'},
+    {id:'build_verification', name:'Build Verify', agent:'build-verifier', icon:'🔧'},
+    {id:'delivery', name:'Gerrit Delivery', agent:'delivery-manager', icon:'🚀'},
 ];
+
+// Stage data with fallback rules
 let editorStages = [];
+let fallbackRules = {}; // { stageId: { enabled: boolean, targetStageId: string, maxRetries: number } }
+let selectedStageId = null;
 let editorLoaded = false;
-let dragIdx = null;
 let pipelineIsCustom = false;
 let pipelineFetched = false;
 let renderThrottleTimer = null;
+let pendingAddStage = null;
 
 function initPipelineEditor() {
     if (!editorLoaded) {
-        editorStages = STAGES.map(id => ALL_STAGES.find(s=>s.id===id) || {id, name:id, agent:'-'});
+        editorStages = STAGES.map(id => {
+            const stage = ALL_STAGES.find(s => s.id === id);
+            return stage ? {...stage} : {id, name: id, agent: '-', icon: '⚙️'};
+        });
+        // Initialize default fallback rules
+        fallbackRules = {};
+        editorStages.forEach(s => {
+            fallbackRules[s.id] = { enabled: false, targetStageId: '', maxRetries: 3 };
+        });
+        // Default: testing fails -> development
+        if (fallbackRules.testing) {
+            fallbackRules.testing = { enabled: true, targetStageId: 'development', maxRetries: 3 };
+        }
+        // Default: code_review fails -> development
+        if (fallbackRules.code_review) {
+            fallbackRules.code_review = { enabled: true, targetStageId: 'development', maxRetries: 2 };
+        }
         editorLoaded = true;
     }
-    // Update mode tag and restore button
     const tag = document.getElementById('pipe-mode-tag');
     const btn = document.getElementById('pipe-restore-btn');
-    if (tag) tag.textContent = pipelineIsCustom ? '当前: 自定义' : '当前: 系统默认';
+    if (tag) tag.textContent = pipelineIsCustom ? '自定义配置' : '系统默认';
     if (btn) btn.style.display = pipelineIsCustom ? '' : 'none';
     renderPipelineEditor();
 }
@@ -1028,55 +2818,455 @@ function initPipelineEditor() {
 function renderPipelineEditor() {
     const body = document.getElementById('pipe-editor-body');
     if (!body) return;
-    const usedIds = new Set(editorStages.map(s=>s.id));
-    const available = ALL_STAGES.filter(s=>!usedIds.has(s.id));
-    body.innerHTML = `
-        <div class="pipe-editor" id="pipe-sortable">
-            ${editorStages.map((s,i) => `
-                <div class="pipe-item" draggable="true" data-idx="${i}"
-                     ondragstart="pipeDragStart(event,${i})" ondragover="pipeDragOver(event,${i})"
-                     ondragleave="pipeDragLeave(event)" ondrop="pipeDrop(event,${i})" ondragend="pipeDragEnd(event)">
-                    <span class="pipe-num">${i+1}</span>
-                    <span class="pipe-name">${esc(s.name)}</span>
-                    <span class="pipe-agent">${esc(s.agent)}</span>
-                    <span class="pipe-remove" onclick="pipeRemove(${i})">×</span>
+
+    const flowHtml = editorStages.map((s, i) => {
+        const hasFallback = fallbackRules[s.id]?.enabled;
+        const isSelected = selectedStageId === s.id;
+        const rule = fallbackRules[s.id];
+        const targetStage = rule?.enabled ? editorStages.find(t => t.id === rule.targetStageId) : null;
+        return `
+            ${i > 0 ? `<div class="pipe-connector"><svg viewBox="0 0 32 12"><path d="M0 6 L24 6 M20 2 L26 6 L20 10"/></svg></div>` : ''}
+            <div class="pipe-node ${isSelected ? 'selected' : ''} ${hasFallback ? 'has-fallback' : ''}" 
+                 onclick="selectPipeStage('${s.id}')" data-stage="${s.id}" data-index="${i}">
+                <div class="pipe-node-card">
+                    <div class="pipe-node-num">${i + 1}</div>
+                    <div class="pipe-node-name">${esc(s.name)}</div>
+                    <div class="pipe-node-agent">${esc(s.agent)}</div>
+                    <div class="pipe-node-actions">
+                        <button class="pipe-node-btn settings" onclick="event.stopPropagation();selectPipeStage('${s.id}')" title="配置">⚙</button>
+                        <button class="pipe-node-btn delete" onclick="event.stopPropagation();pipeRemove(${i})" title="删除">×</button>
+                    </div>
                 </div>
-            `).join('')}
+            </div>
+        `;
+    }).join('');
+
+    // Build fallback arrows data
+    const fallbackArrows = [];
+    editorStages.forEach((s, i) => {
+        const rule = fallbackRules[s.id];
+        if (rule?.enabled && rule.targetStageId) {
+            const targetIdx = editorStages.findIndex(t => t.id === rule.targetStageId);
+            if (targetIdx >= 0 && targetIdx < i) {
+                fallbackArrows.push({
+                    fromIdx: i,
+                    toIdx: targetIdx,
+                    fromId: s.id,
+                    toId: rule.targetStageId,
+                    fromName: s.name,
+                    toName: editorStages[targetIdx].name,
+                    retries: rule.maxRetries
+                });
+            }
+        }
+    });
+
+    // Build legend if there are fallback rules
+    const hasAnyFallback = fallbackArrows.length > 0;
+    const legendHtml = hasAnyFallback ? `
+        <div class="pipe-legend">
+            <div class="pipe-legend-item">
+                <div class="pipe-legend-line"></div>
+                <span>正常流程</span>
+            </div>
+            <div class="pipe-legend-item">
+                <div class="pipe-legend-line fallback"></div>
+                <span>失败回退 (点击查看详情)</span>
+            </div>
         </div>
-        <div class="pipe-add-row">
-            <select class="artifact-task-select pipe-add-select" id="pipe-add-select">
-                <option value="">添加 stage...</option>
-                ${available.map(s=>`<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.agent)})</option>`).join('')}
-            </select>
-            <button class="btn ghost sm" onclick="pipeAdd()">添加</button>
-        </div>`;
+    ` : '';
+
+    const configPanelHtml = selectedStageId ? renderStageConfig(selectedStageId) : '';
+
+    body.innerHTML = `
+        <div class="pipe-editor-v2">
+            <div class="pipe-canvas" id="pipe-canvas">
+                <div class="pipe-flow" id="pipe-flow">
+                    ${flowHtml}
+                    <div class="pipe-connector"><svg viewBox="0 0 32 12"><path d="M0 6 L24 6 M20 2 L26 6 L20 10"/></svg></div>
+                    <div class="pipe-add-node" onclick="openAddStageModal()">
+                        <div class="pipe-add-btn">+</div>
+                        <div class="pipe-add-label">添加</div>
+                    </div>
+                </div>
+                <svg class="pipe-fallback-layer" id="pipe-fallback-svg"></svg>
+            </div>
+            ${legendHtml}
+            ${configPanelHtml}
+        </div>
+    `;
+
+    // Draw fallback arrows after DOM is ready
+    if (fallbackArrows.length > 0) {
+        requestAnimationFrame(() => drawFallbackArrows(fallbackArrows));
+    }
+    
+    // Render preview
+    renderEditorPreview();
 }
 
-function pipeDragStart(e, idx) { dragIdx = idx; e.target.classList.add('dragging'); }
-function pipeDragOver(e, idx) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
-function pipeDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
-function pipeDragEnd(e) { e.target.classList.remove('dragging'); document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over')); }
-function pipeDrop(e, toIdx) {
-    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
-    if (dragIdx === null || dragIdx === toIdx) return;
-    const item = editorStages.splice(dragIdx, 1)[0];
-    editorStages.splice(toIdx, 0, item);
-    dragIdx = null;
+function renderEditorPreview() {
+    const preview = document.getElementById('pipe-preview-content');
+    if (!preview) return;
+    
+    // Generate preview using editorStages (current edited config)
+    const stageList = editorStages.map(s => s.id);
+    let html = '<div class="pipeline-visual" style="margin:0"><div class="pipeline-stages">';
+    
+    stageList.forEach((stage, idx) => {
+        const isLast = idx === stageList.length - 1;
+        const hasFallback = fallbackRules[stage]?.enabled;
+        const rule = fallbackRules[stage];
+        // Only show fallback hint if target is also in current stageList
+        const validFallback = hasFallback && stageList.includes(rule?.targetStageId);
+        
+        html += `
+            <div class="pipeline-stage pending ${validFallback ? 'has-fallback-preview' : ''}">
+                <div class="pipeline-stage-node" style="${validFallback ? 'border-color:var(--amber)' : ''}">
+                    ${getStageIcon(stage)}
+                </div>
+                <div class="pipeline-stage-info">
+                    <div class="psi-name">${esc(humanStage(stage))}</div>
+                    <div class="psi-status pending">待处理</div>
+                    ${validFallback ? `<div class="psi-fallback-hint">↩ ${esc(humanStage(rule.targetStageId))}</div>` : ''}
+                </div>
+            </div>
+            ${!isLast ? '<div class="pipeline-stage-connector"><div class="connector-line"></div></div>' : ''}
+        `;
+    });
+    
+    html += '</div></div>';
+    
+    // Add summary - only count fallback rules for stages that exist in current editor
+    const totalStages = stageList.length;
+    const fallbackCount = stageList.filter(id => {
+        const rule = fallbackRules[id];
+        return rule?.enabled && stageList.includes(rule.targetStageId);
+    }).length;
+    html += `
+        <div class="preview-summary">
+            <span class="preview-stat"><strong>${totalStages}</strong> 个阶段</span>
+            <span class="preview-stat"><strong>${fallbackCount}</strong> 个回退规则</span>
+        </div>
+    `;
+    
+    preview.innerHTML = html;
+}
+
+function drawFallbackArrows(arrows) {
+    const svg = document.getElementById('pipe-fallback-svg');
+    const canvas = document.getElementById('pipe-canvas');
+    const flow = document.getElementById('pipe-flow');
+    if (!svg || !canvas || !flow) return;
+
+    // Get flow offset within canvas
+    const flowOffsetTop = flow.offsetTop;
+    const flowOffsetLeft = flow.offsetLeft;
+    
+    // Set SVG dimensions based on content
+    const svgHeight = flow.offsetHeight + 100; // Extra space for curves below
+    svg.style.width = canvas.scrollWidth + 'px';
+    svg.style.height = svgHeight + 'px';
+    
+    let svgContent = '';
+    
+    arrows.forEach((arrow, arrowIdx) => {
+        const fromNode = document.querySelector(`[data-index="${arrow.fromIdx}"]`);
+        const toNode = document.querySelector(`[data-index="${arrow.toIdx}"]`);
+        if (!fromNode || !toNode) return;
+        
+        const fromCard = fromNode.querySelector('.pipe-node-card');
+        const toCard = toNode.querySelector('.pipe-node-card');
+        if (!fromCard || !toCard) return;
+        
+        // Calculate positions using offsetLeft/offsetTop relative to canvas
+        const fromX = fromNode.offsetLeft + fromNode.offsetWidth / 2 + flowOffsetLeft;
+        const fromY = flowOffsetTop + fromNode.offsetTop + fromCard.offsetHeight + 15;
+        const toX = toNode.offsetLeft + toNode.offsetWidth / 2 + flowOffsetLeft;
+        const toY = flowOffsetTop + toNode.offsetTop + toCard.offsetHeight + 15;
+        
+        // Calculate curve - goes down, curves back, comes up
+        const baseY = Math.max(fromY, toY);
+        const midY = baseY + 25 + (arrowIdx * 18); // Stagger multiple arrows
+        
+        // SVG path: from source down, curve horizontally, up to target
+        const path = `M ${fromX} ${fromY} 
+                      L ${fromX} ${midY - 8}
+                      Q ${fromX} ${midY}, ${fromX - 12} ${midY}
+                      L ${toX + 12} ${midY}
+                      Q ${toX} ${midY}, ${toX} ${midY - 8}
+                      L ${toX} ${toY + 6}`;
+        
+        // Arrow head pointing up at target
+        const arrowHead = `M ${toX - 4} ${toY + 10} L ${toX} ${toY + 3} L ${toX + 4} ${toY + 10}`;
+        
+        svgContent += `
+            <g class="pipe-fallback-arrow-group" onclick="selectPipeStage('${arrow.fromId}')" style="cursor:pointer">
+                <path d="${path}" style="stroke:var(--amber);stroke-width:2;fill:none;stroke-dasharray:6 4;animation:dash-flow 1s linear infinite"/>
+                <path d="${arrowHead}" style="stroke:var(--amber);stroke-width:2;fill:var(--amber)"/>
+                <title>失败回退: ${arrow.fromName} → ${arrow.toName} (最多重试 ${arrow.retries} 次)</title>
+            </g>
+        `;
+        
+        // Add label at the middle of the curve
+        const labelX = (fromX + toX) / 2;
+        const labelY = midY + 3;
+        svgContent += `
+            <foreignObject x="${labelX - 45}" y="${labelY - 8}" width="90" height="22">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="
+                    background:var(--amber);
+                    color:#fff;
+                    font-size:9px;
+                    font-weight:700;
+                    padding:3px 8px;
+                    border-radius:99px;
+                    text-align:center;
+                    white-space:nowrap;
+                    box-shadow:0 2px 6px rgba(245,158,11,0.35);
+                ">↩ ${arrow.retries}次重试</div>
+            </foreignObject>
+        `;
+    });
+    
+    svg.innerHTML = svgContent;
+}
+
+function renderStageConfig(stageId) {
+    const stage = editorStages.find(s => s.id === stageId);
+    if (!stage) return '';
+    
+    const idx = editorStages.findIndex(s => s.id === stageId);
+    const rule = fallbackRules[stageId] || { enabled: false, targetStageId: '', maxRetries: 3 };
+    
+    // Get stages that can be fallback targets (before current stage)
+    const possibleTargets = editorStages.slice(0, idx);
+    
+    return `
+        <div class="pipe-config-panel fade-in">
+            <div class="pipe-config-header">
+                <div class="pipe-config-title">${STAGE_ICONS[stageId] || '⚙️'} ${esc(stage.name)} 配置</div>
+                <button class="pipe-config-close" onclick="closePipeConfig()">×</button>
+            </div>
+            <div class="pipe-config-body">
+                <div class="pipe-config-section">
+                    <div class="pipe-config-label">基本信息</div>
+                    <div style="display:grid;gap:10px">
+                        <div class="fallback-rule" style="border-color:var(--accent-soft)">
+                            <div class="fallback-icon" style="background:var(--accent-soft);color:var(--accent)">⚙️</div>
+                            <div class="fallback-content">
+                                <div class="fallback-desc" style="color:var(--text-primary);font-weight:600">执行 Agent</div>
+                                <div style="font-size:12px;color:var(--text-secondary)">${esc(stage.agent)}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="pipe-config-section">
+                    <div class="pipe-config-label">失败回退规则</div>
+                    <div class="fallback-rules">
+                        <div class="fallback-rule ${rule.enabled ? 'active' : ''}">
+                            <div class="fallback-icon">↩</div>
+                            <div class="fallback-content">
+                                <div class="fallback-desc">当此阶段失败时，自动回退到指定阶段重试</div>
+                                <div class="fallback-target">
+                                    <span style="font-size:12px;color:var(--text-muted)">回退到：</span>
+                                    <select class="fallback-select" onchange="updateFallbackTarget('${stageId}', this.value)" ${!possibleTargets.length ? 'disabled' : ''}>
+                                        <option value="">不回退（直接失败）</option>
+                                        ${possibleTargets.map(t => `
+                                            <option value="${t.id}" ${rule.targetStageId === t.id ? 'selected' : ''}>${esc(t.name)}</option>
+                                        `).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="fallback-toggle ${rule.enabled ? 'on' : ''}" onclick="toggleFallback('${stageId}')"></div>
+                        </div>
+                        
+                        ${rule.enabled ? `
+                        <div class="fallback-rule" style="padding:14px 16px">
+                            <div class="retry-config">
+                                <span class="retry-label">最大重试次数：</span>
+                                <input type="number" class="retry-input" value="${rule.maxRetries}" min="1" max="10" 
+                                       onchange="updateFallbackRetries('${stageId}', this.value)">
+                                <span class="retry-label" style="color:var(--text-muted)">次后彻底失败</span>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+                
+                ${idx > 0 ? `
+                <div class="pipe-config-section">
+                    <div class="pipe-config-label">位置调整</div>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn ghost sm" onclick="moveStage('${stageId}', -1)" ${idx === 0 ? 'disabled' : ''}>← 前移</button>
+                        <button class="btn ghost sm" onclick="moveStage('${stageId}', 1)" ${idx === editorStages.length - 1 ? 'disabled' : ''}>后移 →</button>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function selectPipeStage(stageId) {
+    selectedStageId = stageId;
     renderPipelineEditor();
 }
-function pipeRemove(idx) { editorStages.splice(idx, 1); renderPipelineEditor(); }
-function pipeAdd() {
-    const sel = document.getElementById('pipe-add-select');
-    if (!sel || !sel.value) return;
-    const stage = ALL_STAGES.find(s=>s.id===sel.value);
-    if (stage) { editorStages.push(stage); renderPipelineEditor(); }
+
+function closePipeConfig() {
+    selectedStageId = null;
+    renderPipelineEditor();
 }
+
+function toggleFallback(stageId) {
+    if (!fallbackRules[stageId]) {
+        fallbackRules[stageId] = { enabled: false, targetStageId: '', maxRetries: 3 };
+    }
+    fallbackRules[stageId].enabled = !fallbackRules[stageId].enabled;
+    
+    // If enabling, set default target to previous stage
+    if (fallbackRules[stageId].enabled && !fallbackRules[stageId].targetStageId) {
+        const idx = editorStages.findIndex(s => s.id === stageId);
+        if (idx > 0) {
+            fallbackRules[stageId].targetStageId = editorStages[idx - 1].id;
+        }
+    }
+    renderPipelineEditor();
+}
+
+function updateFallbackTarget(stageId, targetId) {
+    if (!fallbackRules[stageId]) {
+        fallbackRules[stageId] = { enabled: false, targetStageId: '', maxRetries: 3 };
+    }
+    fallbackRules[stageId].targetStageId = targetId;
+    fallbackRules[stageId].enabled = !!targetId;
+    renderPipelineEditor();
+}
+
+function updateFallbackRetries(stageId, retries) {
+    if (!fallbackRules[stageId]) return;
+    fallbackRules[stageId].maxRetries = Math.max(1, Math.min(10, parseInt(retries) || 3));
+}
+
+function moveStage(stageId, direction) {
+    const idx = editorStages.findIndex(s => s.id === stageId);
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= editorStages.length) return;
+    
+    const stage = editorStages.splice(idx, 1)[0];
+    editorStages.splice(newIdx, 0, stage);
+    
+    // Update fallback rules that might be invalid after reorder
+    Object.keys(fallbackRules).forEach(sid => {
+        const rule = fallbackRules[sid];
+        if (rule.enabled && rule.targetStageId) {
+            const stageIdx = editorStages.findIndex(s => s.id === sid);
+            const targetIdx = editorStages.findIndex(s => s.id === rule.targetStageId);
+            if (targetIdx >= stageIdx) {
+                rule.enabled = false;
+                rule.targetStageId = '';
+            }
+        }
+    });
+    
+    renderPipelineEditor();
+}
+
+function openAddStageModal() {
+    const modal = document.getElementById('add-stage-modal');
+    const body = document.getElementById('stage-options-body');
+    const usedIds = new Set(editorStages.map(s => s.id));
+    const available = ALL_STAGES.filter(s => !usedIds.has(s.id));
+    
+    if (!available.length) {
+        alert('所有可用的 Stage 都已添加');
+        return;
+    }
+    
+    pendingAddStage = null;
+    body.innerHTML = available.map(s => `
+        <div class="stage-option" onclick="selectStageToAdd('${s.id}')">
+            <div class="stage-option-icon">${s.icon || '⚙️'}</div>
+            <div class="stage-option-info">
+                <div class="stage-option-name">${esc(s.name)}</div>
+                <div class="stage-option-agent">执行者: ${esc(s.agent)}</div>
+            </div>
+            <div class="stage-option-check">✓</div>
+        </div>
+    `).join('');
+    
+    modal.classList.add('open');
+}
+
+function selectStageToAdd(stageId) {
+    pendingAddStage = stageId;
+    document.querySelectorAll('.stage-option').forEach(el => el.classList.remove('selected'));
+    document.querySelector(`.stage-option[onclick*="${stageId}"]`)?.classList.add('selected');
+}
+
+function closeAddStageModal() {
+    const modal = document.getElementById('add-stage-modal');
+    modal.classList.remove('open');
+    pendingAddStage = null;
+}
+
+function confirmAddStage() {
+    if (!pendingAddStage) {
+        alert('请选择一个 Stage');
+        return;
+    }
+    const stage = ALL_STAGES.find(s => s.id === pendingAddStage);
+    if (stage) {
+        editorStages.push({...stage});
+        fallbackRules[stage.id] = { enabled: false, targetStageId: '', maxRetries: 3 };
+    }
+    closeAddStageModal();
+    renderPipelineEditor();
+}
+
+function pipeRemove(idx) {
+    const stageId = editorStages[idx]?.id;
+    editorStages.splice(idx, 1);
+    if (stageId) {
+        delete fallbackRules[stageId];
+        // Remove any fallback rules pointing to this stage
+        Object.values(fallbackRules).forEach(rule => {
+            if (rule.targetStageId === stageId) {
+                rule.enabled = false;
+                rule.targetStageId = '';
+            }
+        });
+    }
+    if (selectedStageId === stageId) selectedStageId = null;
+    renderPipelineEditor();
+}
+
 function resetPipelineEditor() {
-    editorStages = STAGES.map(id => ALL_STAGES.find(s=>s.id===id) || {id, name:id, agent:'-'});
+    editorStages = STAGES.map(id => {
+        const stage = ALL_STAGES.find(s => s.id === id);
+        return stage ? {...stage} : {id, name: id, agent: '-', icon: '⚙️'};
+    });
+    fallbackRules = {};
+    editorStages.forEach(s => {
+        fallbackRules[s.id] = { enabled: false, targetStageId: '', maxRetries: 3 };
+    });
+    if (fallbackRules.testing) {
+        fallbackRules.testing = { enabled: true, targetStageId: 'development', maxRetries: 3 };
+    }
+    if (fallbackRules.code_review) {
+        fallbackRules.code_review = { enabled: true, targetStageId: 'development', maxRetries: 2 };
+    }
+    selectedStageId = null;
     renderPipelineEditor();
 }
+
 async function savePipeline() {
-    const stages = editorStages.map(s => ({id: s.id, name: s.name, agent: s.agent}));
+    const stages = editorStages.map(s => ({
+        id: s.id, 
+        name: s.name, 
+        agent: s.agent,
+        fallback: fallbackRules[s.id] || { enabled: false, targetStageId: '', maxRetries: 3 }
+    }));
     const r = await fetch('/api/pipeline', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -1085,17 +3275,52 @@ async function savePipeline() {
     const data = await r.json();
     pipelineIsCustom = data.is_custom ?? true;
     pipelineFetched = true;
+    
+    // Update global STAGES to match editor (before fetchRuntime which would reset)
+    STAGES = editorStages.map(s => s.id);
+    
+    // Mark as loaded so initPipelineEditor won't reset editorStages
+    editorLoaded = true;
+    
     await fetchRuntime();
-    editorLoaded = false;
-    initPipelineEditor();
+    
+    // Re-render the editor to update preview
+    renderPipelineEditor();
+    
+    // Show brief confirmation
+    showToast('Pipeline 配置已保存并生效');
 }
+
+function showToast(message, isError = false) {
+    let toast = document.getElementById('toast-msg');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-msg';
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:var(--radius-md);font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity 0.3s';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.background = isError ? 'var(--rose)' : 'var(--green)';
+    toast.style.color = '#fff';
+    toast.style.opacity = '1';
+    setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+}
+
 async function restoreDefaultPipeline() {
+    if (!confirm('确定要恢复系统默认 Pipeline 配置吗？')) return;
     await fetch('/api/pipeline/reset', {method:'POST'});
     pipelineIsCustom = false;
     pipelineFetched = true;
-    await fetchRuntime();
+    
+    // Reset STAGES to default
+    STAGES = [...DEFAULT_STAGES];
+    
+    // Force editor to reload with default stages
     editorLoaded = false;
+    
+    await fetchRuntime();
     initPipelineEditor();
+    showToast('已恢复默认 Pipeline 配置');
 }
 
 /* ── SSE ── */

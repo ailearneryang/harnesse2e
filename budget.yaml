@@ -49,6 +49,16 @@ context_management:
   
   # 摘要保留比例
   summary_retention_ratio: 0.3
+
+  # 不可压缩的关键段落标记
+  protected_section_markers:
+    - 安全约束
+    - 接口定义
+    - 数据模型
+    - API
+    - schema
+    - ISO 26262
+    - AUTOSAR
   
   # 传递给下一阶段的内容
   handoff_content:

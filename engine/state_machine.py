@@ -12,6 +12,8 @@ from typing import Optional
 import json
 import os
 
+from state_store import StateStore
+
 
 # ============================================================
 # 状态定义
@@ -259,6 +261,7 @@ class PipelineEngine:
     def __init__(self, harness_dir: str, budget_limit: int = 500000,
                  log_storage=None):
         self.harness_dir = harness_dir
+        self.state_store = StateStore(harness_dir)
         self.state_file = os.path.join(harness_dir, "data", "pipeline_state.json")
         self.specs_pending_dir = os.path.join(harness_dir, "specs", "pending")
         self.specs_processed_dir = os.path.join(harness_dir, "specs", "processed")
@@ -280,6 +283,9 @@ class PipelineEngine:
     # --------------------------------------------------
     def _load_state(self) -> PipelineSnapshot:
         """从文件加载状态"""
+        data = self.state_store.load_document("pipeline_state")
+        if data is not None:
+            return PipelineSnapshot.from_dict(data)
         if os.path.exists(self.state_file):
             with open(self.state_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -288,9 +294,11 @@ class PipelineEngine:
 
     def _save_state(self):
         """保存状态到文件"""
+        payload = self.snapshot.to_dict()
+        self.state_store.save_document("pipeline_state", payload)
         os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
         with open(self.state_file, "w", encoding="utf-8") as f:
-            f.write(self.snapshot.to_json())
+            f.write(json.dumps(payload, indent=2, ensure_ascii=False))
 
     # --------------------------------------------------
     # 状态转移
