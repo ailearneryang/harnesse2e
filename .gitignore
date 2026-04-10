@@ -31,7 +31,6 @@ data/harness_state.db-*
 data/runtime_state.json
 data/runtime_events.jsonl
 data/pipeline_state.json
-data/integration_settings.json
 data/changes/
 data/consistency/
 data/distilled/
@@ -43,5 +42,16 @@ data/transcripts/
 runs/
 
 # Generated task specs moved through the pipeline
-specs/pending/task-*.md
-specs/processed/task-*.md
+specs/pending/
+specs/processed/
+
+# Harness generated files (ignore dynamic json files but keep configs)
+*.json
+!package-lock.json
+!package.json
+!tsconfig.json
+!settings.example.json
+!data/integration_settings.json
+
+# Test files
+test_parse_harness.py
