@@ -26,3 +26,22 @@ tests/reports/
 *.log
 data/harness_state.db
 data/harness_state.db-*
+
+# Harness runtime state and generated artifacts
+data/runtime_state.json
+data/runtime_events.jsonl
+data/pipeline_state.json
+data/integration_settings.json
+data/changes/
+data/consistency/
+data/distilled/
+data/reports/
+data/tasks/
+data/transcripts/
+
+# Per-run generated workspaces and outputs
+runs/
+
+# Generated task specs moved through the pipeline
+specs/pending/task-*.md
+specs/processed/task-*.md
