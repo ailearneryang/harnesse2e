@@ -1,0 +1,19 @@
+## <CASE_ID> <CASE_TITLE>
+- 关联需求:
+- 优先级:
+- 前置条件:
+- 测试步骤:
+  - 1.
+  - 2.
+  - 3.
+- 预期结果:
+- 实际结果:
+- 结论: PASS / FAIL / BLOCKED / NOT_RUN
+- adb 关键命令:
+  - `adb -s <device_id> ...`
+- 证据路径:
+  - screenshots/
+  - screenrecords/
+  - logcat.txt
+- 初步分析:
+- 备注:
