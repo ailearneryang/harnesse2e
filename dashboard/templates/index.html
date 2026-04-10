@@ -3079,8 +3079,12 @@ function renderNavSection(navItems) {
 
 function renderSidebarFooter(settings, runner) {
     const displayTime = lastRuntimeSyncAt || runner.updated_at;
+    const configuredRepo = settings.target_repo || '-';
+    const resolvedRepo = runtime?.resolved_target_repo || configuredRepo;
+    const showResolvedRepo = resolvedRepo && resolvedRepo !== configuredRepo;
     return `
-        <div class="info-row"><span>Target Repo</span><span class="info-val">${esc(settings.target_repo||'-')}</span></div>
+        <div class="info-row"><span>Target Repo</span><span class="info-val">${esc(configuredRepo)}</span></div>
+        ${showResolvedRepo ? `<div class="info-row"><span>Resolved</span><span class="info-val">${esc(resolvedRepo)}</span></div>` : ''}
         <div class="info-row"><span>Claude</span><span class="info-val">${settings.claude?.simulate?'Simulation':'CLI'}</span></div>
         <div class="info-row"><span>Synced</span><span class="info-val">${fmtTime(displayTime)}</span></div>
     `;

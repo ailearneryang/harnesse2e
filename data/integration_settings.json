@@ -1,5 +1,5 @@
 {
-  "target_repo": "/Users/xing/harness-e2e",
+  "target_repo": ".",
   "budget_limit": 500000,
   "claude": {
     "command": "claude",

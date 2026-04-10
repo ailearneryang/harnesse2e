@@ -54,3 +54,14 @@ def test_submit_request_with_upload_persists_attachment(tmp_path: Path):
     assert "line-1" in attachment["preview"]
     assert Path(attachment["path"]).exists()
     assert "request_uploads" in payload["artifacts"]
+
+
+def test_relative_target_repo_resolves_from_harness_dir(tmp_path: Path):
+    (tmp_path / "agents").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "data" / "integration_settings.json").write_text('{"target_repo": "."}', encoding="utf-8")
+
+    runner = PipelineRunner(str(tmp_path))
+
+    assert runner.settings["target_repo"] == "."
+    assert runner.target_repo == str(tmp_path)

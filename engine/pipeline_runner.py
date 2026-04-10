@@ -179,6 +179,7 @@ class PipelineRunner:
             os.path.join(harness_dir, "agents", "identities.yaml"),
             {},
         )
+        self.target_repo = self._resolve_target_repo(self.settings.get("target_repo"))
 
         self.pipeline_order = self._resolve_pipeline_order()
         self.agents = self._build_agent_state()
@@ -235,6 +236,14 @@ class PipelineRunner:
             settings = self._deep_merge(settings, loaded)
         self._save_json(self.settings_file, settings)
         return settings
+
+    def _resolve_target_repo(self, target_repo: Optional[str]) -> str:
+        candidate = (target_repo or self.harness_dir).strip()
+        if not candidate:
+            return self.harness_dir
+        if os.path.isabs(candidate):
+            return os.path.normpath(candidate)
+        return os.path.normpath(os.path.join(self.harness_dir, candidate))
 
     def _build_agent_state(self) -> Dict[str, Dict]:
         configured = {agent.get("id"): agent for agent in self.agent_config.get("agents", [])}
@@ -564,6 +573,7 @@ class PipelineRunner:
                 "approvals": approvals,
                 "agents": list(self.agents.values()),
                 "settings": self.settings,
+                "resolved_target_repo": self.target_repo,
                 "events": self.event_bus.latest(200),
                 "budget": self.engine.check_budget(),
             }
@@ -572,6 +582,7 @@ class PipelineRunner:
         with self.lock:
             self.settings = self._deep_merge(self.settings, payload)
             self._save_json(self.settings_file, self.settings)
+            self.target_repo = self._resolve_target_repo(self.settings.get("target_repo"))
             self.claude = ClaudeCLIAdapter(self.settings["claude"])
             self.feishu = FeishuAdapter(self.settings["feishu"], state_store=self.state_store)
             self.gerrit = GerritAdapter(self.settings["gerrit"])
@@ -800,7 +811,7 @@ class PipelineRunner:
             result = self.claude.run_agent(
                 agent_id=agent_id,
                 prompt=prompt,
-                cwd=self.settings["target_repo"],
+                cwd=self.target_repo,
                 stage=stage,
                 system_prompt=self._agent_identity(agent_id),
                 max_tokens=remaining_tokens,
@@ -941,7 +952,7 @@ class PipelineRunner:
         result = self.claude.run_agent(
             agent_id="debugger",
             prompt=prompt,
-            cwd=self.settings["target_repo"],
+            cwd=self.target_repo,
             stage="debugger",
             system_prompt=self._agent_identity("debugger"),
             max_tokens=remaining_tokens,
@@ -964,7 +975,7 @@ class PipelineRunner:
         self._set_agent_status("delivery-manager", "running", task["id"], stage, "Preparing Gerrit delivery")
 
         summary = "All quality gates passed. Preparing Gerrit submission."
-        result = self.gerrit.submit_change(self.settings["target_repo"], task["id"], summary)
+        result = self.gerrit.submit_change(self.target_repo, task["id"], summary)
         task["gerrit"] = result
         artifact_path = os.path.join(task["run_dir"], "delivery", "delivery.md")
         report = [
@@ -995,7 +1006,7 @@ class PipelineRunner:
         stage_state["status"] = "running"
         stage_state["started_at"] = datetime.now().isoformat()
         self._set_agent_status("build-verifier", "running", task["id"], stage, "Running build verification")
-        result = self.build_verifier.run(task["id"], self.settings["target_repo"])
+        result = self.build_verifier.run(task["id"], self.target_repo)
         report_path = os.path.join(task["run_dir"], "reports", "build_verification.json")
         self._save_json(report_path, result)
         stage_state["artifact_paths"] = [report_path]
