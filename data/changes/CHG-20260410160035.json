@@ -1,0 +1,13 @@
+{
+  "change_id": "CHG-20260410160035",
+  "timestamp": "2026-04-10T16:00:35.511377",
+  "change_description": "帮我写一个计算器html",
+  "affected_requirements": [],
+  "affected_designs": [],
+  "affected_code_modules": [],
+  "affected_test_cases": [],
+  "stages_to_rerun": [
+    "requirements"
+  ],
+  "impact_level": "low"
+}

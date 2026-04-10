@@ -1,0 +1,13 @@
+{
+  "change_id": "CHG-20260410154021",
+  "timestamp": "2026-04-10T15:40:21.017646",
+  "change_description": "帮我写一个贪吃蛇html",
+  "affected_requirements": [],
+  "affected_designs": [],
+  "affected_code_modules": [],
+  "affected_test_cases": [],
+  "stages_to_rerun": [
+    "requirements"
+  ],
+  "impact_level": "low"
+}

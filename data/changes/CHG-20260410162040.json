@@ -1,0 +1,13 @@
+{
+  "change_id": "CHG-20260410162040",
+  "timestamp": "2026-04-10T16:20:40.174874",
+  "change_description": "帮我写一个“简单排序算法“",
+  "affected_requirements": [],
+  "affected_designs": [],
+  "affected_code_modules": [],
+  "affected_test_cases": [],
+  "stages_to_rerun": [
+    "requirements"
+  ],
+  "impact_level": "low"
+}

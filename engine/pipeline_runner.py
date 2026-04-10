@@ -26,6 +26,7 @@ try:
 except ImportError as exc:
     raise RuntimeError("Flask is required to run the harness dashboard") from exc
 
+import feishu_notifier
 from distillers.context_distiller import ContextDistiller
 from event_bus import EventBus
 from integrations import BuildVerificationAdapter, ClaudeCLIAdapter, FeishuAdapter, GerritAdapter, HILAdapter
@@ -688,6 +689,15 @@ class PipelineRunner:
 
             if passed:
                 self._post_stage_processing(task, stage, summary, artifact_paths)
+                
+                # ------ 新增：阶段成功也会发送飞书通知 ------
+                feishu_notifier.notify_stage_completed(
+                    title=f"✓ 阶段 {STAGE_TITLES.get(stage, stage)} 通过",
+                    content=summary or "顺利完成",
+                    stage=stage,
+                    task_id=task["id"]
+                )
+                
                 self._emit("stage_completed", f"{STAGE_TITLES.get(stage, stage)} passed", source="pipeline", task_id=task["id"], stage=stage, data={"verdict": verdict})
                 return True
 
@@ -698,11 +708,26 @@ class PipelineRunner:
             self._emit("stage_failed", f"{STAGE_TITLES.get(stage, stage)} failed on attempt {attempt}/{max_retries}", source="pipeline", task_id=task["id"], stage=stage, level="error", data={"summary": summary, "verdict": verdict})
 
             if verdict == "NEED_HUMAN":
-                approval = self._create_approval(task, stage, summary or f"Manual action required at {stage}")
-                approved = self._wait_for_approval(task, approval)
-                if not approved:
-                    self._fail_task(task, f"Approval rejected at {stage}")
+                self.pause()
+                feishu_notifier.notify_user_for_feedback("Manual action required", summary or f"Verification needed at {stage}.", stage, task["id"])
+                
+                # Wait while paused
+                while self.paused and self.running:
+                    time.sleep(1)
+                
+                if not self.running:
+                    self._fail_task(task, f"Pipeline aborted during human intervention at {stage}")
                     return False
+
+                # Once resumed, consider it passed and proceed
+                with self.lock:
+                    stage_state["status"] = "passed"
+                    stage_state["verdict"] = "PASS"
+                    self._persist_runtime()
+                
+                self._post_stage_processing(task, stage, summary, artifact_paths)
+                self._emit("stage_completed", f"{STAGE_TITLES.get(stage, stage)} passed after human intervention", source="pipeline", task_id=task["id"], stage=stage, data={"verdict": verdict})
+                return True
 
             if attempt < max_retries:
                 # Stages that benefit from debugger agent for targeted fixes
@@ -716,8 +741,29 @@ class PipelineRunner:
                               source="pipeline", task_id=task["id"], stage=stage, level="warning")
                     # Continue to next iteration - retry_info will be passed to prompt
 
-        self._fail_task(task, f"Stage {stage} exhausted retries")
-        return False
+        # Exhausted retries -> Pause and ask for human intervention
+        self.pause()
+        feishu_notifier.notify_user_for_feedback(f"Stage {stage} exhausted max retries ({max_retries})", previous_summary or "Unknown error", stage, task["id"])
+        
+        while self.paused and self.running:
+            import time
+            time.sleep(1)
+            
+        if not self.running:
+            self._fail_task(task, f"Pipeline aborted after exhausting failures at {stage}")
+            return False
+            
+        # Once resumed, consider this stage passed
+        with self.lock:
+            stage_state["status"] = "passed"
+            stage_state["verdict"] = "PASS"
+            self._persist_runtime()
+            
+        # Using artifact_paths from the last attempt or an empty list if not defined
+        finally_artifact_paths = artifact_paths if 'artifact_paths' in locals() else []
+        self._post_stage_processing(task, stage, previous_summary, finally_artifact_paths)
+        self._emit("stage_completed", f"{STAGE_TITLES.get(stage, stage)} manually resumed and passed after exhausted retries", source="pipeline", task_id=task["id"], stage=stage, data={"verdict": "PASS"})
+        return True
 
     def _run_debugger(self, task: Dict, failed_stage: str, failure_summary: str, context: Dict) -> bool:
         debugger_stage = {
