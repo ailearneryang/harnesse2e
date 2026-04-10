@@ -3308,7 +3308,7 @@ async function fetchRuntime(options = {}) {
     const r = await fetch('/api/runtime');
     runtime = await r.json();
     lastRuntimeSyncAt = new Date().toISOString();
-    if (!latestEvents.length) latestEvents = runtime.events || [];
+    latestEvents = mergeEvents(latestEvents, runtime.events || []);
     // Fetch pipeline config only once
     if (!pipelineFetched) {
         try {
@@ -3325,6 +3325,17 @@ async function fetchRuntime(options = {}) {
         return;
     }
     updateRuntimeUI({ animate });
+}
+
+function mergeEvents(existingEvents, incomingEvents) {
+    const merged = new Map();
+    [...(existingEvents || []), ...(incomingEvents || [])].forEach((event) => {
+        if (!event || typeof event.seq !== 'number') return;
+        merged.set(event.seq, event);
+    });
+    return [...merged.values()]
+        .sort((left, right) => left.seq - right.seq)
+        .slice(-200);
 }
 
 async function submitRequest() {
@@ -4958,11 +4969,11 @@ async function restoreDefaultPipeline() {
 /* ── SSE ── */
 function connectStream() {
     if (eventSource) eventSource.close();
-    eventSource = new EventSource('/api/stream');
+    const lastSeq = latestEvents.length ? latestEvents[latestEvents.length - 1].seq : 0;
+    eventSource = new EventSource(`/api/stream?since=${lastSeq}`);
     eventSource.onmessage = (msg) => {
         const ev = JSON.parse(msg.data);
-        latestEvents.push(ev);
-        latestEvents = latestEvents.slice(-200);
+        latestEvents = mergeEvents(latestEvents, [ev]);
         if (document.hidden) {
             needsVisibilitySync = true;
             return;
@@ -4975,7 +4986,10 @@ function connectStream() {
             }, 2000);
         }
     };
-    eventSource.onerror = () => setTimeout(connectStream, 3000);
+    eventSource.onerror = () => {
+        if (eventSource) eventSource.close();
+        setTimeout(connectStream, 3000);
+    };
 }
 
 /* ── Boot ── */
