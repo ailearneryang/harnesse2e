@@ -28,6 +28,7 @@ except ImportError as exc:
     raise RuntimeError("Flask is required to run the harness dashboard") from exc
 
 import feishu_notifier
+from context_manager import TaskContextManager
 from distillers.context_distiller import ContextDistiller
 from event_bus import EventBus
 from integrations import BuildVerificationAdapter, ClaudeCLIAdapter, FeishuAdapter, GerritAdapter, HILAdapter
@@ -165,6 +166,7 @@ class PipelineRunner:
         self.engine = PipelineEngine(harness_dir, budget_limit=self.settings["budget_limit"])
         self.event_bus = EventBus(self.data_dir)
         self.distiller = ContextDistiller(harness_dir)
+        self.context_manager = TaskContextManager(harness_dir)
         self.memory_store = MemoryStore(harness_dir)
         self.memory_extractor = MemoryExtractor(self.memory_store)
         self.memory_injector = MemoryInjector(self.memory_store)
@@ -608,6 +610,7 @@ class PipelineRunner:
                 elif resolution == "rejected":
                     task["status"] = "failed"
                 self._persist_runtime()
+                self._sync_task_state_artifacts(task, f"approval {resolution}")
                 return approval
         raise KeyError(f"Approval {approval_id} not found for task {task_id}")
 
@@ -791,6 +794,7 @@ class PipelineRunner:
                 stage_state["last_event_at"] = now
                 stage_state["summary"] = ""
                 self._persist_runtime()
+            self._sync_task_state_artifacts(task, f"stage {stage} attempt {attempt} started")
             self.engine.start_stage(stage)
             agent_id = stage_state["agent_id"]
             self._set_agent_status(agent_id, "running", task["id"], stage, f"Running {stage}")
@@ -1034,6 +1038,7 @@ class PipelineRunner:
             task["status"] = "waiting_human"
             task["updated_at"] = datetime.now().isoformat()
             self._persist_runtime()
+        self._sync_task_state_artifacts(task, reason)
         self._emit("approval_required", reason, source="system", task_id=task["id"], stage=stage, level="warning", data={"approval_id": approval["id"]})
         self.engine.add_alert("warning", stage, reason, action_required=True)
         return approval
@@ -1195,23 +1200,6 @@ class PipelineRunner:
             agent["completed_tasks"] += 1
 
     def _build_prompt(self, task: Dict, stage: str, context: Dict, retry_info: Optional[Dict] = None) -> str:
-        previous = []
-        for prev_stage in self.pipeline_order:
-            if prev_stage == stage:
-                break
-            if prev_stage in context:
-                previous.append(f"## {prev_stage}\n{context[prev_stage].get('summary', '')}")
-        preamble = [
-            f"Task ID: {task['id']}",
-            f"Task Title: {task['title']}",
-            f"Current Stage: {stage}",
-            "",
-            "## User Request",
-            task["request_text"],
-            "",
-        ]
-        attachment_section = self._format_request_attachments_for_prompt(task)
-        
         # Inject memory context (historical experience)
         memory_section = []
         try:
@@ -1221,21 +1209,7 @@ class PipelineRunner:
                 memory_section = [self.memory_injector.format_for_prompt(memory_ctx), ""]
         except Exception:
             pass  # Memory injection is optional
-        
-        # Add retry context if this is a retry attempt
-        retry_section = []
-        if retry_info:
-            retry_section = [
-                "",
-                "## ⚠️ RETRY ATTEMPT",
-                f"This is attempt {retry_info['attempt']} of {retry_info['max_retries']}.",
-                f"Previous attempt failed with: {retry_info['previous_summary']}",
-                f"Verdict: {retry_info['previous_verdict']}",
-                "",
-                "Please address the issues from the previous attempt and try again.",
-                "",
-            ]
-        
+
         stage_instructions = {
             "intake": "Produce a concise intake summary and identify risky areas.",
             "planning": "Break the request into a sprint contract with clear subtasks, dependencies, and definition of done.",
@@ -1248,7 +1222,21 @@ class PipelineRunner:
             "testing": "Report validation strategy, tests to run, and quality gates. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "build_verification": "Summarize CI build, static analysis, SBOM, and signing checks. End with VERDICT: PASS or FAIL.",
         }
-        return "\n".join(preamble + attachment_section + memory_section + previous + retry_section + [f"## Stage Instructions\n{stage_instructions.get(stage, f'Complete the {stage} stage.')}" ])
+        prompt_core = self.context_manager.build_stage_context(
+            task,
+            stage,
+            context,
+            memory_context="\n".join(memory_section).strip(),
+            retry_info=retry_info,
+        )
+        return "\n".join(
+            [
+                prompt_core.rstrip(),
+                "",
+                "## Stage Instructions",
+                stage_instructions.get(stage, f"Complete the {stage} stage."),
+            ]
+        )
 
     def _summarize_result(self, stage: str, output_text: str, verdict: Optional[str]) -> tuple[str, str]:
         lines = [line.strip() for line in output_text.splitlines() if line.strip()]
@@ -1337,6 +1325,11 @@ class PipelineRunner:
                         task["context"].setdefault(stage, {})["distill_error"] = str(exc)
                     break
 
+        try:
+            self._capture_success_memory(task, stage, summary)
+        except Exception as exc:
+            task["context"].setdefault(stage, {})["memory_capture_error"] = str(exc)
+
         if stage in {"design", "testing"}:
             try:
                 report = self.consistency_checker.run_all_checks()
@@ -1358,6 +1351,42 @@ class PipelineRunner:
         self._persist_runtime()
         self._write_run_metadata(task)
 
+    def _capture_success_memory(self, task: Dict, stage: str, summary: str) -> None:
+        agent_id = STAGE_TO_AGENT.get(stage)
+        if agent_id and summary:
+            self.memory_extractor.extract_agent_memory(
+                agent_id=agent_id,
+                memory_type="success_pattern",
+                content=summary[:300],
+                context=f"stage={stage}",
+                source_task_id=task["id"],
+                effectiveness=0.7,
+            )
+
+        category_map = {
+            "requirements": "requirements",
+            "design": "architecture",
+            "development": "coding_style",
+            "testing": "testing",
+            "code_review": "coding_style",
+        }
+        category = category_map.get(stage)
+        handoff_summary = (task.get("context", {}).get(stage, {}) or {}).get("handoff_summary")
+        memory_content = (handoff_summary or summary or "").strip()
+        if category and memory_content:
+            self.memory_extractor.extract_project_memory(
+                category=category,
+                content=memory_content[:500],
+                source_task_id=task["id"],
+                confidence=0.65,
+            )
+
+    def _sync_task_state_artifacts(self, task: Dict, reason: str = "") -> None:
+        try:
+            self.context_manager.sync_task_files(task, reason=reason)
+        except Exception as exc:
+            self._emit("state_sync_error", f"Failed to sync task state artifacts: {exc}", source="system", task_id=task.get("id"), level="warning")
+
     def _ensure_run_layout(self, task_id: str) -> str:
         run_dir = os.path.join(self.runs_dir, task_id)
         for rel in ["requirements", "design", "src", "tests/reports", "planning", "reports", "transcripts", "delivery", "build_verification", "safety_review", "uploads"]:
@@ -1367,8 +1396,15 @@ class PipelineRunner:
     def _update_latest_run_link(self, run_dir: str) -> None:
         latest = os.path.join(self.runs_dir, "latest")
         if os.path.lexists(latest):
-            os.remove(latest)
-        os.symlink(run_dir, latest)
+            if os.path.isdir(latest) and not os.path.islink(latest):
+                shutil.rmtree(latest)
+            else:
+                os.remove(latest)
+        try:
+            os.symlink(run_dir, latest)
+        except OSError:
+            latest_pointer = os.path.join(self.runs_dir, "latest.txt")
+            self._save_text(latest_pointer, run_dir + "\n")
 
     def _write_run_metadata(self, task: Dict, final_status: Optional[str] = None, failure_reason: str = "") -> None:
         payload = {
@@ -1389,6 +1425,7 @@ class PipelineRunner:
             "artifacts": task.get("artifacts", {}),
         }
         self._save_json(os.path.join(task["run_dir"], "meta.json"), payload)
+        self._sync_task_state_artifacts(task, failure_reason or (final_status or task.get("status", "")))
 
     def _snapshot_repo_tree(self, relative_dir: str, destination_dir: str) -> None:
         source_dir = os.path.join(self.harness_dir, relative_dir)
