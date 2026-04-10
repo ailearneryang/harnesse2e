@@ -872,6 +872,149 @@
             overflow-x: auto;
             margin-top: 20px;
         }
+        .pipeline-current-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 18px;
+            margin-bottom: 18px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--accent);
+            background: linear-gradient(135deg, var(--accent-soft) 0%, rgba(96, 165, 250, 0.08) 100%);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+        }
+        .pipeline-current-main {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
+        .pipeline-current-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            background: var(--accent);
+            color: #fff;
+            font-size: 18px;
+            box-shadow: 0 0 18px var(--accent-glow);
+            flex-shrink: 0;
+        }
+        .pipeline-current-copy {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+        .pipeline-current-kicker {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+        .pipeline-current-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pipeline-current-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .pipeline-current-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .pipeline-current-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .pipeline-current-chip strong {
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+        .pipeline-current-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .pipeline-current-detail {
+            padding: 14px;
+            border-radius: var(--radius-md);
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            min-width: 0;
+        }
+        .pipeline-current-detail-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .pipeline-current-detail-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            word-break: break-word;
+        }
+        .pipeline-current-detail-text {
+            font-size: 12px;
+            line-height: 1.55;
+            color: var(--text-secondary);
+            word-break: break-word;
+        }
+        .pipeline-current-detail-text.muted {
+            color: var(--text-muted);
+        }
+        .pipeline-current-event-list {
+            display: grid;
+            gap: 8px;
+        }
+        .pipeline-current-event-item {
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+        }
+        .pipeline-current-event-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .pipeline-current-event-source {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .pipeline-current-event-msg {
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            word-break: break-word;
+        }
         .pipeline-visual::-webkit-scrollbar { height: 6px; }
         .pipeline-visual::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
         .pipeline-stages {
@@ -886,6 +1029,16 @@
             align-items: center;
             min-width: 100px;
             position: relative;
+            opacity: 0.72;
+            transition: opacity var(--transition), transform var(--transition);
+        }
+        .pipeline-stage.current,
+        .pipeline-stage.running,
+        .pipeline-stage.passed,
+        .pipeline-stage.completed,
+        .pipeline-stage.failed,
+        .pipeline-stage.waiting_human {
+            opacity: 1;
         }
         .pipeline-stage-connector {
             width: 32px;
@@ -928,12 +1081,49 @@
             color: var(--text-muted);
             border-color: var(--border);
         }
+        .pipeline-stage.current {
+            transform: translateY(-4px);
+        }
         .pipeline-stage.running .pipeline-stage-node {
             background: var(--accent);
             border-color: var(--accent);
             color: #fff;
             box-shadow: 0 0 24px var(--accent-glow);
             animation: pulse-node 2s ease-in-out infinite;
+        }
+        .pipeline-stage.current .pipeline-stage-node {
+            width: 56px;
+            height: 56px;
+            font-size: 22px;
+            border-width: 4px;
+        }
+        .pipeline-stage.current::before {
+            content: 'CURRENT';
+            position: absolute;
+            top: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+            box-shadow: 0 6px 14px var(--accent-glow);
+        }
+        .pipeline-stage.current::after {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-top: 9px solid var(--accent);
         }
         @keyframes pulse-node {
             0%, 100% { box-shadow: 0 0 16px var(--accent-glow); }
@@ -978,6 +1168,10 @@
         .pipeline-stage.running .psi-name { color: var(--accent); }
         .pipeline-stage.passed .psi-name { color: var(--green); }
         .pipeline-stage.failed .psi-name { color: var(--rose); }
+        .pipeline-stage.current .psi-name {
+            color: var(--text-primary);
+            font-size: 11px;
+        }
         .psi-status {
             font-size: 10px;
             color: var(--text-muted);
@@ -986,6 +1180,9 @@
         .psi-status.running { color: var(--accent); }
         .psi-status.failed { color: var(--rose); }
         .psi-status.waiting_human { color: var(--amber); }
+        .pipeline-stage.current .psi-status {
+            font-weight: 700;
+        }
         .psi-time {
             font-size: 9px;
             color: var(--text-muted);
@@ -1491,6 +1688,63 @@
         }
         textarea { min-height: 100px; resize: vertical; }
         .composer-actions { display: flex; gap: 8px; margin-top: 4px; }
+        .upload-panel {
+            display: grid;
+            gap: 10px;
+            padding: 12px;
+            border: 1px dashed var(--border-strong);
+            border-radius: var(--radius-md);
+            background: var(--bg-surface);
+        }
+        .upload-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .upload-hint {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        .request-file-list {
+            display: grid;
+            gap: 8px;
+        }
+        .request-file-item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-base);
+        }
+        .request-file-meta {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+        .request-file-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+        .request-file-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .request-file-empty {
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-base);
+            color: var(--text-secondary);
+            font-size: 12px;
+            border: 1px solid var(--border);
+        }
 
         /* ── Task Board (Kanban) Enhanced ── */
         .kanban { 
@@ -2447,6 +2701,18 @@
             .kanban { grid-template-columns: 1fr; }
             .agent-grid { grid-template-columns: 1fr; }
             .task-detail-grid { grid-template-columns: 1fr; }
+            .composer-row { grid-template-columns: 1fr; }
+            .composer-actions { flex-wrap: wrap; }
+            .pipeline-current-banner {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .pipeline-current-meta {
+                justify-content: flex-start;
+            }
+            .pipeline-current-detail-grid {
+                grid-template-columns: 1fr;
+            }
             .mission-status-bar { flex-wrap: wrap; gap: 8px; }
             .tab-bar { padding: 0 8px; }
             .tab-item { padding: 8px 10px; max-width: 120px; }
@@ -2494,6 +2760,10 @@ let artifactCache = {};
 let openArtifacts = new Set();
 const RUNTIME_POLL_INTERVAL_MS = 60000;
 let needsVisibilitySync = false;
+let lastRuntimeSyncAt = null;
+let pendingRequestFiles = [];
+let requestFileInput = null;
+const REQUEST_FILE_ACCEPT = '.txt,.md,.markdown,.rst,.log,.json,.yaml,.yml,.xml,.csv,.tsv,.html,.htm,.ini,.cfg,.conf,.toml,.py,.js,.ts,.tsx,.jsx,.java,.go,.rs,.sh,.sql,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp';
 
 /* ── Tab & Navigation State ── */
 let sidebarCollapsed = false;
@@ -2520,6 +2790,62 @@ const humanStage = s => String(s||'pending').replace(/_/g,' ');
 const DEFAULT_STAGES = ['intake','planning','requirements','design','development','code_review','security_review','testing','delivery'];
 let STAGES = DEFAULT_STAGES;
 let SAVED_PIPELINE_STAGES = null;
+
+function formatRequestFileSize(bytes) {
+    const value = Number(bytes) || 0;
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderSelectedRequestFiles() {
+    if (!pendingRequestFiles.length) {
+        return `<div class="request-file-empty">未选择文件。可直接提交文字请求，或附加常见文档、表格、图片和代码文件。</div>`;
+    }
+    return pendingRequestFiles.map((file, index) => `
+        <div class="request-file-item">
+            <div class="request-file-meta">
+                <div class="request-file-name">${esc(file.name)}</div>
+                <div class="request-file-desc">${formatRequestFileSize(file.size)}${file.type ? ` · ${esc(file.type)}` : ''}</div>
+            </div>
+            <button class="btn ghost sm" onclick="removePendingRequestFile(${index})">移除</button>
+        </div>
+    `).join('');
+}
+
+function ensureRequestFileInput() {
+    if (requestFileInput) return requestFileInput;
+    requestFileInput = document.createElement('input');
+    requestFileInput.type = 'file';
+    requestFileInput.accept = REQUEST_FILE_ACCEPT;
+    requestFileInput.multiple = true;
+    requestFileInput.style.display = 'none';
+    requestFileInput.addEventListener('change', (event) => {
+        const files = Array.from(event.target.files || []);
+        pendingRequestFiles = files;
+        const list = document.getElementById('req-file-list');
+        if (list) list.innerHTML = renderSelectedRequestFiles();
+        event.target.value = '';
+    });
+    document.body.appendChild(requestFileInput);
+    return requestFileInput;
+}
+
+function openRequestFilePicker() {
+    ensureRequestFileInput().click();
+}
+
+function removePendingRequestFile(index) {
+    pendingRequestFiles.splice(index, 1);
+    const list = document.getElementById('req-file-list');
+    if (list) list.innerHTML = renderSelectedRequestFiles();
+}
+
+function clearPendingRequestFiles() {
+    pendingRequestFiles = [];
+    const list = document.getElementById('req-file-list');
+    if (list) list.innerHTML = renderSelectedRequestFiles();
+}
 
 function toStageId(stage) {
     return typeof stage === 'string' ? stage : stage?.id;
@@ -2752,10 +3078,11 @@ function renderNavSection(navItems) {
 }
 
 function renderSidebarFooter(settings, runner) {
+    const displayTime = lastRuntimeSyncAt || runner.updated_at;
     return `
         <div class="info-row"><span>Target Repo</span><span class="info-val">${esc(settings.target_repo||'-')}</span></div>
         <div class="info-row"><span>Claude</span><span class="info-val">${settings.claude?.simulate?'Simulation':'CLI'}</span></div>
-        <div class="info-row"><span>Updated</span><span class="info-val">${fmtTime(runner.updated_at)}</span></div>
+        <div class="info-row"><span>Synced</span><span class="info-val">${fmtTime(displayTime)}</span></div>
     `;
 }
 
@@ -2832,6 +3159,21 @@ function renderPipelineVisual(task) {
     const isCompleted = ['completed', 'done'].includes(taskStatus);
     const isFailed = ['failed', 'error'].includes(taskStatus);
     const isRunning = ['running', 'in_progress'].includes(taskStatus);
+    const currentStageData = stages[currentStage] || {};
+    const currentStageIndex = Math.max(stageList.indexOf(currentStage), 0);
+    const currentStageStatus = currentStageData.status || (isCompleted ? 'completed' : (isFailed ? 'failed' : (currentStage ? 'running' : 'pending')));
+    const currentStageDuration = stageDuration(currentStageData, taskStatus) || taskDuration(task);
+    const completedStages = completedCount(task);
+    const activeAgent = (runtime?.agents || []).find(agent => agent.current_task_id === task?.id && agent.last_stage === currentStage)
+        || (runtime?.agents || []).find(agent => agent.current_task_id === task?.id)
+        || (runtime?.agents || []).find(agent => agent.last_stage === currentStage);
+    const taskEvents = [...latestEvents]
+        .reverse()
+        .filter(event => event.task_id === task?.id && (!currentStage || event.stage === currentStage || !event.stage))
+        .slice(0, 3);
+    const latestTaskEvent = taskEvents[0];
+    const currentSummary = currentStageData.summary || currentStageData.last_message || task?.request_text || '';
+    const summaryPreview = currentSummary.length > 160 ? `${currentSummary.slice(0, 160)}...` : currentSummary;
     
     let html = '<div class="pipeline-visual">';
     
@@ -2866,6 +3208,49 @@ function renderPipelineVisual(task) {
         html += `<div class="pipeline-fallback-banner">
             <span class="pfb-icon">↩</span>
             <span class="pfb-text">回退执行: <strong>${esc(humanStage(fallbackInfo.from))}</strong> → <strong>${esc(humanStage(fallbackInfo.to))}</strong></span>
+        </div>`;
+    }
+
+    if (currentStage) {
+        html += `<div class="pipeline-current-banner">
+            <div class="pipeline-current-main">
+                <div class="pipeline-current-icon">${getStageIcon(currentStage)}</div>
+                <div class="pipeline-current-copy">
+                    <div class="pipeline-current-kicker">当前步骤</div>
+                    <div class="pipeline-current-title">${esc(humanStage(currentStage))}</div>
+                    <div class="pipeline-current-subtitle">${esc(task.title || 'Untitled')} · ${getStatusText(currentStageStatus)}</div>
+                </div>
+            </div>
+            <div class="pipeline-current-meta">
+                <span class="pipeline-current-chip">位置 <strong>${currentStageIndex + 1} / ${stageList.length}</strong></span>
+                <span class="pipeline-current-chip">已完成 <strong>${completedStages}</strong></span>
+                <span class="pipeline-current-chip">耗时 <strong>${esc(currentStageDuration || '—')}</strong></span>
+            </div>
+        </div>`;
+        html += `<div class="pipeline-current-detail-grid">
+            <div class="pipeline-current-detail">
+                <div class="pipeline-current-detail-label">当前 Agent</div>
+                <div class="pipeline-current-detail-value">${esc(activeAgent?.name || activeAgent?.id || '未分配')}</div>
+                <div class="pipeline-current-detail-text ${activeAgent?.last_message ? '' : 'muted'}">${esc(activeAgent?.last_message || activeAgent?.role || '当前还没有 agent 动态')}</div>
+            </div>
+            <div class="pipeline-current-detail">
+                <div class="pipeline-current-detail-label">最近事件</div>
+                <div class="pipeline-current-detail-value">${taskEvents.length ? `最近 ${taskEvents.length} 条` : '暂无事件'}</div>
+                ${taskEvents.length ? `<div class="pipeline-current-event-list">${taskEvents.map(event => `
+                    <div class="pipeline-current-event-item">
+                        <div class="pipeline-current-event-top">
+                            <span class="pipeline-current-event-source">${esc(event.source || 'system')}</span>
+                            <span>${fmtTime(event.timestamp)}</span>
+                        </div>
+                        <div class="pipeline-current-event-msg">${esc(event.message || '')}</div>
+                    </div>
+                `).join('')}</div>` : `<div class="pipeline-current-detail-text muted">等待下一条 runtime event</div>`}
+            </div>
+            <div class="pipeline-current-detail">
+                <div class="pipeline-current-detail-label">当前摘要</div>
+                <div class="pipeline-current-detail-value">${esc(getStatusText(currentStageStatus))}</div>
+                <div class="pipeline-current-detail-text ${summaryPreview ? '' : 'muted'}">${esc(summaryPreview || '当前步骤还没有产出摘要，通常表示执行刚开始。')}</div>
+            </div>
         </div>`;
     }
     
@@ -2922,6 +3307,7 @@ async function fetchRuntime(options = {}) {
     const { animate = false, partial = true, forceFullRender = false } = options;
     const r = await fetch('/api/runtime');
     runtime = await r.json();
+    lastRuntimeSyncAt = new Date().toISOString();
     if (!latestEvents.length) latestEvents = runtime.events || [];
     // Fetch pipeline config only once
     if (!pipelineFetched) {
@@ -2945,21 +3331,42 @@ async function submitRequest() {
     const title = document.getElementById('req-title')?.value.trim();
     const text = document.getElementById('req-text')?.value.trim();
     const source = document.getElementById('req-source')?.value.trim() || 'web';
-    if (!text) { showToast('请输入需求内容', true); return; }
+    if (!text && !pendingRequestFiles.length) { showToast('请输入需求内容或上传文件', true); return; }
     
     const btn = document.querySelector('.composer-actions .btn.primary');
     if (btn) btn.classList.add('loading');
     
     try {
-        await fetch('/api/requests', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title,text,source}) });
+        let response;
+        if (pendingRequestFiles.length) {
+            const formData = new FormData();
+            if (title) formData.append('title', title);
+            if (text) formData.append('text', text);
+            formData.append('source', source);
+            pendingRequestFiles.forEach(file => formData.append('files', file, file.name));
+            response = await fetch('/api/requests', { method:'POST', body: formData });
+        } else {
+            response = await fetch('/api/requests', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({title,text,source}),
+            });
+        }
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || '提交失败');
+        }
+
         const titleEl = document.getElementById('req-title');
         const textEl = document.getElementById('req-text');
         if (titleEl) titleEl.value = '';
         if (textEl) textEl.value = '';
+        clearPendingRequestFiles();
         showToast('请求已提交');
         await fetchRuntime();
     } catch (e) {
-        showToast('提交失败', true);
+        showToast(e.message || '提交失败', true);
     } finally {
         if (btn) btn.classList.remove('loading');
     }
@@ -3269,6 +3676,17 @@ function renderDashboardPage(activeTask, tasks, stats, budget, settings) {
                         <div class="field-group"><div class="field-label">来源</div><input id="req-source" value="web" placeholder="web / feishu / api" /></div>
                     </div>
                     <div class="field-group full"><div class="field-label">需求描述</div><textarea id="req-text" placeholder="输入需求背景、目标仓库、验收条件等"></textarea></div>
+                    <div class="field-group full">
+                        <div class="field-label">附件</div>
+                        <div class="upload-panel">
+                            <div class="upload-panel-head">
+                                <button class="btn ghost" onclick="openRequestFilePicker()">选择文件</button>
+                                <button class="btn ghost sm" onclick="clearPendingRequestFiles()">清空附件</button>
+                            </div>
+                            <div class="upload-hint">支持常见文本、代码、表格、Office、PDF 和图片格式。最多 10 个文件，单文件不超过 10MB，总大小不超过 25MB。</div>
+                            <div class="request-file-list" id="req-file-list">${renderSelectedRequestFiles()}</div>
+                        </div>
+                    </div>
                     <div class="composer-actions">
                         <button class="btn primary" onclick="submitRequest()">提交请求</button>
                         <button class="btn ghost" onclick="fetchRuntime()">同步状态</button>

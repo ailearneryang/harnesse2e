@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import sys
@@ -97,6 +98,25 @@ STAGE_TITLES = {
 }
 
 HUMAN_KEYWORDS = ["security", "auth", "payment", "prod", "生产", "隐私", "删除数据", "权限"]
+
+REQUEST_UPLOAD_MAX_FILES = 10
+REQUEST_UPLOAD_MAX_FILE_BYTES = 10 * 1024 * 1024
+REQUEST_UPLOAD_MAX_TOTAL_BYTES = 25 * 1024 * 1024
+REQUEST_UPLOAD_INLINE_PREVIEW_BYTES = 4000
+REQUEST_UPLOAD_ALLOWED_EXTENSIONS = {
+    ".txt", ".md", ".markdown", ".rst", ".log",
+    ".json", ".yaml", ".yml", ".xml", ".csv", ".tsv",
+    ".html", ".htm", ".ini", ".cfg", ".conf", ".toml",
+    ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs", ".sh", ".sql",
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp",
+}
+REQUEST_UPLOAD_TEXT_EXTENSIONS = {
+    ".txt", ".md", ".markdown", ".rst", ".log",
+    ".json", ".yaml", ".yml", ".xml", ".csv", ".tsv",
+    ".html", ".htm", ".ini", ".cfg", ".conf", ".toml",
+    ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs", ".sh", ".sql",
+}
 
 
 class PipelineRunner:
@@ -269,6 +289,7 @@ class PipelineRunner:
             task.setdefault("approvals", [])
             task.setdefault("context", {})
             task.setdefault("artifacts", {})
+            task.setdefault("attachments", [])
             task.setdefault("gerrit", {})
             task.setdefault("source_metadata", {})
             task.setdefault("run_dir", self._ensure_run_layout(task["id"]))
@@ -324,6 +345,111 @@ class PipelineRunner:
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(content)
 
+    def _sanitize_upload_filename(self, filename: str, fallback_index: int) -> str:
+        raw_name = os.path.basename((filename or "").strip()) or f"attachment-{fallback_index}"
+        sanitized = re.sub(r"[^A-Za-z0-9._-]+", "_", raw_name).strip("._")
+        if not sanitized:
+            sanitized = f"attachment-{fallback_index}"
+        root, ext = os.path.splitext(sanitized)
+        root = root[:80] or f"attachment-{fallback_index}"
+        ext = ext[:20]
+        return f"{root}{ext}"
+
+    def _unique_upload_filename(self, directory: str, filename: str) -> str:
+        root, ext = os.path.splitext(filename)
+        candidate = filename
+        counter = 1
+        while os.path.exists(os.path.join(directory, candidate)):
+            candidate = f"{root}-{counter}{ext}"
+            counter += 1
+        return candidate
+
+    def _extract_upload_preview(self, filename: str, content_type: str, content: bytes) -> tuple[bool, str, bool]:
+        ext = os.path.splitext(filename)[1].lower()
+        is_text = ext in REQUEST_UPLOAD_TEXT_EXTENSIONS or content_type.startswith("text/") or content_type in {
+            "application/json",
+            "application/xml",
+            "application/javascript",
+        }
+        if not is_text:
+            return False, "", False
+
+        preview_bytes = content[:REQUEST_UPLOAD_INLINE_PREVIEW_BYTES]
+        preview = preview_bytes.decode("utf-8", errors="replace").strip()
+        return True, preview, len(content) > REQUEST_UPLOAD_INLINE_PREVIEW_BYTES
+
+    def _persist_request_attachments(self, run_dir: str, attachments: Optional[List[Dict]]) -> tuple[List[Dict], List[str]]:
+        if not attachments:
+            return [], []
+
+        uploads_dir = os.path.join(run_dir, "uploads")
+        os.makedirs(uploads_dir, exist_ok=True)
+        records: List[Dict] = []
+
+        for index, attachment in enumerate(attachments, start=1):
+            original_name = attachment.get("name") or f"attachment-{index}"
+            content = attachment.get("content") or b""
+            content_type = attachment.get("content_type") or "application/octet-stream"
+            sanitized_name = self._sanitize_upload_filename(original_name, index)
+            stored_name = self._unique_upload_filename(uploads_dir, sanitized_name)
+            path = os.path.join(uploads_dir, stored_name)
+
+            with open(path, "wb") as handle:
+                handle.write(content)
+
+            preview_available, preview, preview_truncated = self._extract_upload_preview(stored_name, content_type, content)
+            records.append(
+                {
+                    "name": original_name,
+                    "stored_name": stored_name,
+                    "path": path,
+                    "size_bytes": len(content),
+                    "content_type": content_type,
+                    "preview": preview,
+                    "preview_available": preview_available,
+                    "preview_truncated": preview_truncated,
+                }
+            )
+
+        manifest_path = os.path.join(uploads_dir, "manifest.json")
+        self._save_json(
+            manifest_path,
+            {
+                "generated_at": datetime.now().isoformat(),
+                "attachments": records,
+            },
+        )
+        artifact_paths = [record["path"] for record in records] + [manifest_path]
+        return records, artifact_paths
+
+    def _format_request_attachments_for_prompt(self, task: Dict) -> List[str]:
+        attachments = task.get("attachments") or []
+        if not attachments:
+            return []
+
+        lines = [
+            "## Uploaded Files",
+            "The user uploaded supporting files. Use them as part of the request context.",
+            "",
+        ]
+        for index, attachment in enumerate(attachments, start=1):
+            name = attachment.get("name") or attachment.get("stored_name") or f"attachment-{index}"
+            content_type = attachment.get("content_type") or "unknown"
+            size_bytes = attachment.get("size_bytes") or 0
+            path = attachment.get("path") or ""
+            lines.append(f"{index}. {name} ({content_type}, {size_bytes} bytes)")
+            if path:
+                lines.append(f"Path: {path}")
+            if attachment.get("preview_available") and attachment.get("preview"):
+                lines.append("Preview:")
+                lines.append(attachment["preview"])
+                if attachment.get("preview_truncated"):
+                    lines.append("[preview truncated]")
+            else:
+                lines.append("Preview unavailable in prompt. Inspect the file directly if needed.")
+            lines.append("")
+        return lines
+
     def _deep_merge(self, base: Dict, override: Dict) -> Dict:
         result = dict(base)
         for key, value in override.items():
@@ -353,22 +479,36 @@ class PipelineRunner:
         self.paused = False
         self._emit("runner_resumed", "Harness runner resumed", source="system")
 
-    def submit_request(self, text: str, title: Optional[str] = None, source: str = "web", metadata: Optional[Dict] = None) -> Dict:
+    def submit_request(self, text: str, title: Optional[str] = None, source: str = "web", metadata: Optional[Dict] = None, attachments: Optional[List[Dict]] = None) -> Dict:
         task_id = f"task-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
         spec_file = f"{task_id}.md"
         spec_path = os.path.join(self.specs_pending, spec_file)
-        content = f"# {title or 'User Request'}\n\n{text.strip()}\n"
-        self._save_text(spec_path, content)
         run_dir = self._ensure_run_layout(task_id)
+        attachment_records, attachment_artifacts = self._persist_request_attachments(run_dir, attachments)
+        request_text = (text or "").strip()
+        if not request_text and attachment_records:
+            request_text = "Please process the uploaded files and infer the actionable request from the title and attachment contents."
+
+        spec_lines = [f"# {title or 'User Request'}", "", request_text]
+        if attachment_records:
+            spec_lines.extend(["", "## Uploaded Files", ""])
+            for attachment in attachment_records:
+                spec_lines.append(f"- {attachment['name']} ({attachment['content_type']}, {attachment['size_bytes']} bytes)")
+                spec_lines.append(f"  Path: {attachment['path']}")
+        self._save_text(spec_path, "\n".join(spec_lines).rstrip() + "\n")
+
         pipeline_snapshot = json.loads(json.dumps(self.pipeline_config.get("stages", []), ensure_ascii=False))
         first_stage = (pipeline_snapshot[0].get("id") if pipeline_snapshot else None) or self.pipeline_order[0]
+        source_metadata = dict(metadata or {})
+        if attachment_records:
+            source_metadata["attachment_count"] = len(attachment_records)
 
         task = {
             "id": task_id,
             "title": title or "Untitled request",
-            "request_text": text.strip(),
+            "request_text": request_text,
             "source": source,
-            "source_metadata": metadata or {},
+            "source_metadata": source_metadata,
             "spec_file": spec_file,
             "run_dir": run_dir,
             "status": "queued",
@@ -378,10 +518,13 @@ class PipelineRunner:
             "approvals": [],
             "context": {},
             "artifacts": {},
+            "attachments": attachment_records,
             "gerrit": {},
             "stages": self._empty_stage_map(),
             "pipeline_snapshot": pipeline_snapshot,
         }
+        if attachment_artifacts:
+            task["artifacts"]["request_uploads"] = attachment_artifacts
 
         with self.lock:
             self.runtime["tasks"].append(task)
@@ -1056,6 +1199,7 @@ class PipelineRunner:
             task["request_text"],
             "",
         ]
+        attachment_section = self._format_request_attachments_for_prompt(task)
         
         # Inject memory context (historical experience)
         memory_section = []
@@ -1093,7 +1237,7 @@ class PipelineRunner:
             "testing": "Report validation strategy, tests to run, and quality gates. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "build_verification": "Summarize CI build, static analysis, SBOM, and signing checks. End with VERDICT: PASS or FAIL.",
         }
-        return "\n".join(preamble + memory_section + previous + retry_section + [f"## Stage Instructions\n{stage_instructions.get(stage, f'Complete the {stage} stage.')}" ])
+        return "\n".join(preamble + attachment_section + memory_section + previous + retry_section + [f"## Stage Instructions\n{stage_instructions.get(stage, f'Complete the {stage} stage.')}" ])
 
     def _summarize_result(self, stage: str, output_text: str, verdict: Optional[str]) -> tuple[str, str]:
         lines = [line.strip() for line in output_text.splitlines() if line.strip()]
@@ -1205,7 +1349,7 @@ class PipelineRunner:
 
     def _ensure_run_layout(self, task_id: str) -> str:
         run_dir = os.path.join(self.runs_dir, task_id)
-        for rel in ["requirements", "design", "src", "tests/reports", "planning", "reports", "transcripts", "delivery", "build_verification", "safety_review"]:
+        for rel in ["requirements", "design", "src", "tests/reports", "planning", "reports", "transcripts", "delivery", "build_verification", "safety_review", "uploads"]:
             os.makedirs(os.path.join(run_dir, rel), exist_ok=True)
         return run_dir
 
@@ -1220,6 +1364,7 @@ class PipelineRunner:
             "task_id": task["id"],
             "title": task["title"],
             "source": task["source"],
+            "source_metadata": task.get("source_metadata", {}),
             "spec_file": task["spec_file"],
             "run_dir": task["run_dir"],
             "status": final_status or task["status"],
@@ -1228,6 +1373,7 @@ class PipelineRunner:
             "created_at": task.get("created_at"),
             "updated_at": task.get("updated_at"),
             "budget": self.engine.check_budget(),
+            "attachments": task.get("attachments", []),
             "stages": task.get("stages", {}),
             "artifacts": task.get("artifacts", {}),
         }
@@ -1299,6 +1445,7 @@ class PipelineRunner:
 
 def create_api_app(runner: PipelineRunner) -> Flask:
     app = Flask(__name__, static_folder=None)
+    app.config["MAX_CONTENT_LENGTH"] = REQUEST_UPLOAD_MAX_TOTAL_BYTES + (2 * 1024 * 1024)
     template_dir = os.path.abspath(os.path.join(runner.harness_dir, "dashboard", "templates"))
 
     @app.route("/")
@@ -1352,6 +1499,57 @@ def create_api_app(runner: PipelineRunner) -> Flask:
 
     @app.route("/api/requests", methods=["POST"])
     def api_submit_request():
+        if (request.content_length or 0) > REQUEST_UPLOAD_MAX_TOTAL_BYTES + (2 * 1024 * 1024):
+            return jsonify({"error": f"Request body exceeds {REQUEST_UPLOAD_MAX_TOTAL_BYTES // (1024 * 1024)}MB limit"}), 413
+
+        if request.files:
+            title = (request.form.get("title") or "").strip() or None
+            text = (request.form.get("text") or "").strip()
+            source = (request.form.get("source") or "web").strip() or "web"
+            metadata_raw = request.form.get("metadata")
+            metadata = None
+            if metadata_raw:
+                try:
+                    metadata = json.loads(metadata_raw)
+                except json.JSONDecodeError:
+                    return jsonify({"error": "metadata must be valid JSON"}), 400
+
+            uploads = [file for file in request.files.getlist("files") if file and file.filename]
+            if len(uploads) > REQUEST_UPLOAD_MAX_FILES:
+                return jsonify({"error": f"Too many files. Limit is {REQUEST_UPLOAD_MAX_FILES}"}), 400
+
+            attachments = []
+            total_bytes = 0
+            for upload in uploads:
+                filename = upload.filename or ""
+                ext = os.path.splitext(filename)[1].lower()
+                if ext not in REQUEST_UPLOAD_ALLOWED_EXTENSIONS:
+                    return jsonify({"error": f"Unsupported file type: {filename}"}), 400
+                content = upload.read()
+                size_bytes = len(content)
+                if size_bytes > REQUEST_UPLOAD_MAX_FILE_BYTES:
+                    return jsonify({"error": f"File too large: {filename}"}), 400
+                total_bytes += size_bytes
+                if total_bytes > REQUEST_UPLOAD_MAX_TOTAL_BYTES:
+                    return jsonify({"error": f"Total upload size exceeds {REQUEST_UPLOAD_MAX_TOTAL_BYTES // (1024 * 1024)}MB"}), 400
+                attachments.append({
+                    "name": filename,
+                    "content": content,
+                    "content_type": upload.mimetype or "application/octet-stream",
+                })
+
+            if not text and not attachments:
+                return jsonify({"error": "text or at least one file is required"}), 400
+
+            task = runner.submit_request(
+                text=text,
+                title=title,
+                source=source,
+                metadata=metadata,
+                attachments=attachments,
+            )
+            return jsonify(task), 201
+
         payload = request.get_json(force=True, silent=True) or {}
         text = (payload.get("text") or "").strip()
         if not text:

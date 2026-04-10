@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import json
 import os
-import select
+import queue
 import shlex
 import shutil
 import subprocess
@@ -104,20 +104,52 @@ class ClaudeCLIAdapter:
         idle_timeout_seconds = int(self.settings.get("idle_timeout_seconds", 300))
         budget_limit = max_tokens if max_tokens is not None else int(self.settings.get("max_tokens_per_run", 0) or 0)
 
-        process = subprocess.Popen(
-            cli_command,
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        try:
+            process = subprocess.Popen(
+                cli_command,
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except Exception as exc:
+            error_message = f"Claude CLI failed to start: {exc}"
+            return AgentRunResult(
+                success=False,
+                output_text="",
+                transcript=[],
+                command=cli_command,
+                return_code=-1,
+                error=error_message,
+                verdict="FAIL",
+                tokens_estimate=self._estimate_tokens(prompt, ""),
+                duration_seconds=(datetime.now() - start_time).total_seconds(),
+                usage={"total_tokens": 0},
+            )
 
         assert process.stdout is not None
+        output_queue: queue.Queue[tuple[str, Optional[str]]] = queue.Queue()
+
+        def stream_reader() -> None:
+            try:
+                while True:
+                    raw_line = process.stdout.readline()
+                    if raw_line == "":
+                        output_queue.put(("eof", None))
+                        break
+                    output_queue.put(("line", raw_line))
+            except Exception as exc:
+                output_queue.put(("error", str(exc)))
+
+        reader_thread = threading.Thread(target=stream_reader, daemon=True)
+        reader_thread.start()
+
         budget_exceeded = False
         timeout_exceeded = False
         idle_timeout_exceeded = False
+        stream_error: Optional[str] = None
         start_monotonic = time.monotonic()
         last_output_monotonic = start_monotonic
         while True:
@@ -130,41 +162,74 @@ class ClaudeCLIAdapter:
                 process.kill()
                 break
 
-            ready, _, _ = select.select([process.stdout], [], [], 0.5)
-            if ready:
-                raw_line = process.stdout.readline()
-                if raw_line == "":
-                    if process.poll() is not None:
-                        break
-                    continue
-                last_output_monotonic = time.monotonic()
-                line = raw_line.rstrip("\n")
-                if not line:
-                    continue
-                event = self._parse_stream_line(line, agent_id, stage)
-                transcript.append(event)
-                if event_callback:
-                    event_callback(event)
+            try:
+                message_type, payload = output_queue.get(timeout=0.5)
+            except queue.Empty:
+                if process.poll() is not None:
+                    break
+                continue
 
-                usage_tokens = self._extract_usage_tokens(event)
-                if usage_tokens:
-                    total_usage = max(total_usage, usage_tokens)
-                    if budget_limit and total_usage >= budget_limit:
-                        budget_exceeded = True
-                        process.kill()
-                        break
+            if message_type == "eof":
+                if process.poll() is not None:
+                    break
+                continue
 
-                text_value = (event.get("text") or "").strip()
-                if text_value and text_value not in ("system", "assistant", "user", "result"):
-                    output_lines.append(text_value)
-            elif process.poll() is not None:
+            if message_type == "error":
+                stream_error = payload or "unknown stream error"
+                process.kill()
                 break
 
-        process.wait()
+            raw_line = payload or ""
+            if raw_line == "":
+                if process.poll() is not None:
+                    break
+                continue
+
+            last_output_monotonic = time.monotonic()
+            line = raw_line.rstrip("\n")
+            if not line:
+                continue
+            event = self._parse_stream_line(line, agent_id, stage)
+            transcript.append(event)
+            if event_callback:
+                event_callback(event)
+
+            usage_tokens = self._extract_usage_tokens(event)
+            if usage_tokens:
+                total_usage = max(total_usage, usage_tokens)
+                if budget_limit and total_usage >= budget_limit:
+                    budget_exceeded = True
+                    process.kill()
+                    break
+
+            text_value = (event.get("text") or "").strip()
+            if text_value and text_value not in ("system", "assistant", "user", "result"):
+                output_lines.append(text_value)
+
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
         duration = (datetime.now() - start_time).total_seconds()
         output_text = "\n".join(output_lines).strip()
         verdict = self._extract_verdict(output_text)
         usage = {"total_tokens": total_usage}
+
+        if stream_error:
+            return AgentRunResult(
+                success=False,
+                output_text=output_text,
+                transcript=transcript,
+                command=cli_command,
+                return_code=process.returncode or -9,
+                error=f"Claude CLI stream reader failed: {stream_error}",
+                verdict=verdict,
+                tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
+                duration_seconds=duration,
+                usage=usage,
+            )
 
         if timeout_exceeded:
             return AgentRunResult(
