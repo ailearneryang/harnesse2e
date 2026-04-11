@@ -39,6 +39,8 @@ class AgentRunResult:
     duration_seconds: float = 0.0
     usage: Dict = field(default_factory=dict)
     budget_exceeded: bool = False
+    interrupted: bool = False
+    interrupt_reason: Optional[str] = None
 
 
 class ClaudeCLIAdapter:
@@ -46,6 +48,35 @@ class ClaudeCLIAdapter:
 
     def __init__(self, settings: Dict):
         self.settings = settings
+        self._interrupt_lock = threading.Lock()
+        self._active_process: Optional[subprocess.Popen] = None
+        self._interrupt_requested = False
+        self._interrupt_reason: Optional[str] = None
+
+    def request_interrupt(self, reason: str = "Interrupted by scheduler") -> bool:
+        with self._interrupt_lock:
+            self._interrupt_requested = True
+            self._interrupt_reason = reason
+            process = self._active_process
+        if process is None:
+            return False
+        try:
+            process.kill()
+            return True
+        except Exception:
+            return False
+
+    def _bind_active_process(self, process: Optional[subprocess.Popen]) -> None:
+        with self._interrupt_lock:
+            self._active_process = process
+
+    def _consume_interrupt_request(self) -> tuple[bool, Optional[str]]:
+        with self._interrupt_lock:
+            interrupted = self._interrupt_requested
+            reason = self._interrupt_reason
+            self._interrupt_requested = False
+            self._interrupt_reason = None
+            return interrupted, reason
 
     def run_agent(
         self,
@@ -129,6 +160,8 @@ class ClaudeCLIAdapter:
                 usage={"total_tokens": 0},
             )
 
+        self._bind_active_process(process)
+
         assert process.stdout is not None
         output_queue: queue.Queue[tuple[str, Optional[str]]] = queue.Queue()
 
@@ -149,10 +182,18 @@ class ClaudeCLIAdapter:
         budget_exceeded = False
         timeout_exceeded = False
         idle_timeout_exceeded = False
+        interrupted = False
         stream_error: Optional[str] = None
+        interrupt_reason: Optional[str] = None
         start_monotonic = time.monotonic()
         last_output_monotonic = start_monotonic
         while True:
+            interrupt_requested, pending_reason = self._consume_interrupt_request()
+            if interrupt_requested:
+                interrupted = True
+                interrupt_reason = pending_reason or "Interrupted by scheduler"
+                process.kill()
+                break
             if hard_timeout_seconds and time.monotonic() - start_monotonic > hard_timeout_seconds:
                 timeout_exceeded = True
                 process.kill()
@@ -211,11 +252,29 @@ class ClaudeCLIAdapter:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+        finally:
+            self._bind_active_process(None)
 
         duration = (datetime.now() - start_time).total_seconds()
         output_text = "\n".join(output_lines).strip()
         verdict = self._extract_verdict(output_text)
         usage = {"total_tokens": total_usage}
+
+        if interrupted:
+            return AgentRunResult(
+                success=False,
+                output_text=output_text,
+                transcript=transcript,
+                command=cli_command,
+                return_code=process.returncode or -9,
+                error=interrupt_reason or "Interrupted by scheduler",
+                verdict=verdict,
+                tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
+                duration_seconds=duration,
+                usage=usage,
+                interrupted=True,
+                interrupt_reason=interrupt_reason,
+            )
 
         if stream_error:
             return AgentRunResult(

@@ -34,6 +34,7 @@ from event_bus import EventBus
 from integrations import BuildVerificationAdapter, ClaudeCLIAdapter, FeishuAdapter, GerritAdapter, HILAdapter
 from memory_store import MemoryStore
 from memory_extractor import MemoryExtractor, MemoryInjector
+from pipeline_template_manager import PipelineTemplateManager
 from reviewers.change_impact_analyzer import ChangeImpactAnalyzer
 from reviewers.consistency_checker import ConsistencyChecker
 from state_store import StateStore
@@ -57,7 +58,9 @@ DEFAULT_PIPELINE_ORDER = [
 DEFAULT_AGENTS = [
     {"id": "planner", "name": "Planner", "model": "claude-opus", "role": "scope tasks and define a sprint contract"},
     {"id": "requirements-analyst", "name": "Requirements Analyst", "model": "claude-opus", "role": "turn requests into a traceable requirement spec"},
+    {"id": "software-requirement-orchestrator", "name": "Software Requirement Orchestrator", "model": "claude-opus", "role": "orchestrate software requirement generation and quality gate"},
     {"id": "system-architect", "name": "System Architect", "model": "claude-opus", "role": "design architecture, APIs, and data flow"},
+    {"id": "cockpit-middleware-architect", "name": "Cockpit Middleware Architect", "model": "claude-opus", "role": "design IVI/cockpit middleware architecture across Linux/QNX/Android"},
     {"id": "developer", "name": "Developer", "model": "claude-sonnet", "role": "implement changes in the target workspace"},
     {"id": "code-reviewer", "name": "Code Reviewer", "model": "claude-opus", "role": "independently review code quality and logic"},
     {"id": "security-reviewer", "name": "Security Reviewer", "model": "claude-opus", "role": "independently review security and compliance risks"},
@@ -72,7 +75,9 @@ STAGE_TO_AGENT = {
     "intake": "planner",
     "planning": "planner",
     "requirements": "requirements-analyst",
+    "software-requirement-orchestrator": "software-requirement-orchestrator",
     "design": "system-architect",
+    "cockpit-middleware-architect": "cockpit-middleware-architect",
     "development": "developer",
     "code_review": "code-reviewer",
     "security_review": "security-reviewer",
@@ -87,7 +92,9 @@ STAGE_TITLES = {
     "intake": "Request Intake",
     "planning": "Sprint Planning",
     "requirements": "Requirements",
+    "software-requirement-orchestrator": "Software Requirement Orchestrator",
     "design": "System Design",
+    "cockpit-middleware-architect": "Cockpit Middleware Architect",
     "development": "Implementation",
     "code_review": "Code Review",
     "security_review": "Security Review",
@@ -182,6 +189,9 @@ class PipelineRunner:
             {},
         )
         self.target_repo = self._resolve_target_repo(self.settings.get("target_repo"))
+
+        # Initialize pipeline template manager
+        self.template_manager = PipelineTemplateManager(harness_dir, self.state_store)
 
         self.pipeline_order = self._resolve_pipeline_order()
         self.agents = self._build_agent_state()
@@ -303,6 +313,10 @@ class PipelineRunner:
             task.setdefault("attachments", [])
             task.setdefault("gerrit", {})
             task.setdefault("source_metadata", {})
+            task.setdefault("yield_requested", False)
+            task.setdefault("yield_reason", "")
+            task.setdefault("yield_to_front", False)
+            task.setdefault("yield_target_status", "queued")
             task.setdefault("run_dir", self._ensure_run_layout(task["id"]))
             stage_defaults = self._empty_stage_map()
             existing = task.setdefault("stages", {})
@@ -490,7 +504,29 @@ class PipelineRunner:
         self.paused = False
         self._emit("runner_resumed", "Harness runner resumed", source="system")
 
-    def submit_request(self, text: str, title: Optional[str] = None, source: str = "web", metadata: Optional[Dict] = None, attachments: Optional[List[Dict]] = None) -> Dict:
+    def _queue_insert_index_locked(self, front: bool = False) -> int:
+        if not front:
+            return len(self.runtime["tasks"])
+        for index, task in enumerate(self.runtime["tasks"]):
+            if task.get("status") == "queued":
+                return index
+        return len(self.runtime["tasks"])
+
+    def _requeue_task_locked(self, task: Dict, front: bool = False) -> None:
+        self.runtime["tasks"] = [item for item in self.runtime["tasks"] if item["id"] != task["id"]]
+        insert_at = self._queue_insert_index_locked(front=front)
+        self.runtime["tasks"].insert(insert_at, task)
+
+    def _get_running_task_locked(self) -> Optional[Dict]:
+        current_id = self.runtime.get("current_task_id")
+        if not current_id:
+            return None
+        for task in self.runtime["tasks"]:
+            if task["id"] == current_id and task.get("status") == "running":
+                return task
+        return None
+
+    def submit_request(self, text: str, title: Optional[str] = None, source: str = "web", metadata: Optional[Dict] = None, attachments: Optional[List[Dict]] = None, prioritize: bool = False, pipeline_template_id: Optional[str] = None) -> Dict:
         task_id = f"task-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
         spec_file = f"{task_id}.md"
         spec_path = os.path.join(self.specs_pending, spec_file)
@@ -508,7 +544,10 @@ class PipelineRunner:
                 spec_lines.append(f"  Path: {attachment['path']}")
         self._save_text(spec_path, "\n".join(spec_lines).rstrip() + "\n")
 
-        pipeline_snapshot = json.loads(json.dumps(self.pipeline_config.get("stages", []), ensure_ascii=False))
+        # Resolve pipeline template
+        template = self.template_manager.resolve_template(pipeline_template_id)
+        self.template_manager.increment_usage(template["id"])
+        pipeline_snapshot = json.loads(json.dumps(template.get("stages", []), ensure_ascii=False))
         first_stage = (pipeline_snapshot[0].get("id") if pipeline_snapshot else None) or self.pipeline_order[0]
         source_metadata = dict(metadata or {})
         if attachment_records:
@@ -531,19 +570,48 @@ class PipelineRunner:
             "artifacts": {},
             "attachments": attachment_records,
             "gerrit": {},
+            "yield_requested": False,
+            "yield_reason": "",
+            "yield_to_front": False,
+            "yield_target_status": "queued",
             "stages": self._empty_stage_map(),
+            "pipeline_template_id": template["id"],
+            "pipeline_template_name": template.get("name", ""),
             "pipeline_snapshot": pipeline_snapshot,
         }
         if attachment_artifacts:
             task["artifacts"]["request_uploads"] = attachment_artifacts
 
         with self.lock:
-            self.runtime["tasks"].append(task)
+            if prioritize:
+                running_task = self._get_running_task_locked()
+                if running_task:
+                    running_task["yield_requested"] = True
+                    running_task["yield_reason"] = f"Yield requested by higher-priority task {task['title']}"
+                    running_task["yield_to_front"] = False
+                    running_task["yield_target_status"] = "queued"
+                    running_task["updated_at"] = datetime.now().isoformat()
+            insert_at = self._queue_insert_index_locked(front=prioritize)
+            self.runtime["tasks"].insert(insert_at, task)
             self._persist_runtime()
         self._update_latest_run_link(run_dir)
         self._write_run_metadata(task)
 
-        self._emit("task_submitted", f"New request submitted from {source}", source=source, task_id=task_id, data={"title": task["title"]})
+        self._emit(
+            "task_submitted",
+            f"New request submitted from {source}",
+            source=source,
+            task_id=task_id,
+            data={"title": task["title"], "prioritize": prioritize},
+        )
+        if prioritize:
+            self._emit(
+                "task_prioritized",
+                f"Task {task['title']} queued ahead of older work",
+                source="system",
+                task_id=task_id,
+                level="warning",
+            )
         return task
 
     def get_runtime_snapshot(self) -> Dict:
@@ -557,6 +625,7 @@ class PipelineRunner:
             stats = {
                 "total": len(self.runtime["tasks"]),
                 "queued": sum(1 for task in self.runtime["tasks"] if task["status"] == "queued"),
+                "paused": sum(1 for task in self.runtime["tasks"] if task["status"] == "paused"),
                 "running": sum(1 for task in self.runtime["tasks"] if task["status"] == "running"),
                 "waiting_human": sum(1 for task in self.runtime["tasks"] if task["status"] == "waiting_human"),
                 "completed": sum(1 for task in self.runtime["tasks"] if task["status"] == "completed"),
@@ -640,12 +709,96 @@ class PipelineRunner:
     def _get_running_task(self) -> Optional[Dict]:
         """Get a task that was left in 'running' state (e.g., after restart)."""
         with self.lock:
-            current_id = self.runtime.get("current_task_id")
-            if current_id:
-                for task in self.runtime["tasks"]:
-                    if task["id"] == current_id and task["status"] == "running":
-                        return task
+            task = self._get_running_task_locked()
+            if task:
+                return task
         return None
+
+    def _yield_task_if_requested(self, task: Dict) -> bool:
+        with self.lock:
+            current = self._require_task(task["id"])
+            if current.get("status") != "running" or not current.get("yield_requested"):
+                return False
+
+            reason = current.get("yield_reason") or "Yield requested"
+            move_front = bool(current.get("yield_to_front"))
+            target_status = current.get("yield_target_status") or "queued"
+            self._park_task_locked(current, reason, target_status=target_status, front=move_front)
+
+        event_type = "task_paused" if target_status == "paused" else "task_deferred"
+        self._emit(
+            event_type,
+            reason,
+            source="system",
+            task_id=task["id"],
+            stage=task.get("current_stage"),
+            level="warning",
+        )
+        return True
+
+    def _park_task_locked(self, task: Dict, reason: str, target_status: str = "queued", front: bool = False) -> None:
+        task["status"] = target_status
+        task["updated_at"] = datetime.now().isoformat()
+        self.runtime["current_task_id"] = None
+        task["yield_requested"] = False
+        task["yield_reason"] = ""
+        task["yield_to_front"] = False
+        task["yield_target_status"] = "queued"
+        if target_status == "queued":
+            self._requeue_task_locked(task, front=front)
+        self._persist_runtime()
+
+    def request_task_yield(self, task_id: str, reason: str = "", prioritize: bool = False, immediate: bool = True, target_status: str = "queued") -> Dict:
+        with self.lock:
+            task = self._require_task(task_id)
+            if task.get("status") != "running":
+                raise ValueError(f"Task {task_id} is not running")
+            task["yield_requested"] = True
+            task["yield_reason"] = reason or (
+                f"Task {task['title']} will be interrupted as soon as the active agent call stops"
+                if immediate else
+                f"Task {task['title']} will yield at the next safe scheduling boundary"
+            )
+            task["yield_to_front"] = bool(prioritize)
+            task["yield_target_status"] = target_status
+            task["updated_at"] = datetime.now().isoformat()
+            self._persist_runtime()
+
+        interrupt_requested = False
+        if immediate:
+            interrupt_requested = self.claude.request_interrupt(task["yield_reason"])
+
+        self._emit(
+            "task_yield_requested",
+            task["yield_reason"],
+            source="system",
+            task_id=task_id,
+            stage=task.get("current_stage"),
+            level="warning",
+            data={"immediate": immediate, "interrupt_requested": interrupt_requested},
+        )
+        return task
+
+    def pause_task(self, task_id: str, reason: str = "") -> Dict:
+        with self.lock:
+            task = self._require_task(task_id)
+            status = task.get("status")
+            if status == "paused":
+                return task
+            if status == "queued":
+                self._park_task_locked(task, reason or f"Task {task['title']} paused", target_status="paused")
+                self._emit("task_paused", reason or f"Task {task['title']} paused", source="system", task_id=task_id, stage=task.get("current_stage"), level="warning")
+                return task
+            if status != "running":
+                raise ValueError(f"Task {task_id} cannot be paused from status={status}")
+
+        return self.request_task_yield(
+            task_id,
+            reason=reason or f"Task {task['title']} paused by operator",
+            prioritize=False,
+            immediate=True,
+            target_status="paused",
+        )
 
     def _resume_running_task(self, task: Dict) -> None:
         """Resume a task that was interrupted (e.g., by a restart)."""
@@ -687,6 +840,8 @@ class PipelineRunner:
                 return
             if self.paused:
                 return
+            if self._yield_task_if_requested(task):
+                return
             
             task["current_stage"] = stage
             self._persist_runtime()
@@ -694,12 +849,18 @@ class PipelineRunner:
             if stage == "delivery":
                 if not self._run_delivery_stage(task, context):
                     return
+                if self._yield_task_if_requested(task):
+                    return
                 continue
             if stage == "build_verification":
                 if not self._run_build_verification_stage(task, context):
                     return
+                if self._yield_task_if_requested(task):
+                    return
                 continue
             if not self._run_stage_with_retries(task, stage, context):
+                return
+            if self._yield_task_if_requested(task):
                 return
         
         self._complete_task(task)
@@ -744,6 +905,9 @@ class PipelineRunner:
                 self._emit("stage_skipped", f"{STAGE_TITLES.get(stage, stage)} already passed, skipping", source="pipeline", task_id=task_id, stage=stage)
                 continue
 
+            if self._yield_task_if_requested(task):
+                return
+
             with self.lock:
                 task["current_stage"] = stage
                 task["updated_at"] = datetime.now().isoformat()
@@ -760,18 +924,91 @@ class PipelineRunner:
                 if not self._run_delivery_stage(task, context):
                     self._fail_task(task, "Delivery stage failed")
                     return
+                if self._yield_task_if_requested(task):
+                    return
                 continue
 
             if stage == "build_verification":
                 if not self._run_build_verification_stage(task, context):
                     self._fail_task(task, "Build verification stage failed")
                     return
+                if self._yield_task_if_requested(task):
+                    return
                 continue
 
             if not self._run_stage_with_retries(task, stage, context):
                 return
+            if self._yield_task_if_requested(task):
+                return
 
         self._complete_task(task)
+
+    def _set_task_waiting_human(self, task: Dict, stage: str, reason: str) -> None:
+        with self.lock:
+            current = self._require_task(task["id"])
+            current["status"] = "waiting_human"
+            current["updated_at"] = datetime.now().isoformat()
+            current["yield_requested"] = False
+            current["yield_reason"] = ""
+            current["yield_to_front"] = False
+            current["yield_target_status"] = "queued"
+            current_stage = current["stages"].setdefault(stage, {})
+            current_stage["status"] = "waiting_human"
+            current_stage["ended_at"] = datetime.now().isoformat()
+            self.runtime["current_task_id"] = None
+            self._persist_runtime()
+
+        self._emit(
+            "task_waiting_human",
+            reason,
+            source="system",
+            task_id=task["id"],
+            stage=stage,
+            level="warning",
+        )
+
+    def resume_task(self, task_id: str, prioritize: bool = False) -> Dict:
+        with self.lock:
+            task = self._require_task(task_id)
+            if task["status"] not in {"waiting_human", "queued", "paused"}:
+                raise ValueError(f"Task {task_id} cannot be resumed from status={task['status']}")
+
+            if prioritize:
+                running_task = self._get_running_task_locked()
+                if running_task and running_task["id"] != task_id:
+                    running_task["yield_requested"] = True
+                    running_task["yield_reason"] = f"Yield requested to resume task {task['title']}"
+                    running_task["yield_to_front"] = False
+                    running_task["yield_target_status"] = "queued"
+                    running_task["updated_at"] = datetime.now().isoformat()
+
+            stage = task.get("current_stage")
+            if stage:
+                stage_state = task["stages"].get(stage, {})
+                if stage_state.get("status") == "waiting_human":
+                    stage_state["status"] = "pending"
+                    stage_state["started_at"] = None
+                    stage_state["ended_at"] = None
+
+            task["status"] = "queued"
+            task["updated_at"] = datetime.now().isoformat()
+            task["yield_requested"] = False
+            task["yield_reason"] = ""
+            task["yield_to_front"] = False
+            task["yield_target_status"] = "queued"
+            self._requeue_task_locked(task, front=prioritize)
+            self._persist_runtime()
+
+        self._emit(
+            "task_requeued",
+            f"Task {task['title']} resumed into queue",
+            source="system",
+            task_id=task_id,
+            stage=task.get("current_stage"),
+            level="warning" if prioritize else "info",
+            data={"prioritize": prioritize},
+        )
+        return task
 
     def _run_stage_with_retries(self, task: Dict, stage: str, context: Dict) -> bool:
         stage_state = task["stages"][stage]
@@ -822,6 +1059,25 @@ class PipelineRunner:
                 event_callback=lambda event: self._record_agent_event(task, stage, agent_id, event),
             )
 
+            if result.interrupted:
+                with self.lock:
+                    stage_state["status"] = "pending"
+                    stage_state["summary"] = result.interrupt_reason or "Interrupted and returned to queue"
+                    stage_state["verdict"] = None
+                    stage_state["ended_at"] = datetime.now().isoformat()
+                    target_status = task.get("yield_target_status") or "queued"
+                    self._park_task_locked(task, result.interrupt_reason or f"{STAGE_TITLES.get(stage, stage)} interrupted", target_status=target_status)
+                self._set_agent_status(agent_id, "idle", None, stage, result.interrupt_reason or "Interrupted")
+                self._emit(
+                    "task_paused" if target_status == "paused" else "task_interrupted",
+                    result.interrupt_reason or f"{STAGE_TITLES.get(stage, stage)} interrupted",
+                    source="system",
+                    task_id=task["id"],
+                    stage=stage,
+                    level="warning",
+                )
+                return False
+
             transcript_path = self._write_transcript(task, stage, result)
             summary, verdict = self._summarize_result(stage, result.output_text, result.verdict)
             artifact_paths = self._materialize_stage_artifacts(task, stage, summary, result.output_text, transcript_path)
@@ -866,26 +1122,9 @@ class PipelineRunner:
             self._emit("stage_failed", f"{STAGE_TITLES.get(stage, stage)} failed on attempt {attempt}/{max_retries}", source="pipeline", task_id=task["id"], stage=stage, level="error", data={"summary": summary, "verdict": verdict})
 
             if verdict == "NEED_HUMAN":
-                self.pause()
                 feishu_notifier.notify_user_for_feedback("Manual action required", summary or f"Verification needed at {stage}.", stage, task["id"])
-                
-                # Wait while paused
-                while self.paused and self.running:
-                    time.sleep(1)
-                
-                if not self.running:
-                    self._fail_task(task, f"Pipeline aborted during human intervention at {stage}")
-                    return False
-
-                # Once resumed, consider it passed and proceed
-                with self.lock:
-                    stage_state["status"] = "passed"
-                    stage_state["verdict"] = "PASS"
-                    self._persist_runtime()
-                
-                self._post_stage_processing(task, stage, summary, artifact_paths)
-                self._emit("stage_completed", f"{STAGE_TITLES.get(stage, stage)} passed after human intervention", source="pipeline", task_id=task["id"], stage=stage, data={"verdict": verdict})
-                return True
+                self._set_task_waiting_human(task, stage, summary or f"Manual action required at {stage}")
+                return False
 
             if attempt < max_retries:
                 # Stages that benefit from debugger agent for targeted fixes
@@ -900,28 +1139,9 @@ class PipelineRunner:
                     # Continue to next iteration - retry_info will be passed to prompt
 
         # Exhausted retries -> Pause and ask for human intervention
-        self.pause()
         feishu_notifier.notify_user_for_feedback(f"Stage {stage} exhausted max retries ({max_retries})", previous_summary or "Unknown error", stage, task["id"])
-        
-        while self.paused and self.running:
-            import time
-            time.sleep(1)
-            
-        if not self.running:
-            self._fail_task(task, f"Pipeline aborted after exhausting failures at {stage}")
-            return False
-            
-        # Once resumed, consider this stage passed
-        with self.lock:
-            stage_state["status"] = "passed"
-            stage_state["verdict"] = "PASS"
-            self._persist_runtime()
-            
-        # Using artifact_paths from the last attempt or an empty list if not defined
-        finally_artifact_paths = artifact_paths if 'artifact_paths' in locals() else []
-        self._post_stage_processing(task, stage, previous_summary, finally_artifact_paths)
-        self._emit("stage_completed", f"{STAGE_TITLES.get(stage, stage)} manually resumed and passed after exhausted retries", source="pipeline", task_id=task["id"], stage=stage, data={"verdict": "PASS"})
-        return True
+        self._set_task_waiting_human(task, stage, previous_summary or f"Stage {stage} exhausted retries and needs human intervention")
+        return False
 
     def _run_debugger(self, task: Dict, failed_stage: str, failure_summary: str, context: Dict) -> bool:
         debugger_stage = {
@@ -1147,11 +1367,90 @@ class PipelineRunner:
         self._emit("task_completed", f"Task completed: {task['title']}", source="pipeline", task_id=task["id"], level="success")
         self._notify_task_update(task, f"Task completed: {task['title']}")
         
+        # 自动归档交付物到 deliverables/ 目录
+        try:
+            self._archive_deliverables(task)
+        except Exception as e:
+            self._emit("archive_error", f"Failed to archive deliverables: {e}", source="pipeline", level="warning")
+        
         # 提取任务摘要到记忆系统
         try:
             self.memory_extractor.extract_from_completed_task(task)
         except Exception as e:
             self._emit("memory_error", f"Failed to extract task summary: {e}", source="memory", level="warning")
+
+    def _archive_deliverables(self, task: Dict) -> None:
+        """Archive key deliverables to a unified deliverables/ folder within task run directory."""
+        run_dir = self._task_run_dir(task["id"])
+        deliverables_dir = os.path.join(run_dir, "deliverables")
+        os.makedirs(deliverables_dir, exist_ok=True)
+        
+        # 定义要归档的文件映射: (源路径模式, 目标文件名)
+        archive_map = [
+            # 原始上传文件
+            ("uploads/*.docx", "01_原始需求"),
+            ("uploads/*.pdf", "01_原始需求"),
+            ("uploads/*.md", "01_原始需求"),
+            # Intake 阶段输出
+            ("intake/intake_summary.md", "02_需求分析.md"),
+            ("intake/sprint_plan.md", "03_Sprint计划.md"),
+            # 软件需求
+            ("requirements/requirements_spec.md", "04_软件需求规格.md"),
+            ("software-requirement-orchestrator/requirements_spec.md", "04_软件需求规格.md"),
+            # 架构设计
+            ("design/architecture.md", "05_架构设计.md"),
+            ("cockpit-middleware-architect/architecture.md", "05_架构设计.md"),
+            ("design/api_design.md", "06_API设计.md"),
+            ("design/data_model.md", "07_数据模型.md"),
+            # 测试报告
+            ("tests/test_report.md", "08_测试报告.md"),
+            ("testing/test_report.md", "08_测试报告.md"),
+            # 代码审查
+            ("code_review/review_report.md", "09_代码审查报告.md"),
+            # 安全审查
+            ("security_review/security_report.md", "10_安全审查报告.md"),
+            # 任务状态
+            ("STATE.md", "00_任务状态.md"),
+        ]
+        
+        import glob
+        archived_files = []
+        
+        for src_pattern, dst_name in archive_map:
+            src_path = os.path.join(run_dir, src_pattern)
+            matches = glob.glob(src_path)
+            
+            for src_file in matches:
+                if os.path.isfile(src_file):
+                    # 确定目标文件名
+                    if '*' in src_pattern:
+                        # 保留原文件扩展名
+                        ext = os.path.splitext(src_file)[1]
+                        base_name = os.path.basename(src_file)
+                        dst_file = os.path.join(deliverables_dir, f"{dst_name}_{base_name}")
+                    else:
+                        dst_file = os.path.join(deliverables_dir, dst_name)
+                    
+                    # 复制文件(不是移动，保留原位置)
+                    if not os.path.exists(dst_file):
+                        shutil.copy2(src_file, dst_file)
+                        archived_files.append(dst_file)
+        
+        # 生成交付物索引
+        if archived_files:
+            index_path = os.path.join(deliverables_dir, "README.md")
+            with open(index_path, "w", encoding="utf-8") as f:
+                f.write(f"# 交付物汇总\n\n")
+                f.write(f"**Task ID:** {task['id']}\n")
+                f.write(f"**Title:** {task.get('title', 'Untitled')}\n")
+                f.write(f"**Completed:** {task.get('completed_at', 'N/A')}\n\n")
+                f.write("## 文件列表\n\n")
+                for fpath in sorted(archived_files):
+                    fname = os.path.basename(fpath)
+                    f.write(f"- [{fname}]({fname})\n")
+            
+            self._emit("deliverables_archived", f"Archived {len(archived_files)} deliverables", 
+                      source="pipeline", task_id=task["id"], data={"count": len(archived_files)})
 
     def _notify_task_update(self, task: Dict, text: str) -> None:
         chat_id = task.get("source_metadata", {}).get("chat_id")
@@ -1164,31 +1463,182 @@ class PipelineRunner:
         # Default: 2 retries for all stages (can be overridden in pipeline config)
         return int(stage_config.get("max_retries", 2))
 
-    def _record_agent_event(self, task: Dict, stage: str, agent_id: str, event: Dict) -> None:
-        event_type = event.get("type", "")
-        text = (event.get("text") or "").strip()
+    def _agent_display_name(self, agent_id: str) -> str:
+        agent = self.agents.get(agent_id, {})
+        return agent.get("name") or agent_id
 
-        # Only surface events that carry meaningful content for the UI.
-        # Skip: system init, empty assistant chunks, user/permission prompts, bare type labels.
-        if not text or event_type in ("system", "user"):
-            return
-        # Skip if the "message" is just the event type name (e.g. "assistant")
+    def _configured_skill_context(self, agent_id: str) -> Dict:
+        claude_dir = os.path.join(self.target_repo, ".claude")
+        global_skills_dir = os.path.join(claude_dir, "skills")
+        local_skill_path = os.path.join(claude_dir, "agents", agent_id, "skill", "SKILL.md")
+        agent_prompt_path = os.path.join(claude_dir, "agents", agent_id, f"{agent_id}.md")
+
+        global_skills: List[str] = []
+        if os.path.isdir(global_skills_dir):
+            for item in sorted(os.listdir(global_skills_dir)):
+                skill_file = os.path.join(global_skills_dir, item, "SKILL.md")
+                if os.path.isfile(skill_file):
+                    global_skills.append(item)
+
+        return {
+            "agent_prompt_path": agent_prompt_path if os.path.isfile(agent_prompt_path) else None,
+            "local_skill_path": local_skill_path if os.path.isfile(local_skill_path) else None,
+            "local_skill_present": os.path.isfile(local_skill_path),
+            "global_skills": global_skills,
+        }
+
+    def _summarize_skill_name(self, tool_input: Dict) -> Optional[str]:
+        for key in ("skill", "name", "skill_name", "command"):
+            value = tool_input.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        file_path = tool_input.get("file_path") or tool_input.get("path")
+        if isinstance(file_path, str) and file_path.endswith("SKILL.md"):
+            return os.path.basename(os.path.dirname(file_path))
+        return None
+
+    def _skill_name_from_path(self, file_path: str) -> Optional[str]:
+        normalized = (file_path or "").replace("\\", "/")
+        if not normalized.endswith("SKILL.md"):
+            return None
+        return os.path.basename(os.path.dirname(normalized)) or None
+
+    def _build_agent_feed_event(self, stage: str, agent_id: str, event: Dict) -> Optional[Dict]:
+        raw_type = event.get("type", "")
+        payload = event.get("payload") or {}
+        agent_name = self._agent_display_name(agent_id)
+        skill_context = self._configured_skill_context(agent_id)
+        base_data = {
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "agent_prompt_path": skill_context.get("agent_prompt_path"),
+            "local_skill_path": skill_context.get("local_skill_path"),
+            "local_skill_present": skill_context.get("local_skill_present", False),
+        }
+
+        if raw_type == "system" and payload.get("subtype") == "init":
+            available_skills = [item for item in payload.get("skills", []) if isinstance(item, str)]
+            available_agents = [item for item in payload.get("agents", []) if isinstance(item, str)]
+            visible_skills = ", ".join(available_skills[:5])
+            extra_count = max(0, len(available_skills) - 5)
+            message = f"{agent_name} session initialized"
+            if visible_skills:
+                message += f" · visible skills: {visible_skills}"
+                if extra_count:
+                    message += f" +{extra_count}"
+            return {
+                "event_type": "agent_session_init",
+                "message": message,
+                "data": {
+                    **base_data,
+                    "available_skills": available_skills,
+                    "available_agents": available_agents,
+                    "available_tools": [item for item in payload.get("tools", []) if isinstance(item, str)],
+                    "global_skills": skill_context.get("global_skills", []),
+                    "model": payload.get("model"),
+                    "session_id": payload.get("session_id"),
+                },
+                "level": "info",
+                "log_message": message,
+            }
+
+        if raw_type == "assistant":
+            message_payload = payload.get("message") or {}
+            content_blocks = message_payload.get("content") or []
+            for block in content_blocks:
+                if not isinstance(block, dict) or block.get("type") != "tool_use":
+                    continue
+                tool_name = block.get("name") or "tool"
+                tool_input = block.get("input") if isinstance(block.get("input"), dict) else {}
+
+                if tool_name == "Skill":
+                    skill_name = self._summarize_skill_name(tool_input)
+                    message = f"{agent_name} invoked skill {skill_name or 'unknown'}"
+                    return {
+                        "event_type": "skill_invocation",
+                        "message": message,
+                        "data": {
+                            **base_data,
+                            "tool_name": tool_name,
+                            "skill_name": skill_name,
+                            "tool_input": tool_input,
+                        },
+                        "level": "info",
+                        "log_message": message,
+                    }
+
+                if tool_name in {"Read", "Glob", "Grep"}:
+                    file_path = tool_input.get("file_path") or tool_input.get("path") or ""
+                    skill_name = self._skill_name_from_path(file_path) if isinstance(file_path, str) else None
+                    if skill_name:
+                        message = f"{agent_name} inspected skill file {skill_name}"
+                        return {
+                            "event_type": "skill_file_read",
+                            "message": message,
+                            "data": {
+                                **base_data,
+                                "tool_name": tool_name,
+                                "skill_name": skill_name,
+                                "file_path": file_path,
+                            },
+                            "level": "info",
+                            "log_message": message,
+                        }
+
+                if tool_name == "Agent":
+                    subagent_type = tool_input.get("subagent_type") or tool_input.get("agent") or tool_input.get("name")
+                    message = f"{agent_name} invoked subagent {subagent_type or 'unknown'}"
+                    return {
+                        "event_type": "subagent_invocation",
+                        "message": message,
+                        "data": {
+                            **base_data,
+                            "tool_name": tool_name,
+                            "subagent_type": subagent_type,
+                            "tool_input": tool_input,
+                        },
+                        "level": "info",
+                        "log_message": message,
+                    }
+
+        text = (event.get("text") or "").strip()
+        if not text or raw_type in ("system", "user"):
+            return None
+
         message = event.get("message") or text
         if message in ("assistant", "system", "user", "result"):
             message = text
-
-        # Truncate very long messages for the feed (full text stays in logs)
         feed_message = message[:300] + ("…" if len(message) > 300 else "")
+        return {
+            "event_type": "agent_event",
+            "message": feed_message,
+            "data": base_data,
+            "level": "info",
+            "log_message": message,
+        }
+
+    def _record_agent_event(self, task: Dict, stage: str, agent_id: str, event: Dict) -> None:
+        feed_event = self._build_agent_feed_event(stage, agent_id, event)
+        if not feed_event:
+            return
 
         with self.lock:
             task_stage = task["stages"].setdefault(stage, self._empty_stage_map().get(stage, {}))
             now = datetime.now().isoformat()
             task["updated_at"] = now
             task_stage["last_event_at"] = now
-            task_stage.setdefault("logs", []).append({"timestamp": datetime.now().isoformat(), "message": message})
+            task_stage.setdefault("logs", []).append({"timestamp": datetime.now().isoformat(), "message": feed_event["log_message"]})
             task_stage["logs"] = task_stage["logs"][-50:]
             self._persist_runtime()
-        self._emit("agent_event", feed_message, source=agent_id, task_id=task["id"], stage=stage, data={"agent_id": agent_id})
+        self._emit(
+            feed_event["event_type"],
+            feed_event["message"],
+            source=agent_id,
+            task_id=task["id"],
+            stage=stage,
+            data=feed_event["data"],
+            level=feed_event["level"],
+        )
 
     def _set_agent_status(self, agent_id: str, status: str, task_id: Optional[str], stage: Optional[str], message: str) -> None:
         agent = self.agents[agent_id]
@@ -1526,6 +1976,38 @@ def create_api_app(runner: PipelineRunner) -> Flask:
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
+    @app.route("/api/tasks/<task_id>/resume", methods=["POST"])
+    def api_resume_task(task_id: str):
+        payload = request.get_json(force=True, silent=True) or {}
+        try:
+            task = runner.resume_task(task_id, prioritize=bool(payload.get("prioritize")))
+            return jsonify(task)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    @app.route("/api/tasks/<task_id>/pause", methods=["POST"])
+    def api_pause_task(task_id: str):
+        payload = request.get_json(force=True, silent=True) or {}
+        try:
+            task = runner.pause_task(task_id, reason=(payload.get("reason") or "Task paused by operator").strip())
+            return jsonify(task)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    @app.route("/api/tasks/<task_id>/defer", methods=["POST"])
+    def api_defer_task(task_id: str):
+        payload = request.get_json(force=True, silent=True) or {}
+        try:
+            task = runner.request_task_yield(
+                task_id,
+                reason=(payload.get("reason") or "Task will yield at the next safe scheduling boundary").strip(),
+                prioritize=bool(payload.get("prioritize")),
+                immediate=payload.get("immediate", True) is not False,
+            )
+            return jsonify(task)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
     @app.route("/api/tasks/<task_id>/artifacts")
     def api_task_artifacts(task_id: str):
         task = runner._require_task(task_id)
@@ -1554,6 +2036,10 @@ def create_api_app(runner: PipelineRunner) -> Flask:
             title = (request.form.get("title") or "").strip() or None
             text = (request.form.get("text") or "").strip()
             source = (request.form.get("source") or "web").strip() or "web"
+            prioritize = str(request.form.get("prioritize_running") or "").strip().lower() in {"1", "true", "yes", "on"}
+            pipeline_template_id = (request.form.get("pipeline_template_id") or "").strip() or None
+            if not title:
+                return jsonify({"error": "title is required"}), 400
             metadata_raw = request.form.get("metadata")
             metadata = None
             if metadata_raw:
@@ -1595,14 +2081,28 @@ def create_api_app(runner: PipelineRunner) -> Flask:
                 source=source,
                 metadata=metadata,
                 attachments=attachments,
+                prioritize=prioritize,
+                pipeline_template_id=pipeline_template_id,
             )
             return jsonify(task), 201
 
         payload = request.get_json(force=True, silent=True) or {}
+        title = (payload.get("title") or "").strip()
         text = (payload.get("text") or "").strip()
+        prioritize = bool(payload.get("prioritize_running"))
+        pipeline_template_id = (payload.get("pipeline_template_id") or "").strip() or None
+        if not title:
+            return jsonify({"error": "title is required"}), 400
         if not text:
             return jsonify({"error": "text is required"}), 400
-        task = runner.submit_request(text=text, title=payload.get("title"), source=payload.get("source", "web"), metadata=payload.get("metadata"))
+        task = runner.submit_request(
+            text=text,
+            title=title,
+            source=payload.get("source", "web"),
+            metadata=payload.get("metadata"),
+            prioritize=prioritize,
+            pipeline_template_id=pipeline_template_id,
+        )
         return jsonify(task), 201
 
     @app.route("/api/feishu/webhook", methods=["POST"])
@@ -1686,6 +2186,90 @@ def create_api_app(runner: PipelineRunner) -> Flask:
         runner.pipeline_order = runner._resolve_pipeline_order()
         runner._emit("pipeline_reset", "Pipeline reverted to system default", source="system")
         return jsonify({"stages": runner.pipeline_config.get("stages", []), "order": runner.pipeline_order, "is_custom": False})
+
+    # ==================== Pipeline Template APIs ====================
+
+    @app.route("/api/pipeline-templates")
+    def api_list_templates():
+        """Get all pipeline templates."""
+        include_stages = request.args.get("include_stages", "false").lower() == "true"
+        return jsonify(runner.template_manager.list_templates(include_stages=include_stages))
+
+    @app.route("/api/pipeline-templates/<template_id>")
+    def api_get_template(template_id: str):
+        """Get single template by ID."""
+        template = runner.template_manager.get_template(template_id)
+        if not template:
+            return jsonify({"error": "Template not found"}), 404
+        return jsonify(template)
+
+    @app.route("/api/pipeline-templates", methods=["POST"])
+    def api_create_template():
+        """Create a new pipeline template."""
+        payload = request.get_json(force=True, silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "name is required"}), 400
+        stages = payload.get("stages", [])
+        if not stages:
+            return jsonify({"error": "stages is required"}), 400
+        try:
+            result = runner.template_manager.create_template(
+                name=name,
+                stages=stages,
+                description=payload.get("description", ""),
+                set_as_default=bool(payload.get("set_as_default")),
+            )
+            runner._emit("template_created", f"Pipeline template created: {name}", source="system", data={"template_id": result["id"]})
+            return jsonify(result), 201
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route("/api/pipeline-templates/<template_id>", methods=["PUT"])
+    def api_update_template(template_id: str):
+        """Update an existing template."""
+        payload = request.get_json(force=True, silent=True) or {}
+        try:
+            result = runner.template_manager.update_template(template_id, payload)
+            runner._emit("template_updated", f"Pipeline template updated: {template_id}", source="system", data={"template_id": template_id})
+            return jsonify(result)
+        except ValueError as e:
+            status = 404 if "not found" in str(e).lower() else 403 if "cannot" in str(e).lower() else 400
+            return jsonify({"error": str(e)}), status
+
+    @app.route("/api/pipeline-templates/<template_id>", methods=["DELETE"])
+    def api_delete_template(template_id: str):
+        """Delete a pipeline template."""
+        try:
+            result = runner.template_manager.delete_template(template_id)
+            runner._emit("template_deleted", f"Pipeline template deleted: {template_id}", source="system", data={"template_id": template_id})
+            return jsonify(result)
+        except ValueError as e:
+            status = 404 if "not found" in str(e).lower() else 403 if "cannot" in str(e).lower() else 400
+            return jsonify({"error": str(e)}), status
+
+    @app.route("/api/pipeline-templates/<template_id>/set-default", methods=["POST"])
+    def api_set_default_template(template_id: str):
+        """Set a template as the default."""
+        try:
+            result = runner.template_manager.set_default_template(template_id)
+            runner._emit("template_default_changed", f"Default template changed to: {template_id}", source="system", data={"template_id": template_id, "previous": result.get("previous_default")})
+            return jsonify(result)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 404
+
+    @app.route("/api/pipeline-templates/<template_id>/preview")
+    def api_preview_template(template_id: str):
+        """Get template preview with visualization data."""
+        preview = runner.template_manager.get_preview(template_id, agents=runner.agents)
+        if not preview:
+            return jsonify({"error": "Template not found"}), 404
+        return jsonify(preview)
+
+    @app.route("/api/pipeline-templates/available-stages")
+    def api_available_stages():
+        """Get all available stages for building templates."""
+        return jsonify(runner.template_manager.get_available_stages())
 
     @app.route("/api/events")
     def api_events():

@@ -8,6 +8,7 @@
 import asyncio
 import json
 import re
+import shutil
 import sys
 import os
 import threading
@@ -929,6 +930,9 @@ def _start_ngrok(port):
     except Exception:
         pass
 
+    if not shutil.which("ngrok"):
+        return None
+
     # 启动新 ngrok（有固定域名就用，保证重启后 URL 不变）
     try:
         ngrok_domain = os.environ.get("NGROK_DOMAIN", "")
@@ -961,11 +965,9 @@ def main():
     # 卡片回调 HTTP 服务 + ngrok 隧道
     cb_port = config.CALLBACK_PORT
     _start_callback_server(cb_port)
-    ngrok_url = _start_ngrok(cb_port)
-    if ngrok_url:
-        print(f"   卡片回调    : {ngrok_url}/callback")
-    else:
-        print(f"   卡片回调    : http://localhost:{cb_port}/callback (需启动 ngrok)")
+    callback_base_url = config.CALLBACK_PUBLIC_URL or _start_ngrok(cb_port)
+    if callback_base_url:
+        print(f"   卡片回调    : {callback_base_url}/callback")
 
     handler = lark.EventDispatcherHandler.builder("", "") \
         .register_p2_im_message_receive_v1(on_message_receive) \

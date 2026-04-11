@@ -1,0 +1,18 @@
+description: 跳过设计和安全审查，适用于小型代码修改或 bug 修复
+id: quick-dev
+is_builtin: true
+is_default: false
+name: 快速开发
+stages:
+- agent: planner
+  id: intake
+  name: Request Intake
+- agent: developer
+  id: development
+  name: Implementation
+- agent: code-reviewer
+  id: code_review
+  name: Code Review
+- agent: qa-engineer
+  id: testing
+  name: QA Testing

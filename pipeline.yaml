@@ -8,12 +8,12 @@ stages:
 - id: planning
   name: Sprint Planning
   agent: planner
-- id: requirements
-  name: Requirements
-  agent: requirements-analyst
-- id: design
-  name: System Design
-  agent: system-architect
+- id: software-requirement-orchestrator
+  name: Software Requirement Orchestrator
+  agent: software-requirement-orchestrator
+- id: cockpit-middleware-architect
+  name: Cockpit Middleware Architect
+  agent: cockpit-middleware-architect
 - id: development
   name: Implementation
   agent: developer

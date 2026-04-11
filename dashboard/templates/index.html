@@ -986,6 +986,12 @@
         .pipeline-current-detail-text.muted {
             color: var(--text-muted);
         }
+        .pipeline-current-meta-list {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
         .pipeline-current-event-list {
             display: grid;
             gap: 8px;
@@ -1027,7 +1033,8 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-width: 100px;
+            min-width: 120px;
+            max-width: 140px;
             position: relative;
             opacity: 0.72;
             transition: opacity var(--transition), transform var(--transition);
@@ -1154,7 +1161,7 @@
         .pipeline-stage-info {
             margin-top: 12px;
             text-align: center;
-            max-width: 90px;
+            max-width: 130px;
         }
         .psi-name, .pipeline-stage-name {
             font-size: 10px;
@@ -1163,7 +1170,8 @@
             text-transform: uppercase;
             letter-spacing: 0.04em;
             margin-bottom: 4px;
-            white-space: nowrap;
+            word-break: break-word;
+            line-height: 1.3;
         }
         .pipeline-stage.running .psi-name { color: var(--accent); }
         .pipeline-stage.passed .psi-name { color: var(--green); }
@@ -1662,10 +1670,21 @@
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ── Request Composer ── */
-        .composer { display: grid; gap: 14px; }
-        .composer-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .composer {
+            display: grid;
+            gap: 16px;
+            padding: 18px;
+            border: 1px solid rgba(96, 165, 250, 0.18);
+            border-radius: calc(var(--radius-lg) + 2px);
+            background:
+                radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 32%),
+                linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.78));
+            box-shadow: 0 18px 38px rgba(15, 23, 42, 0.22);
+        }
+        .composer-row { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.55fr); gap: 14px; }
         .field-group { display: grid; gap: 6px; }
         .field-group.full { grid-column: 1 / -1; }
+        .field-group.invalid .field-label { color: var(--rose); }
         .field-label { 
             font-size: 11px; font-weight: 600; 
             color: var(--text-muted); 
@@ -1675,7 +1694,7 @@
         input, textarea, select {
             width: 100%; padding: 11px 14px;
             border: 1px solid var(--border); border-radius: var(--radius-sm);
-            background: var(--bg-base); color: var(--text-primary);
+            background: rgba(15, 23, 42, 0.88); color: var(--text-primary);
             transition: all var(--transition);
             font-size: 13px;
         }
@@ -1686,8 +1705,223 @@
             border-color: var(--accent); 
             box-shadow: 0 0 0 3px var(--accent-soft);
         }
+        .field-group.invalid input {
+            border-color: var(--rose);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+        }
+        .field-hint {
+            min-height: 16px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .field-hint.error { color: var(--rose); }
         textarea { min-height: 100px; resize: vertical; }
+        
+        /* ── Template Preview Panel ── */
+        .template-preview-panel {
+            margin: 12px 0 8px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-elevated);
+        }
+        .template-preview-stages {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .template-preview-stage {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 500;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+        }
+        .template-preview-arrow {
+            color: var(--text-muted);
+            font-size: 10px;
+            margin: 0 2px;
+        }
+        .template-preview-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .template-preview-meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .template-preview-meta-item strong {
+            color: var(--text-secondary);
+        }
+        
+        /* ── Template Manager Modal ── */
+        .template-manager-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .template-manager-content {
+            width: 100%;
+            max-width: 800px;
+            max-height: 80vh;
+            background: var(--bg-surface);
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .template-manager-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .template-manager-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .template-manager-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+        }
+        .template-list-section {
+            margin-bottom: 20px;
+        }
+        .template-list-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .template-item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .template-item:hover {
+            border-color: var(--accent);
+            background: var(--bg-hover);
+        }
+        .template-item.default {
+            border-color: var(--green);
+        }
+        .template-item-main {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .template-item-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .template-item-name .badge {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: var(--radius-xs);
+            background: var(--green-soft);
+            color: var(--green);
+            font-weight: 600;
+        }
+        .template-item-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .template-item-meta {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        .template-item-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .template-manager-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        
         .composer-actions { display: flex; gap: 8px; margin-top: 4px; }
+        .composer-meta-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+            gap: 14px;
+            align-items: stretch;
+        }
+        .priority-toggle {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 14px;
+            align-items: start;
+            padding: 14px 16px;
+            border: 1px solid rgba(59, 130, 246, 0.22);
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.88));
+            cursor: pointer;
+            transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+        }
+        .priority-toggle:hover {
+            border-color: rgba(96, 165, 250, 0.45);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+            transform: translateY(-1px);
+        }
+        .priority-toggle input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin: 2px 0 0;
+            accent-color: var(--accent);
+            box-shadow: none;
+        }
+        .priority-toggle-copy {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+        .priority-toggle-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.01em;
+        }
+        .priority-toggle-desc {
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
         .upload-panel {
             display: grid;
             gap: 10px;
@@ -1882,6 +2116,19 @@
             font-weight: 600;
         }
         .feed-msg { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+        .feed-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .feed-meta-tag {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: var(--bg-hover);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+        .feed-meta-tag.skill { color: var(--accent); border-color: var(--accent-soft); }
+        .feed-meta-tag.agent { color: var(--blue); border-color: var(--blue-soft); }
+        .feed-meta-tag.tool { color: var(--amber); border-color: rgba(255,184,77,0.2); }
 
         .feed-filter { display: flex; gap: 8px; flex-wrap: wrap; }
         .feed-filter .btn { font-size: 10px; padding: 5px 12px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -2587,9 +2834,9 @@
             place-items: center;
             font-size: 18px;
         }
-        .stage-option-info { flex: 1; min-width: 0; }
-        .stage-option-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
-        .stage-option-agent { font-size: 11px; color: var(--text-muted); }
+        .stage-option-info { flex: 1; min-width: 0; line-height: 1.4; }
+        .stage-option-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stage-option-agent { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .stage-option-check {
             width: 22px; height: 22px;
             border-radius: 50%;
@@ -2702,6 +2949,7 @@
             .agent-grid { grid-template-columns: 1fr; }
             .task-detail-grid { grid-template-columns: 1fr; }
             .composer-row { grid-template-columns: 1fr; }
+            .composer-meta-grid { grid-template-columns: 1fr; }
             .composer-actions { flex-wrap: wrap; }
             .pipeline-current-banner {
                 flex-direction: column;
@@ -2790,6 +3038,186 @@ const humanStage = s => String(s||'pending').replace(/_/g,' ');
 const DEFAULT_STAGES = ['intake','planning','requirements','design','development','code_review','security_review','testing','delivery'];
 let STAGES = DEFAULT_STAGES;
 let SAVED_PIPELINE_STAGES = null;
+
+/* ── Pipeline Template State ── */
+let pipelineTemplates = [];
+let selectedTemplateId = null;
+let templateManagerVisible = false;
+
+async function fetchPipelineTemplates() {
+    try {
+        const r = await fetch('/api/pipeline-templates?include_stages=true');
+        const data = await r.json();
+        pipelineTemplates = data.templates || [];
+        selectedTemplateId = data.default_id || null;
+        updateTemplateSelector();
+        updateTemplatePreview();
+    } catch (e) {
+        console.error('Failed to fetch templates:', e);
+    }
+}
+
+function updateTemplateSelector() {
+    const select = document.getElementById('req-template');
+    if (!select) return;
+    
+    const defaultTpl = pipelineTemplates.find(t => t.is_default);
+    const defaultLabel = defaultTpl ? `${defaultTpl.name} (默认)` : '默认';
+    
+    select.innerHTML = `<option value="">${defaultLabel}</option>` + 
+        pipelineTemplates.map(t => 
+            `<option value="${esc(t.id)}" ${t.id === selectedTemplateId ? 'selected' : ''}>${esc(t.name)}${t.is_default ? ' ★' : ''} (${t.stage_count}阶段)</option>`
+        ).join('');
+}
+
+function onTemplateSelect(templateId) {
+    selectedTemplateId = templateId || null;
+    updateTemplatePreview();
+}
+
+function updateTemplatePreview() {
+    const panel = document.getElementById('template-preview-panel');
+    const stagesEl = document.getElementById('template-preview-stages');
+    const metaEl = document.getElementById('template-preview-meta');
+    if (!panel || !stagesEl || !metaEl) return;
+    
+    const template = pipelineTemplates.find(t => 
+        selectedTemplateId ? t.id === selectedTemplateId : t.is_default
+    );
+    
+    if (!template) {
+        panel.style.display = 'none';
+        return;
+    }
+    
+    panel.style.display = 'block';
+    
+    // Render stages as flow
+    const stageIds = template.stage_ids || [];
+    stagesEl.innerHTML = stageIds.map((id, i) => 
+        `<span class="template-preview-stage">${esc(humanStage(id))}</span>${i < stageIds.length - 1 ? '<span class="template-preview-arrow">→</span>' : ''}`
+    ).join('');
+    
+    // Render meta info
+    metaEl.innerHTML = `
+        <span class="template-preview-meta-item"><strong>${template.stage_count}</strong> 阶段</span>
+        <span class="template-preview-meta-item">已使用 <strong>${template.usage_count}</strong> 次</span>
+        ${template.description ? `<span class="template-preview-meta-item">${esc(template.description)}</span>` : ''}
+    `;
+}
+
+function openTemplateManager() {
+    templateManagerVisible = true;
+    renderTemplateManager();
+}
+
+function closeTemplateManager() {
+    templateManagerVisible = false;
+    const modal = document.getElementById('template-manager-modal');
+    if (modal) modal.remove();
+}
+
+function renderTemplateManager() {
+    // Remove existing modal
+    const existing = document.getElementById('template-manager-modal');
+    if (existing) existing.remove();
+    
+    const builtinTemplates = pipelineTemplates.filter(t => t.is_builtin);
+    const customTemplates = pipelineTemplates.filter(t => !t.is_builtin);
+    
+    const modal = document.createElement('div');
+    modal.id = 'template-manager-modal';
+    modal.className = 'template-manager-modal';
+    modal.onclick = (e) => { if (e.target === modal) closeTemplateManager(); };
+    
+    modal.innerHTML = `
+        <div class="template-manager-content">
+            <div class="template-manager-header">
+                <div class="template-manager-title">Pipeline 模板管理</div>
+                <button class="btn ghost sm" onclick="closeTemplateManager()">✕</button>
+            </div>
+            <div class="template-manager-body">
+                <div class="template-list-section">
+                    <div class="template-list-section-title">内置模板</div>
+                    ${builtinTemplates.map(t => renderTemplateItem(t, true)).join('')}
+                </div>
+                ${customTemplates.length ? `
+                <div class="template-list-section">
+                    <div class="template-list-section-title">自定义模板</div>
+                    ${customTemplates.map(t => renderTemplateItem(t, false)).join('')}
+                </div>
+                ` : ''}
+            </div>
+            <div class="template-manager-footer">
+                <button class="btn ghost" onclick="closeTemplateManager()">关闭</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function renderTemplateItem(template, isBuiltin) {
+    const isDefault = template.is_default;
+    const stageIds = template.stage_ids || [];
+    
+    return `
+        <div class="template-item ${isDefault ? 'default' : ''}" onclick="selectAndUseTemplate('${esc(template.id)}')">
+            <div class="template-item-main">
+                <div class="template-item-name">
+                    ${esc(template.name)}
+                    ${isDefault ? '<span class="badge">默认</span>' : ''}
+                </div>
+                <div class="template-item-desc">${esc(template.description || '无描述')}</div>
+                <div class="template-item-meta">${template.stage_count} 阶段 · 已使用 ${template.usage_count} 次</div>
+            </div>
+            <div class="template-item-actions" onclick="event.stopPropagation()">
+                ${!isDefault ? `<button class="btn ghost sm" onclick="setDefaultTemplate('${esc(template.id)}')">设为默认</button>` : ''}
+                ${!isBuiltin ? `<button class="btn ghost sm" onclick="deleteTemplate('${esc(template.id)}')">删除</button>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function selectAndUseTemplate(templateId) {
+    selectedTemplateId = templateId;
+    const select = document.getElementById('req-template');
+    if (select) select.value = templateId;
+    updateTemplatePreview();
+    closeTemplateManager();
+    showToast('已选择模板');
+}
+
+async function setDefaultTemplate(templateId) {
+    try {
+        const r = await fetch(`/api/pipeline-templates/${templateId}/set-default`, { method: 'POST' });
+        if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            throw new Error(data.error || '设置失败');
+        }
+        await fetchPipelineTemplates();
+        renderTemplateManager();
+        showToast('已设为默认模板');
+    } catch (e) {
+        showToast(e.message || '操作失败', true);
+    }
+}
+
+async function deleteTemplate(templateId) {
+    if (!confirm('确定要删除此模板吗？')) return;
+    try {
+        const r = await fetch(`/api/pipeline-templates/${templateId}`, { method: 'DELETE' });
+        if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            throw new Error(data.error || '删除失败');
+        }
+        await fetchPipelineTemplates();
+        renderTemplateManager();
+        showToast('模板已删除');
+    } catch (e) {
+        showToast(e.message || '操作失败', true);
+    }
+}
 
 function formatRequestFileSize(bytes) {
     const value = Number(bytes) || 0;
@@ -2881,6 +3309,7 @@ function classifyTask(t) {
     const s = (t?.status||'').toLowerCase(), st = (t?.current_stage||'').toLowerCase();
     if (s==='completed'||s==='done') return 'done';
     if (s==='failed'||s==='error') return 'attention';
+    if (s==='paused') return 'review';
     if (s==='waiting_human'||st.includes('review')||st==='testing'||st==='delivery') return 'review';
     return 'progress';
 }
@@ -2923,6 +3352,7 @@ function getStatusText(status) {
     if (['completed','done'].includes(s)) return '已完成';
     if (s==='passed') return '已通过';
     if (['running','in_progress'].includes(s)) return '进行中';
+    if (s==='paused') return '已暂停';
     if (['waiting','waiting_human'].includes(s)) return '等待审批';
     if (['failed','error'].includes(s)) return '失败';
     if (s==='idle') return '空闲';
@@ -3058,6 +3488,7 @@ function renderRunnerWidget(activeTask, isLive, isPaused) {
         <div class="runner-btns">
             <button class="btn primary sm" onclick="controlRunner('resume')">恢复</button>
             <button class="btn warn sm" onclick="controlRunner('pause')">暂停</button>
+            ${activeTask?.status === 'running' ? `<button class="btn ghost sm" onclick="pauseTask('${esc(activeTask.id)}')">暂停当前任务</button>` : ''}
         </div>
     `;
 }
@@ -3094,6 +3525,58 @@ function setFeedFilter(filter) {
     if (feedFilter === filter) return;
     feedFilter = filter;
     updateRuntimeUI({ animate: false });
+}
+
+function isSkillEvent(event) {
+    const data = event?.data || {};
+    return ['skill_invocation','skill_file_read','agent_session_init'].includes(event?.type)
+        || !!data.skill_name
+        || !!data.local_skill_present
+        || (Array.isArray(data.available_skills) && data.available_skills.length > 0)
+        || (Array.isArray(data.global_skills) && data.global_skills.length > 0);
+}
+
+function filterFeedEvents(events) {
+    let filtered = [...(events || [])].reverse().slice(0, 150);
+    if (feedFilter === 'skill') return filtered.filter(isSkillEvent);
+    if (feedFilter !== 'all') return filtered.filter(e => e.level === feedFilter);
+    return filtered;
+}
+
+function uniqueStrings(values) {
+    return [...new Set((values || []).filter(v => typeof v === 'string' && v.trim()))];
+}
+
+function renderStageSkillSummary(events, activeAgent) {
+    const relevantEvents = events || [];
+    const visibleSkills = uniqueStrings(relevantEvents.flatMap(event => event?.data?.available_skills || []));
+    const configuredSkills = uniqueStrings(relevantEvents.flatMap(event => event?.data?.global_skills || []));
+    const observedSkills = uniqueStrings(relevantEvents.map(event => event?.data?.skill_name).filter(Boolean));
+    const explicitInvocations = relevantEvents.filter(event => event?.type === 'skill_invocation').length;
+    const skillReads = relevantEvents.filter(event => event?.type === 'skill_file_read').length;
+    const localSkillConfigured = relevantEvents.some(event => event?.data?.local_skill_present) || false;
+
+    const title = observedSkills.length
+        ? `已观测 ${observedSkills.length} 个 skill`
+        : (visibleSkills.length ? `可见 ${visibleSkills.length} 个 skill` : '暂无 skill 信号');
+
+    const summary = observedSkills.length
+        ? `显式技能信号 ${explicitInvocations} 次调用，${skillReads} 次 skill 文件读取。`
+        : (visibleSkills.length
+            ? '当前只观测到会话可见 skill，尚未看到显式调用或 skill 文件读取。'
+            : ((activeAgent?.id || activeAgent?.name) ? '当前阶段尚未返回可见或调用中的 skill 信息。' : '当前阶段还没有 agent / skill 观测数据。'));
+
+    const tags = [];
+    if (localSkillConfigured) tags.push('<span class="feed-meta-tag skill">Local skill configured</span>');
+    configuredSkills.slice(0, 4).forEach(skill => tags.push(`<span class="feed-meta-tag skill">Configured: ${esc(skill)}</span>`));
+    visibleSkills.slice(0, 4).forEach(skill => tags.push(`<span class="feed-meta-tag skill">Visible: ${esc(skill)}</span>`));
+    observedSkills.slice(0, 6).forEach(skill => tags.push(`<span class="feed-meta-tag skill">Observed: ${esc(skill)}</span>`));
+
+    return {
+        title,
+        summary,
+        tags: tags.length ? `<div class="pipeline-current-meta-list">${tags.join('')}</div>` : '',
+    };
 }
 
 function openPage(pageId, addTab = true) {
@@ -3171,13 +3654,14 @@ function renderPipelineVisual(task) {
     const activeAgent = (runtime?.agents || []).find(agent => agent.current_task_id === task?.id && agent.last_stage === currentStage)
         || (runtime?.agents || []).find(agent => agent.current_task_id === task?.id)
         || (runtime?.agents || []).find(agent => agent.last_stage === currentStage);
-    const taskEvents = [...latestEvents]
+    const stageEvents = [...latestEvents]
         .reverse()
-        .filter(event => event.task_id === task?.id && (!currentStage || event.stage === currentStage || !event.stage))
+        .filter(event => event.task_id === task?.id && (!currentStage || event.stage === currentStage || !event.stage));
+    const taskEvents = stageEvents
         .slice(0, 3);
-    const latestTaskEvent = taskEvents[0];
     const currentSummary = currentStageData.summary || currentStageData.last_message || task?.request_text || '';
     const summaryPreview = currentSummary.length > 160 ? `${currentSummary.slice(0, 160)}...` : currentSummary;
+    const stageSkillSummary = renderStageSkillSummary(stageEvents, activeAgent);
     
     let html = '<div class="pipeline-visual">';
     
@@ -3247,8 +3731,15 @@ function renderPipelineVisual(task) {
                             <span>${fmtTime(event.timestamp)}</span>
                         </div>
                         <div class="pipeline-current-event-msg">${esc(event.message || '')}</div>
+                        ${renderFeedMeta(event)}
                     </div>
                 `).join('')}</div>` : `<div class="pipeline-current-detail-text muted">等待下一条 runtime event</div>`}
+            </div>
+            <div class="pipeline-current-detail">
+                <div class="pipeline-current-detail-label">Skill 观测</div>
+                <div class="pipeline-current-detail-value">${esc(stageSkillSummary.title)}</div>
+                <div class="pipeline-current-detail-text ${stageSkillSummary.summary ? '' : 'muted'}">${esc(stageSkillSummary.summary || '暂无 skill 观测')}</div>
+                ${stageSkillSummary.tags}
             </div>
             <div class="pipeline-current-detail">
                 <div class="pipeline-current-detail-label">当前摘要</div>
@@ -3346,6 +3837,9 @@ async function submitRequest() {
     const title = document.getElementById('req-title')?.value.trim();
     const text = document.getElementById('req-text')?.value.trim();
     const source = document.getElementById('req-source')?.value.trim() || 'web';
+    const prioritizeRunning = !!document.getElementById('req-prioritize')?.checked;
+    const templateId = document.getElementById('req-template')?.value || selectedTemplateId || '';
+    if (!title) { updateRequestTitleState(true); showToast('请输入标题', true); return; }
     if (!text && !pendingRequestFiles.length) { showToast('请输入需求内容或上传文件', true); return; }
     
     const btn = document.querySelector('.composer-actions .btn.primary');
@@ -3358,13 +3852,15 @@ async function submitRequest() {
             if (title) formData.append('title', title);
             if (text) formData.append('text', text);
             formData.append('source', source);
+            if (prioritizeRunning) formData.append('prioritize_running', 'true');
+            if (templateId) formData.append('pipeline_template_id', templateId);
             pendingRequestFiles.forEach(file => formData.append('files', file, file.name));
             response = await fetch('/api/requests', { method:'POST', body: formData });
         } else {
             response = await fetch('/api/requests', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({title,text,source}),
+                body:JSON.stringify({title,text,source,prioritize_running: prioritizeRunning, pipeline_template_id: templateId || undefined}),
             });
         }
 
@@ -3375,15 +3871,36 @@ async function submitRequest() {
 
         const titleEl = document.getElementById('req-title');
         const textEl = document.getElementById('req-text');
+        const prioritizeEl = document.getElementById('req-prioritize');
+        const templateEl = document.getElementById('req-template');
         if (titleEl) titleEl.value = '';
         if (textEl) textEl.value = '';
+        if (prioritizeEl) prioritizeEl.checked = false;
+        if (templateEl) templateEl.value = '';
+        selectedTemplateId = null;
+        updateTemplatePreview();
         clearPendingRequestFiles();
-        showToast('请求已提交');
+        showToast(prioritizeRunning ? '请求已提交，系统会优先尝试中断当前 agent 执行以让出任务位' : '请求已提交');
         await fetchRuntime();
     } catch (e) {
         showToast(e.message || '提交失败', true);
     } finally {
         if (btn) btn.classList.remove('loading');
+    }
+}
+
+function updateRequestTitleState(showError = false) {
+    const input = document.getElementById('req-title');
+    const field = document.getElementById('req-title-group');
+    const hint = document.getElementById('req-title-hint');
+    const submitBtn = document.getElementById('req-submit-btn');
+    const hasTitle = !!(input?.value || '').trim();
+
+    if (submitBtn) submitBtn.disabled = !hasTitle;
+    if (field) field.classList.toggle('invalid', showError && !hasTitle);
+    if (hint) {
+        hint.textContent = showError && !hasTitle ? '标题为必填项' : ' '; 
+        hint.classList.toggle('error', showError && !hasTitle);
     }
 }
 
@@ -3414,6 +3931,63 @@ async function retryTask(taskId) {
     await fetchRuntime();
 }
 
+async function resumeTask(taskId, prioritize = false) {
+    try {
+        const r = await fetch(`/api/tasks/${taskId}/resume`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ prioritize }),
+        });
+        if (r.ok) {
+            showToast(prioritize ? '任务已恢复并优先排队' : '任务已恢复排队');
+        } else {
+            const data = await r.json().catch(() => ({}));
+            showToast(data.error || '恢复失败', true);
+        }
+    } catch (e) {
+        showToast('恢复请求失败', true);
+    }
+    await fetchRuntime();
+}
+
+async function pauseTask(taskId) {
+    try {
+        const r = await fetch(`/api/tasks/${taskId}/pause`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ reason: 'Pause requested from dashboard' }),
+        });
+        if (r.ok) {
+            showToast('当前任务已暂停，新提交的请求可以直接执行');
+        } else {
+            const data = await r.json().catch(() => ({}));
+            showToast(data.error || '暂停任务失败', true);
+        }
+    } catch (e) {
+        showToast('暂停任务请求失败', true);
+    }
+    await fetchRuntime();
+}
+
+async function deferTask(taskId) {
+    try {
+        const r = await fetch(`/api/tasks/${taskId}/defer`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ reason: 'Manual defer requested from dashboard', immediate: true }),
+        });
+        if (r.ok) {
+            showToast('系统会优先尝试立即中断当前 agent 执行，失败时退回到阶段边界让出');
+        } else {
+            const data = await r.json().catch(() => ({}));
+            showToast(data.error || '暂停失败', true);
+        }
+    } catch (e) {
+        showToast('暂停请求失败', true);
+    }
+    await fetchRuntime();
+}
+
 async function deleteTask(taskId) {
     if (!confirm('确定删除这个任务？')) return;
     await fetch(`/api/tasks/${taskId}`, { method:'DELETE' });
@@ -3438,6 +4012,7 @@ function renderApp(options = {}) {
     const savedTitle = document.getElementById('req-title')?.value ?? '';
     const savedText = document.getElementById('req-text')?.value ?? '';
     const savedSource = document.getElementById('req-source')?.value ?? 'web';
+    const savedPrioritize = !!document.getElementById('req-prioritize')?.checked;
     const savedPageScrollTop = document.getElementById('page-' + activeTabId)?.scrollTop ?? 0;
 
     app.classList.toggle('no-page-animation', !animate);
@@ -3540,9 +4115,12 @@ function renderApp(options = {}) {
     const ti = document.getElementById('req-title');
     const tx = document.getElementById('req-text');
     const sr = document.getElementById('req-source');
+    const pr = document.getElementById('req-prioritize');
     if (ti) ti.value = savedTitle;
     if (tx) tx.value = savedText;
     if (sr) sr.value = savedSource;
+    if (pr) pr.checked = savedPrioritize;
+    updateRequestTitleState();
 
     /* Restore sidebar collapsed state */
     if (sidebarCollapsed) {
@@ -3575,6 +4153,7 @@ function updateRuntimeUI(options = {}) {
     const savedTitle = document.getElementById('req-title')?.value ?? '';
     const savedText = document.getElementById('req-text')?.value ?? '';
     const savedSource = document.getElementById('req-source')?.value ?? 'web';
+    const savedPrioritize = !!document.getElementById('req-prioritize')?.checked;
     const activePage = document.getElementById('page-' + activeTabId);
     const savedPageScrollTop = activePage?.scrollTop ?? 0;
 
@@ -3597,9 +4176,12 @@ function updateRuntimeUI(options = {}) {
     const ti = document.getElementById('req-title');
     const tx = document.getElementById('req-text');
     const sr = document.getElementById('req-source');
+    const pr = document.getElementById('req-prioritize');
     if (ti) ti.value = savedTitle;
     if (tx) tx.value = savedText;
     if (sr) sr.value = savedSource;
+    if (pr) pr.checked = savedPrioritize;
+    updateRequestTitleState();
 
     if (activeTabId === 'pipeline') {
         initPipelineEditor();
@@ -3674,6 +4256,7 @@ function renderDashboardPage(activeTask, tasks, stats, budget, settings) {
             <div class="metric-card"><div class="metric-label">总任务</div><div class="metric-value total">${stats.total||0}</div><div class="metric-hint">所有接入的请求</div></div>
             <div class="metric-card"><div class="metric-label">进行中</div><div class="metric-value running">${stats.running||0}</div><div class="metric-hint">正在经过 pipeline</div></div>
             <div class="metric-card"><div class="metric-label">等待人工</div><div class="metric-value waiting">${stats.waiting_human||0}</div><div class="metric-hint">需要人工处理</div></div>
+            <div class="metric-card"><div class="metric-label">已暂停</div><div class="metric-value waiting">${stats.paused||0}</div><div class="metric-hint">人工暂停的任务</div></div>
             <div class="metric-card"><div class="metric-label">已交付</div><div class="metric-value done">${stats.completed||0}</div><div class="metric-hint">完成 delivery</div></div>
             <div class="metric-card"><div class="metric-label">失败</div><div class="metric-value failed">${stats.failed||0}</div><div class="metric-hint">需要关注</div></div>
             <div class="metric-card token-card"><div class="metric-label">Token 用量</div><div class="metric-value ${tokenStatusCls(budget.status)}">${fmtTokens(budget.used)}</div><div class="metric-hint">${budget.percent}% · ${fmtTokens(budget.limit)} 限额</div></div>
@@ -3687,23 +4270,47 @@ function renderDashboardPage(activeTask, tasks, stats, budget, settings) {
             <div class="section-body">
                 <div class="composer">
                     <div class="composer-row">
-                        <div class="field-group"><div class="field-label">标题</div><input id="req-title" placeholder="例如：重构控制台布局" /></div>
+                        <div class="field-group" id="req-title-group"><div class="field-label">标题 *</div><input id="req-title" placeholder="例如：重构控制台布局" required aria-required="true" oninput="updateRequestTitleState()" onblur="updateRequestTitleState(true)" /><div class="field-hint" id="req-title-hint"> </div></div>
                         <div class="field-group"><div class="field-label">来源</div><input id="req-source" value="web" placeholder="web / feishu / api" /></div>
                     </div>
+                    <div class="composer-row" style="margin-top:8px;">
+                        <div class="field-group" style="flex:2;">
+                            <div class="field-label">Pipeline 模板</div>
+                            <select id="req-template" onchange="onTemplateSelect(this.value)">
+                                <option value="">加载中...</option>
+                            </select>
+                        </div>
+                        <div class="field-group" style="flex:0 0 auto; align-self: flex-end;">
+                            <button class="btn ghost sm" onclick="openTemplateManager()" title="管理模板">管理模板</button>
+                        </div>
+                    </div>
+                    <div id="template-preview-panel" class="template-preview-panel" style="display:none;">
+                        <div class="template-preview-stages" id="template-preview-stages"></div>
+                        <div class="template-preview-meta" id="template-preview-meta"></div>
+                    </div>
                     <div class="field-group full"><div class="field-label">需求描述</div><textarea id="req-text" placeholder="输入需求背景、目标仓库、验收条件等"></textarea></div>
-                    <div class="field-group full">
-                        <div class="field-label">附件</div>
-                        <div class="upload-panel">
-                            <div class="upload-panel-head">
-                                <button class="btn ghost" onclick="openRequestFilePicker()">选择文件</button>
-                                <button class="btn ghost sm" onclick="clearPendingRequestFiles()">清空附件</button>
+                    <div class="composer-meta-grid">
+                        <label class="priority-toggle" for="req-prioritize">
+                            <input id="req-prioritize" type="checkbox" />
+                            <div class="priority-toggle-copy">
+                                <div class="priority-toggle-title">新请求优先执行</div>
+                                <div class="priority-toggle-desc">系统会先尝试中断当前 Claude agent 执行并回队列；若当前阶段不可中断，再退回到阶段边界让出。适合热修、阻塞性任务和临时插单。</div>
                             </div>
-                            <div class="upload-hint">支持常见文本、代码、表格、Office、PDF 和图片格式。最多 10 个文件，单文件不超过 10MB，总大小不超过 25MB。</div>
-                            <div class="request-file-list" id="req-file-list">${renderSelectedRequestFiles()}</div>
+                        </label>
+                        <div class="field-group full">
+                            <div class="field-label">附件</div>
+                            <div class="upload-panel">
+                                <div class="upload-panel-head">
+                                    <button class="btn ghost" onclick="openRequestFilePicker()">选择文件</button>
+                                    <button class="btn ghost sm" onclick="clearPendingRequestFiles()">清空附件</button>
+                                </div>
+                                <div class="upload-hint">支持常见文本、代码、表格、Office、PDF 和图片格式。最多 10 个文件，单文件不超过 10MB，总大小不超过 25MB。</div>
+                                <div class="request-file-list" id="req-file-list">${renderSelectedRequestFiles()}</div>
+                            </div>
                         </div>
                     </div>
                     <div class="composer-actions">
-                        <button class="btn primary" onclick="submitRequest()">提交请求</button>
+                        <button class="btn primary" id="req-submit-btn" onclick="submitRequest()" disabled>提交请求</button>
                         <button class="btn ghost" onclick="fetchRuntime()">同步状态</button>
                     </div>
                 </div>
@@ -3888,6 +4495,7 @@ function renderPipelinePage() {
             <div class="page-header-actions">
                 <button class="btn ghost sm" onclick="resetPipelineEditor()">撤销编辑</button>
                 <button class="btn ghost sm" onclick="restoreDefaultPipeline()" id="pipe-restore-btn" style="display:none">恢复默认</button>
+                <button class="btn ghost sm" onclick="saveAsTemplate()">另存为模板</button>
                 <button class="btn primary sm" onclick="savePipeline()">保存配置</button>
             </div>
         </div>
@@ -4024,7 +4632,7 @@ function renderEventsPage() {
             </div>
             <div class="page-header-actions">
                 <div class="feed-filter">
-                    ${['all','info','success','warning','error'].map(f => `<button class="btn sm ${feedFilter===f?'active':''}" onclick="setFeedFilter('${f}')">${f}</button>`).join('')}
+                    ${['all','skill','info','success','warning','error'].map(f => `<button class="btn sm ${feedFilter===f?'active':''}" onclick="setFeedFilter('${f}')">${f}</button>`).join('')}
                 </div>
             </div>
         </div>
@@ -4072,11 +4680,21 @@ function renderKanban(tasks) {
             <div class="kanban-cards">${items.length ? items.map(t => {
                 const p = taskPct(t);
                 const badges = Object.entries(t.stages||{}).filter(([,v])=>v.status&&v.status!=='pending').slice(-3).map(([s,v])=>`<span class="badge ${statusCls(v.status)}">${esc(humanStage(s))}</span>`).join('');
+                let actions = '';
+                if (t.status === 'failed') {
+                    actions = `<button class="btn danger sm" style="margin-left:auto" onclick="retryTask('${esc(t.id)}')">重试</button><button class="btn ghost sm" onclick="deleteTask('${esc(t.id)}')">删除</button>`;
+                } else if (t.status === 'completed') {
+                    actions = `<button class="btn ghost sm" style="margin-left:auto" onclick="deleteTask('${esc(t.id)}')">删除</button>`;
+                } else if (t.status === 'running') {
+                    actions = `<button class="btn warn sm" style="margin-left:auto" onclick="pauseTask('${esc(t.id)}')">暂停任务</button><button class="btn ghost sm" onclick="deferTask('${esc(t.id)}')">立即让出</button>`;
+                } else if (t.status === 'paused' || t.status === 'waiting_human') {
+                    actions = `<button class="btn primary sm" style="margin-left:auto" onclick="resumeTask('${esc(t.id)}', true)">恢复并优先</button>`;
+                }
                 return `<div class="task-card ${statusCls(t.status)}">
                     <div class="task-card-head"><div><div class="task-card-title">${esc(t.title||'Untitled')}</div><div class="task-card-sub">${esc(t.source||'unknown')} · ${esc(humanStage(t.current_stage||'queued'))}</div></div><span class="badge ${statusCls(t.status)}">${esc(t.status||'queued')}</span></div>
                     <div class="task-card-body">${esc(t.request_text||'')}</div>
                     <div class="task-card-progress"><div class="task-card-progress-top"><span>${esc(t.id||'-')}</span><span>${p}%</span></div><div class="task-microbar"><span style="width:${p}%"></span></div></div>
-                    <div class="task-card-badges">${badges||'<span class="badge queued">queued</span>'}${t.status==='failed'?`<button class="btn danger sm" style="margin-left:auto" onclick="retryTask('${esc(t.id)}')">重试</button><button class="btn ghost sm" onclick="deleteTask('${esc(t.id)}')">删除</button>`:(t.status==='completed'?`<button class="btn ghost sm" style="margin-left:auto" onclick="deleteTask('${esc(t.id)}')">删除</button>`:'')}</div>
+                    <div class="task-card-badges">${badges||'<span class="badge queued">queued</span>'}${actions}</div>
                 </div>`;
             }).join('') : '<div class="empty no-icon"><div class="empty-title">暂无任务</div></div>'}</div>
         </div>`;
@@ -4111,8 +4729,7 @@ function renderAgents(agents) {
 }
 
 function renderFeed(events) {
-    let filtered = [...events].reverse().slice(0,150);
-    if (feedFilter !== 'all') filtered = filtered.filter(e => e.level === feedFilter);
+    let filtered = filterFeedEvents(events);
     if (!filtered.length) return '<div class="empty"><div class="empty-title">暂无事件</div></div>';
     return `<div class="feed" style="max-height:calc(100vh - 250px)">${filtered.map(e => `
         <div class="feed-item">
@@ -4123,8 +4740,30 @@ function renderFeed(events) {
                 ${e.stage?`<span class="feed-stage-tag">${esc(humanStage(e.stage))}</span>`:''}
             </div>
             <div class="feed-msg">${esc(e.message||'')}</div>
+            ${renderFeedMeta(e)}
         </div>
     `).join('')}</div>`;
+}
+
+function renderFeedMeta(event) {
+    const data = event?.data || {};
+    const tags = [];
+    if (data.agent_name) tags.push(`<span class="feed-meta-tag agent">Agent: ${esc(data.agent_name)}</span>`);
+    if (data.tool_name) tags.push(`<span class="feed-meta-tag tool">Tool: ${esc(data.tool_name)}</span>`);
+    if (data.skill_name) tags.push(`<span class="feed-meta-tag skill">Skill: ${esc(data.skill_name)}</span>`);
+    if (data.subagent_type) tags.push(`<span class="feed-meta-tag tool">Subagent: ${esc(data.subagent_type)}</span>`);
+    if (Array.isArray(data.global_skills) && data.global_skills.length) {
+        const configured = data.global_skills.slice(0, 4).join(', ');
+        const configuredSuffix = data.global_skills.length > 4 ? ` +${data.global_skills.length - 4}` : '';
+        tags.push(`<span class="feed-meta-tag skill">Configured: ${esc(configured + configuredSuffix)}</span>`);
+    }
+    if (Array.isArray(data.available_skills) && data.available_skills.length) {
+        const preview = data.available_skills.slice(0, 4).join(', ');
+        const suffix = data.available_skills.length > 4 ? ` +${data.available_skills.length - 4}` : '';
+        tags.push(`<span class="feed-meta-tag skill">Visible: ${esc(preview + suffix)}</span>`);
+    }
+    if (data.local_skill_present) tags.push('<span class="feed-meta-tag skill">Local skill configured</span>');
+    return tags.length ? `<div class="feed-meta">${tags.join('')}</div>` : '';
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -4384,8 +5023,7 @@ function renderArtifacts(data) {
 }
 
 function renderFeed(events) {
-    let filtered = [...events].reverse().slice(0,150);
-    if (feedFilter !== 'all') filtered = filtered.filter(e => e.level === feedFilter);
+    let filtered = filterFeedEvents(events);
     if (!filtered.length) return '<div class="empty">暂无事件</div>';
     return `<div class="feed">${filtered.map(e => `
         <div class="feed-item">
@@ -4396,6 +5034,7 @@ function renderFeed(events) {
                 ${e.stage?`<span class="feed-stage-tag">${esc(humanStage(e.stage))}</span>`:''}
             </div>
             <div class="feed-msg">${esc(e.message||'')}</div>
+            ${renderFeedMeta(e)}
         </div>
     `).join('')}</div>`;
 }
@@ -4404,8 +5043,8 @@ function renderFeed(events) {
 const ALL_STAGES = [
     {id:'intake', name:'Request Intake', agent:'planner', icon:'📥'},
     {id:'planning', name:'Sprint Planning', agent:'planner', icon:'📋'},
-    {id:'requirements', name:'Requirements', agent:'requirements-analyst', icon:'📝'},
-    {id:'design', name:'System Design', agent:'system-architect', icon:'🏗️'},
+    {id:'software-requirement-orchestrator', name:'Software Requirement Orchestrator', agent:'software-requirement-orchestrator', icon:'📑'},
+    {id:'cockpit-middleware-architect', name:'Cockpit Middleware Architect', agent:'cockpit-middleware-architect', icon:'🚗'},
     {id:'development', name:'Implementation', agent:'developer', icon:'💻'},
     {id:'code_review', name:'Code Review', agent:'code-reviewer', icon:'👁️'},
     {id:'security_review', name:'Security Review', agent:'security-reviewer', icon:'🔒'},
@@ -4905,6 +5544,40 @@ function resetPipelineEditor() {
     renderPipelineEditor();
 }
 
+async function saveAsTemplate() {
+    const name = prompt('请输入模板名称：', '我的流程');
+    if (!name || !name.trim()) return;
+    
+    const description = prompt('请输入模板描述（可选）：', '');
+    
+    const stages = editorStages.map(s => ({
+        id: s.id, 
+        name: s.name, 
+        agent: s.agent
+    }));
+    
+    try {
+        const r = await fetch('/api/pipeline-templates', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name.trim(),
+                description: description || '',
+                stages: stages
+            })
+        });
+        const data = await r.json();
+        if (!r.ok) {
+            throw new Error(data.error || '保存失败');
+        }
+        showToast(`模板 "${name.trim()}" 已保存`);
+        // Refresh template list
+        await fetchPipelineTemplates();
+    } catch (e) {
+        showToast('保存模板失败: ' + e.message, true);
+    }
+}
+
 async function savePipeline() {
     const stages = editorStages.map(s => ({
         id: s.id, 
@@ -5022,10 +5695,13 @@ function connectStream() {
     });
     
     // Start fetching data
-    fetchRuntime({ forceFullRender: true, partial: false }).then(() => {
+    Promise.all([
+        fetchRuntime({ forceFullRender: true, partial: false }),
+        fetchPipelineTemplates()
+    ]).then(() => {
         connectStream();
     }).catch(err => {
-        console.error('[HARNESS] Error fetching runtime:', err);
+        console.error('[HARNESS] Error during init:', err);
     });
     setInterval(() => {
         if (!document.hidden) {
