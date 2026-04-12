@@ -321,3 +321,73 @@ def test_pipeline_templates_keep_a_single_default_after_restart(tmp_path: Path):
 
     assert default_templates == [result["id"]]
     assert templates["default_id"] == result["id"]
+
+
+def test_submit_request_creates_pipeline_stage_directories(tmp_path: Path):
+    runner = make_runner(tmp_path)
+
+    task = runner.submit_request("Create the task layout", title="Layout")
+    run_dir = Path(task["run_dir"])
+
+    assert (run_dir / "software-requirement-orchestrator").exists()
+    assert (run_dir / "cockpit-middleware-architect").exists()
+
+
+def test_canonical_requirement_and_design_artifacts_use_stage_directories(tmp_path: Path):
+    runner = make_runner(tmp_path)
+    task = runner.submit_request("Generate requirement and design docs", title="Artifacts")
+    transcript_dir = Path(task["run_dir"]) / "transcripts"
+    transcript_dir.mkdir(parents=True, exist_ok=True)
+
+    requirement_transcript = transcript_dir / "software-requirement-orchestrator.json"
+    runner._save_text(str(requirement_transcript), "{}")
+    requirement_paths = runner._materialize_stage_artifacts(
+        task,
+        "software-requirement-orchestrator",
+        "requirements summary",
+        "Requirement body",
+        str(requirement_transcript),
+    )
+
+    design_transcript = transcript_dir / "cockpit-middleware-architect.json"
+    runner._save_text(str(design_transcript), "{}")
+    design_paths = runner._materialize_stage_artifacts(
+        task,
+        "cockpit-middleware-architect",
+        "design summary",
+        "Design body",
+        str(design_transcript),
+    )
+
+    requirement_doc = Path(task["run_dir"]) / "software-requirement-orchestrator" / "requirements_spec.md"
+    architecture_doc = Path(task["run_dir"]) / "cockpit-middleware-architect" / "architecture.md"
+    api_doc = Path(task["run_dir"]) / "cockpit-middleware-architect" / "api_design.md"
+    data_doc = Path(task["run_dir"]) / "cockpit-middleware-architect" / "data_model.md"
+
+    assert requirement_doc.exists()
+    assert architecture_doc.exists()
+    assert api_doc.exists()
+    assert data_doc.exists()
+    assert str(requirement_doc) in requirement_paths
+    assert str(architecture_doc) in design_paths
+
+
+def test_existing_legacy_requirement_and_design_files_are_repaired_for_canonical_stages(tmp_path: Path):
+    runner = make_runner(tmp_path)
+    task = runner.submit_request("Repair prior run artifacts", title="Repair")
+    run_dir = Path(task["run_dir"])
+
+    runner._save_text(str(run_dir / "requirements" / "requirements_spec.md"), "legacy requirements")
+    runner._save_text(str(run_dir / "design" / "architecture.md"), "legacy architecture")
+    runner._save_text(str(run_dir / "design" / "api_design.md"), "legacy api")
+    runner._save_text(str(run_dir / "design" / "data_model.md"), "legacy data")
+
+    requirement_paths = runner._collect_task_artifact_paths(task, "software-requirement-orchestrator")
+    design_paths = runner._collect_task_artifact_paths(task, "cockpit-middleware-architect")
+
+    assert (run_dir / "software-requirement-orchestrator" / "requirements_spec.md").read_text(encoding="utf-8") == "legacy requirements"
+    assert (run_dir / "cockpit-middleware-architect" / "architecture.md").read_text(encoding="utf-8") == "legacy architecture"
+    assert (run_dir / "cockpit-middleware-architect" / "api_design.md").read_text(encoding="utf-8") == "legacy api"
+    assert (run_dir / "cockpit-middleware-architect" / "data_model.md").read_text(encoding="utf-8") == "legacy data"
+    assert str(run_dir / "software-requirement-orchestrator" / "requirements_spec.md") in requirement_paths
+    assert str(run_dir / "cockpit-middleware-architect" / "architecture.md") in design_paths

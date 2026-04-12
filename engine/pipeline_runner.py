@@ -91,6 +91,21 @@ LEGACY_AGENT_ALIASES = {
     "system-architect": "cockpit-middleware-architect",
 }
 
+REQUIREMENT_STAGE_IDS = {"requirements", "software-requirement-orchestrator"}
+DESIGN_STAGE_IDS = {"design", "cockpit-middleware-architect"}
+PRIMARY_STAGE_ARTIFACTS = {
+    "planning": ("sprint_contract.md",),
+    "requirements": ("requirements_spec.md",),
+    "software-requirement-orchestrator": ("requirements_spec.md",),
+    "design": ("architecture.md", "api_design.md", "data_model.md"),
+    "cockpit-middleware-architect": ("architecture.md", "api_design.md", "data_model.md"),
+    "testing": ("test_report.md",),
+}
+STAGE_DIRECTORY_ALIASES = {
+    "software-requirement-orchestrator": ("requirements",),
+    "cockpit-middleware-architect": ("design",),
+}
+
 STAGE_TITLES = {
     "intake": "Request Intake",
     "planning": "Sprint Planning",
@@ -456,7 +471,7 @@ class PipelineRunner:
             task.setdefault("yield_reason", "")
             task.setdefault("yield_to_front", False)
             task.setdefault("yield_target_status", "queued")
-            task.setdefault("run_dir", self._ensure_run_layout(task["id"]))
+            task.setdefault("run_dir", self._ensure_run_layout(task["id"], self._task_pipeline_order(task)))
             runtime_changed = self._migrate_legacy_task_agents(task) or runtime_changed
             stage_defaults = self._empty_stage_map(self._task_stage_definitions(task))
             existing = task.setdefault("stages", {})
@@ -467,6 +482,7 @@ class PipelineRunner:
                     current_stage["agent_id"] = self._canonical_agent_id(current_stage.get("agent_id"))
                     runtime_changed = True
                 current_stage.setdefault("agent_id", stage_payload["agent_id"])
+                self._repair_stage_artifact_layout(task, stage_id)
             self._write_run_metadata(task)
         if runtime_changed:
             self._persist_runtime()
@@ -528,6 +544,48 @@ class PipelineRunner:
             if order:
                 return order
         return list(self.pipeline_order)
+
+    def _stage_primary_artifact_paths(self, run_dir: str, stage: str) -> List[str]:
+        return [os.path.join(run_dir, stage, name) for name in PRIMARY_STAGE_ARTIFACTS.get(stage, ())]
+
+    def _repair_stage_artifact_layout(self, task: Dict, stage: str) -> None:
+        run_dir = task.get("run_dir")
+        if not run_dir:
+            return
+
+        canonical_targets = self._stage_primary_artifact_paths(run_dir, stage)
+        if not canonical_targets:
+            return
+
+        for alias in STAGE_DIRECTORY_ALIASES.get(stage, ()):
+            legacy_sources = self._stage_primary_artifact_paths(run_dir, alias)
+            for source, target in zip(legacy_sources, canonical_targets):
+                if os.path.isfile(source) and not os.path.exists(target):
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    shutil.copy2(source, target)
+
+    def _collect_task_artifact_paths(self, task: Dict, stage: str) -> List[str]:
+        self._repair_stage_artifact_layout(task, stage)
+
+        run_dir = task.get("run_dir")
+        collected: List[str] = []
+        seen = set()
+
+        def add_path(path: Optional[str]) -> None:
+            if not path or path in seen:
+                return
+            if os.path.isfile(path) or os.path.isdir(path):
+                seen.add(path)
+                collected.append(path)
+
+        if run_dir:
+            for path in self._stage_primary_artifact_paths(run_dir, stage):
+                add_path(path)
+
+        for path in task.get("artifacts", {}).get(stage, []):
+            add_path(path)
+
+        return collected
 
     def _persist_runtime(self) -> None:
         self.runtime["updated_at"] = datetime.now().isoformat()
@@ -704,7 +762,14 @@ class PipelineRunner:
         task_id = f"task-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
         spec_file = f"{task_id}.md"
         spec_path = os.path.join(self.specs_pending, spec_file)
-        run_dir = self._ensure_run_layout(task_id)
+
+        # Resolve pipeline template before creating the run layout so stage directories match the selected pipeline.
+        template = self.template_manager.resolve_template(pipeline_template_id)
+        self.template_manager.increment_usage(template["id"])
+        pipeline_snapshot = json.loads(json.dumps(template.get("stages", []), ensure_ascii=False))
+        stage_ids = [stage.get("id") for stage in pipeline_snapshot if isinstance(stage, dict) and stage.get("id")]
+
+        run_dir = self._ensure_run_layout(task_id, stage_ids)
         attachment_records, attachment_artifacts = self._persist_request_attachments(run_dir, attachments)
         request_text = (text or "").strip()
         if not request_text and attachment_records:
@@ -717,11 +782,6 @@ class PipelineRunner:
                 spec_lines.append(f"- {attachment['name']} ({attachment['content_type']}, {attachment['size_bytes']} bytes)")
                 spec_lines.append(f"  Path: {attachment['path']}")
         self._save_text(spec_path, "\n".join(spec_lines).rstrip() + "\n")
-
-        # Resolve pipeline template
-        template = self.template_manager.resolve_template(pipeline_template_id)
-        self.template_manager.increment_usage(template["id"])
-        pipeline_snapshot = json.loads(json.dumps(template.get("stages", []), ensure_ascii=False))
         first_stage = (pipeline_snapshot[0].get("id") if pipeline_snapshot else None) or self.pipeline_order[0]
         source_metadata = dict(metadata or {})
         if attachment_records:
@@ -1576,7 +1636,9 @@ class PipelineRunner:
             ("design/architecture.md", "05_架构设计.md"),
             ("cockpit-middleware-architect/architecture.md", "05_架构设计.md"),
             ("design/api_design.md", "06_API设计.md"),
+            ("cockpit-middleware-architect/api_design.md", "06_API设计.md"),
             ("design/data_model.md", "07_数据模型.md"),
+            ("cockpit-middleware-architect/data_model.md", "07_数据模型.md"),
             # 测试报告
             ("tests/test_report.md", "08_测试报告.md"),
             ("testing/test_report.md", "08_测试报告.md"),
@@ -1897,28 +1959,28 @@ class PipelineRunner:
             path = os.path.join(run_dir, "planning", "sprint_contract.md")
             self._save_text(path, f"# Sprint Contract - {task['title']}\n\n{output_text}\n")
             artifact_paths.append(path)
-        elif stage == "requirements":
-            path = os.path.join(run_dir, "requirements", "requirements_spec.md")
+        elif stage in REQUIREMENT_STAGE_IDS:
+            path = os.path.join(run_dir, stage, "requirements_spec.md")
             content = self._wrap_output(task, stage, output_text)
             self._save_text(path, content)
             copy_path = os.path.join(task_dir, "requirements_spec.md")
             self._save_text(copy_path, content)
             artifact_paths.extend([path, copy_path])
-        elif stage == "design":
-            architecture = os.path.join(run_dir, "design", "architecture.md")
-            api = os.path.join(run_dir, "design", "api_design.md")
-            data_model = os.path.join(run_dir, "design", "data_model.md")
+        elif stage in DESIGN_STAGE_IDS:
+            architecture = os.path.join(run_dir, stage, "architecture.md")
+            api = os.path.join(run_dir, stage, "api_design.md")
+            data_model = os.path.join(run_dir, stage, "data_model.md")
             self._save_text(architecture, self._wrap_output(task, stage, output_text, heading="Architecture"))
             self._save_text(api, self._design_api_content(task, output_text))
             self._save_text(data_model, self._design_data_content(task, output_text))
             artifact_paths.extend([architecture, api, data_model])
         elif stage == "testing":
-            path = os.path.join(run_dir, "tests", "reports", "test_report.md")
+            path = os.path.join(run_dir, stage, "test_report.md")
             self._save_text(path, self._wrap_output(task, stage, output_text))
             self._snapshot_repo_tree("tests", os.path.join(run_dir, "tests", "workspace_snapshot"))
             artifact_paths.append(path)
         elif stage == "development":
-            path = os.path.join(run_dir, "src", f"{stage}.md")
+            path = os.path.join(run_dir, stage, f"{stage}.md")
             self._save_text(path, self._wrap_output(task, stage, output_text))
             artifact_paths.append(path)
             self._snapshot_repo_tree("src", os.path.join(run_dir, "src", "workspace_snapshot"))
@@ -1938,7 +2000,7 @@ class PipelineRunner:
         return artifact_paths
 
     def _post_stage_processing(self, task: Dict, stage: str, summary: str, artifact_paths: List[str]) -> None:
-        if stage in {"requirements", "design", "testing"}:
+        if stage in REQUIREMENT_STAGE_IDS | DESIGN_STAGE_IDS | {"testing"}:
             for path in artifact_paths:
                 if path.endswith(".md") and os.path.exists(path):
                     with open(path, "r", encoding="utf-8") as handle:
@@ -1955,7 +2017,7 @@ class PipelineRunner:
         except Exception as exc:
             task["context"].setdefault(stage, {})["memory_capture_error"] = str(exc)
 
-        if stage in {"design", "testing"}:
+        if stage in DESIGN_STAGE_IDS | {"testing"}:
             try:
                 report = self.consistency_checker.run_all_checks()
                 report_path = os.path.join(self.report_dir, f"{task['id']}-{stage}-consistency.json")
@@ -1964,7 +2026,7 @@ class PipelineRunner:
             except Exception as exc:
                 task["context"].setdefault(stage, {})["consistency_error"] = str(exc)
 
-        if stage == "requirements":
+        if stage in REQUIREMENT_STAGE_IDS:
             try:
                 impact = self.change_impact_analyzer.analyze_change(task["request_text"])
                 path = os.path.join(self.report_dir, f"{task['id']}-change-impact.md")
@@ -1990,7 +2052,9 @@ class PipelineRunner:
 
         category_map = {
             "requirements": "requirements",
+            "software-requirement-orchestrator": "requirements",
             "design": "architecture",
+            "cockpit-middleware-architect": "architecture",
             "development": "coding_style",
             "testing": "testing",
             "code_review": "coding_style",
@@ -2012,9 +2076,11 @@ class PipelineRunner:
         except Exception as exc:
             self._emit("state_sync_error", f"Failed to sync task state artifacts: {exc}", source="system", task_id=task.get("id"), level="warning")
 
-    def _ensure_run_layout(self, task_id: str) -> str:
+    def _ensure_run_layout(self, task_id: str, stage_ids: Optional[List[str]] = None) -> str:
         run_dir = os.path.join(self.runs_dir, task_id)
-        for rel in ["requirements", "design", "src", "tests/reports", "planning", "reports", "transcripts", "delivery", "build_verification", "safety_review", "uploads"]:
+        default_stage_dirs = [stage for stage in (stage_ids or self.pipeline_order) if stage]
+        common_dirs = ["src", "tests", "tests/reports", "reports", "transcripts", "uploads", "context", "deliverables"]
+        for rel in common_dirs + default_stage_dirs:
             os.makedirs(os.path.join(run_dir, rel), exist_ok=True)
         return run_dir
 
@@ -2186,7 +2252,17 @@ def create_api_app(runner: PipelineRunner) -> Flask:
     def api_task_artifacts(task_id: str):
         task = runner._require_task(task_id)
         result = {}
-        for stage, paths in task.get("artifacts", {}).items():
+        seen_stages = []
+        seen_stage_ids = set()
+        for stage in runner._task_pipeline_order(task) + list(task.get("artifacts", {}).keys()):
+            if stage and stage not in seen_stage_ids:
+                seen_stages.append(stage)
+                seen_stage_ids.add(stage)
+
+        for stage in seen_stages:
+            paths = runner._collect_task_artifact_paths(task, stage)
+            if not paths:
+                continue
             items = []
             for p in paths:
                 name = os.path.basename(p)

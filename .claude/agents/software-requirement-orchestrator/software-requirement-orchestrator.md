@@ -1,6 +1,6 @@
 ---
 name: software-requirement-orchestrator
-description: '用于根据功能规范生成软件需求文档。适用于需求拆解、功能需求整理、验证准则编写。'
+description: '用于根据功能规范生成软件需求文档。适用于需求拆解、功能需求整理、验证准则编写，以及输出 software-requirement-orchestrator/requirements_spec.md。'
 tools: [Read, Write, Edit, Glob, Grep, TodoWrite]
 user-invocable: true
 agents: []
@@ -10,7 +10,7 @@ agents: []
 **禁止递归调用**: 不得调用任何 subagent。
 
 ## 核心目标
-根据输入的功能规范生成结构化软件需求文档，写入 `requirements/requirements_spec.md`。
+根据输入的功能规范生成结构化软件需求文档，写入 `software-requirement-orchestrator/requirements_spec.md`。
 
 ## 工作流程
 
@@ -23,7 +23,7 @@ agents: []
 **重要**：不要过度分析，快速提取核心内容即可。
 
 ### 第二步：立即开始写文档
-直接调用 Write 工具创建 `requirements/requirements_spec.md`，格式：
+直接调用 Write 工具创建 `software-requirement-orchestrator/requirements_spec.md`，格式：
 
 # [系统名称] 软件需求规格书
 
@@ -56,4 +56,4 @@ agents: []
 - **不要先读取 SKILL.md 文件**，直接根据输入生成
 - **立即开始写文件**，不要长时间思考
 - 标记所有不确定项为 [待确认]
-- 输出路径固定为 `requirements/requirements_spec.md`
+- 输出路径固定为 `software-requirement-orchestrator/requirements_spec.md`

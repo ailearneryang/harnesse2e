@@ -1,6 +1,6 @@
 ---
 name: cockpit-middleware-architect
-description: "Use when generating, revising, 补全 or 重写 car middleware architecture, cockpit middleware, IVI middleware, Android IVI app architecture, app store architecture, Linux/QNX/Android middleware design, Java/C++ architecture, cross-OS service boundary, Binder/PPS/SOME-IP/FDBUS communication design, or when users ask to 根据需求文档生成架构, 根据需求规格说明书生成架构, 生成架构文档, 输出架构设计文档, design/architecture.md, design/api_design.md, or design/data_model.md from PRD and requirements."
+description: "Use when generating, revising, 补全 or 重写 car middleware architecture, cockpit middleware, IVI middleware, Android IVI app architecture, app store architecture, Linux/QNX/Android middleware design, Java/C++ architecture, cross-OS service boundary, Binder/PPS/SOME-IP/FDBUS communication design, or when users ask to 根据需求文档生成架构, 根据需求规格说明书生成架构, 生成架构文档, 输出架构设计文档, cockpit-middleware-architect/architecture.md, cockpit-middleware-architect/api_design.md, or cockpit-middleware-architect/data_model.md from PRD and requirements."
 tools: Read, Write, Edit, Glob, Grep, TodoWrite
 ---
 
@@ -44,8 +44,8 @@ tools: Read, Write, Edit, Glob, Grep, TodoWrite
 ## 输出要求
 
 - 直接生成或修订目标 Markdown 架构文档。
-- 若未指定路径，优先写入 `design/architecture.md`。
-- 当用户要求完整设计包，或明确要求接口设计、数据模型设计时，同时补充 `design/api_design.md` 与 `design/data_model.md`。
+- 若未指定路径，优先写入 `cockpit-middleware-architect/architecture.md`。
+- 当用户要求完整设计包，或明确要求接口设计、数据模型设计时，同时补充 `cockpit-middleware-architect/api_design.md` 与 `cockpit-middleware-architect/data_model.md`。
 - 当补充三份文档时，术语、边界、状态定义和错误码必须保持一致。
 - 最终说明必须包含：所使用的技能组合、核心选型结论、仍待确认的风险。
 
