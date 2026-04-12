@@ -88,9 +88,9 @@ BUILTIN_TEMPLATES = [
 AVAILABLE_STAGES = {
     "intake": {"name": "Request Intake", "default_agent": "planner"},
     "planning": {"name": "Sprint Planning", "default_agent": "planner"},
-    "requirements": {"name": "Requirements", "default_agent": "requirements-analyst"},
+    "requirements": {"name": "Requirements", "default_agent": "software-requirement-orchestrator"},
     "software-requirement-orchestrator": {"name": "Software Requirement Orchestrator", "default_agent": "software-requirement-orchestrator"},
-    "design": {"name": "System Design", "default_agent": "system-architect"},
+    "design": {"name": "System Design", "default_agent": "cockpit-middleware-architect"},
     "cockpit-middleware-architect": {"name": "Cockpit Middleware Architect", "default_agent": "cockpit-middleware-architect"},
     "development": {"name": "Implementation", "default_agent": "developer"},
     "code_review": {"name": "Code Review", "default_agent": "code-reviewer"},
@@ -115,6 +115,37 @@ class PipelineTemplateManager:
         self._ensure_schema()
         self._ensure_builtin_templates()
         self._migrate_existing_pipeline()
+
+    def _preferred_default_template_id(self, rows: List[Any]) -> str:
+        """Choose the single default template to preserve."""
+        default_rows = [row for row in rows if row["is_default"]]
+        if not default_rows:
+            return "default"
+        if len(default_rows) == 1:
+            return default_rows[0]["id"]
+
+        custom_defaults = [row for row in default_rows if not row["is_builtin"]]
+        candidates = custom_defaults or default_rows
+        ordered = sorted(
+            candidates,
+            key=lambda row: ((row["updated_at"] or ""), (row["created_at"] or ""), row["id"]),
+            reverse=True,
+        )
+        return ordered[0]["id"] if ordered else "default"
+
+    def _normalize_default_template(self, conn, preferred_default_id: str) -> None:
+        """Ensure exactly one template is marked default."""
+        chosen = conn.execute(
+            "SELECT id FROM pipeline_templates WHERE id = ?",
+            (preferred_default_id,),
+        ).fetchone()
+        default_id = preferred_default_id if chosen else "default"
+        now = datetime.now().isoformat()
+        conn.execute("UPDATE pipeline_templates SET is_default = 0 WHERE id != ?", (default_id,))
+        conn.execute(
+            "UPDATE pipeline_templates SET is_default = 1, updated_at = ? WHERE id = ?",
+            (now, default_id),
+        )
 
     def _ensure_schema(self) -> None:
         """Create pipeline_templates table if not exists."""
@@ -162,6 +193,11 @@ class PipelineTemplateManager:
         with self._lock:
             conn = self.state_store._connect()
             try:
+                existing_rows = conn.execute(
+                    "SELECT id, is_builtin, is_default, created_at, updated_at FROM pipeline_templates"
+                ).fetchall()
+                preferred_default_id = self._preferred_default_template_id(existing_rows)
+
                 for template in BUILTIN_TEMPLATES:
                     existing = conn.execute(
                         "SELECT id, usage_count FROM pipeline_templates WHERE id = ?",
@@ -183,7 +219,7 @@ class PipelineTemplateManager:
                                 template["name"],
                                 template.get("description", ""),
                                 stages_json,
-                                1 if template.get("is_default") else 0,
+                                1 if template["id"] == preferred_default_id else 0,
                                 now,
                                 template["id"],
                             ),
@@ -200,12 +236,16 @@ class PipelineTemplateManager:
                                 template["name"],
                                 template.get("description", ""),
                                 stages_json,
-                                1 if template.get("is_default") else 0,
+                                1 if template["id"] == preferred_default_id else 0,
                                 now,
                                 now,
                             ),
                         )
-                    self._sync_to_file(template)
+                    synced_template = dict(template)
+                    synced_template["is_default"] = template["id"] == preferred_default_id
+                    self._sync_to_file(synced_template)
+
+                self._normalize_default_template(conn, preferred_default_id)
                 conn.commit()
             except Exception as e:
                 conn.rollback()

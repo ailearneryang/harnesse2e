@@ -44,8 +44,8 @@ from state_machine import PipelineEngine
 DEFAULT_PIPELINE_ORDER = [
     "intake",
     "planning",
-    "requirements",
-    "design",
+    "software-requirement-orchestrator",
+    "cockpit-middleware-architect",
     "development",
     "code_review",
     "security_review",
@@ -57,9 +57,7 @@ DEFAULT_PIPELINE_ORDER = [
 
 DEFAULT_AGENTS = [
     {"id": "planner", "name": "Planner", "model": "claude-opus", "role": "scope tasks and define a sprint contract"},
-    {"id": "requirements-analyst", "name": "Requirements Analyst", "model": "claude-opus", "role": "turn requests into a traceable requirement spec"},
     {"id": "software-requirement-orchestrator", "name": "Software Requirement Orchestrator", "model": "claude-opus", "role": "orchestrate software requirement generation and quality gate"},
-    {"id": "system-architect", "name": "System Architect", "model": "claude-opus", "role": "design architecture, APIs, and data flow"},
     {"id": "cockpit-middleware-architect", "name": "Cockpit Middleware Architect", "model": "claude-opus", "role": "design IVI/cockpit middleware architecture across Linux/QNX/Android"},
     {"id": "developer", "name": "Developer", "model": "claude-sonnet", "role": "implement changes in the target workspace"},
     {"id": "code-reviewer", "name": "Code Reviewer", "model": "claude-opus", "role": "independently review code quality and logic"},
@@ -71,12 +69,12 @@ DEFAULT_AGENTS = [
     {"id": "delivery-manager", "name": "Delivery Manager", "model": "system", "role": "submit changes to Gerrit and notify Feishu"},
 ]
 
-STAGE_TO_AGENT = {
+STAGE_DEFAULT_AGENTS = {
     "intake": "planner",
     "planning": "planner",
-    "requirements": "requirements-analyst",
+    "requirements": "software-requirement-orchestrator",
     "software-requirement-orchestrator": "software-requirement-orchestrator",
-    "design": "system-architect",
+    "design": "cockpit-middleware-architect",
     "cockpit-middleware-architect": "cockpit-middleware-architect",
     "development": "developer",
     "code_review": "code-reviewer",
@@ -86,6 +84,11 @@ STAGE_TO_AGENT = {
     "delivery": "delivery-manager",
     "build_verification": "build-verifier",
     "debugger": "debugger",
+}
+
+LEGACY_AGENT_ALIASES = {
+    "requirements-analyst": "software-requirement-orchestrator",
+    "system-architect": "cockpit-middleware-architect",
 }
 
 STAGE_TITLES = {
@@ -165,10 +168,6 @@ class PipelineRunner:
         self.custom_pipeline_file = os.path.join(self.data_dir, "custom_pipeline.yaml")
         custom = self._load_yaml(self.custom_pipeline_file, None)
         self.pipeline_config = custom if custom else dict(self.default_pipeline_config)
-        self.agent_config = self._load_yaml(
-            os.path.join(harness_dir, "agents", "agents.yaml"),
-            {"agents": []},
-        )
         self.settings = self._load_settings()
         self.engine = PipelineEngine(harness_dir, budget_limit=self.settings["budget_limit"])
         self.event_bus = EventBus(self.data_dir)
@@ -184,10 +183,6 @@ class PipelineRunner:
         self.gerrit = GerritAdapter(self.settings["gerrit"])
         self.hil = HILAdapter(self.settings["hil"])
         self.build_verifier = BuildVerificationAdapter(self.settings["build_verification"])
-        self.agent_identities = self._load_yaml(
-            os.path.join(harness_dir, "agents", "identities.yaml"),
-            {},
-        )
         self.target_repo = self._resolve_target_repo(self.settings.get("target_repo"))
 
         # Initialize pipeline template manager
@@ -197,6 +192,7 @@ class PipelineRunner:
         self.agents = self._build_agent_state()
         self.runtime = self._load_runtime_state()
         self._ensure_runtime_shape()
+        self._sync_agent_registry()
 
     def _load_yaml(self, path: str, default: Dict) -> Dict:
         if not os.path.exists(path) or yaml is None:
@@ -257,12 +253,154 @@ class PipelineRunner:
             return os.path.normpath(candidate)
         return os.path.normpath(os.path.join(self.harness_dir, candidate))
 
-    def _build_agent_state(self) -> Dict[str, Dict]:
-        configured = {agent.get("id"): agent for agent in self.agent_config.get("agents", [])}
-        agents: Dict[str, Dict] = {}
+    def _discover_claude_agent_ids(self) -> List[str]:
+        agents_dir = os.path.join(self.target_repo, ".claude", "agents")
+        if not os.path.isdir(agents_dir):
+            return []
+        return [
+            item
+            for item in sorted(os.listdir(agents_dir))
+            if os.path.isdir(os.path.join(agents_dir, item))
+        ]
+
+    def _claude_agent_doc_path(self, agent_id: str) -> str:
+        return os.path.join(self.target_repo, ".claude", "agents", agent_id, f"{agent_id}.md")
+
+    def _read_claude_agent_metadata(self, agent_id: str) -> Dict:
+        doc_path = self._claude_agent_doc_path(agent_id)
+        if not os.path.isfile(doc_path):
+            return {}
+
+        with open(doc_path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+
+        if not content.startswith("---\n"):
+            return {}
+
+        _, _, remainder = content.partition("---\n")
+        frontmatter, separator, _ = remainder.partition("\n---\n")
+        if not separator or yaml is None:
+            return {}
+
+        loaded = yaml.safe_load(frontmatter) or {}
+        if not isinstance(loaded, dict):
+            return {}
+        return loaded
+
+    def _stage_definitions(self, stage_definitions: Optional[List[Dict]] = None) -> List[Dict]:
+        source = stage_definitions if stage_definitions is not None else self.pipeline_config.get("stages", [])
+        return [stage for stage in source if isinstance(stage, dict) and stage.get("id")]
+
+    def _canonical_agent_id(self, agent_id: Optional[str]) -> Optional[str]:
+        if not isinstance(agent_id, str):
+            return None
+        return LEGACY_AGENT_ALIASES.get(agent_id, agent_id)
+
+    def _stage_agent_id(self, stage_id: str, stage_definitions: Optional[List[Dict]] = None) -> str:
+        for stage in self._stage_definitions(stage_definitions):
+            if stage.get("id") == stage_id and stage.get("agent"):
+                return self._canonical_agent_id(stage["agent"]) or "planner"
+        return self._canonical_agent_id(STAGE_DEFAULT_AGENTS.get(stage_id, "planner")) or "planner"
+
+    def _task_stage_definitions(self, task: Dict) -> List[Dict]:
+        snapshot = task.get("pipeline_snapshot")
+        if isinstance(snapshot, list) and snapshot:
+            return self._stage_definitions(snapshot)
+        return self._stage_definitions()
+
+    def _task_stage_agent_id(self, task: Dict, stage_id: str) -> str:
+        stage_state = (task.get("stages") or {}).get(stage_id, {})
+        if stage_state.get("agent_id"):
+            return self._canonical_agent_id(stage_state["agent_id"]) or "planner"
+        return self._stage_agent_id(stage_id, self._task_stage_definitions(task))
+
+    def _agent_metadata(self, agent_id: str) -> Dict:
+        frontmatter = self._read_claude_agent_metadata(agent_id)
+        if frontmatter:
+            return {
+                "id": agent_id,
+                "name": frontmatter.get("name") or agent_id,
+                "model": frontmatter.get("model") or "claude",
+                "role": frontmatter.get("description") or "",
+                "description": frontmatter.get("description") or "",
+                "doc_path": self._claude_agent_doc_path(agent_id),
+            }
         for agent in DEFAULT_AGENTS:
-            merged = dict(agent)
-            merged.update(configured.get(agent["id"], {}))
+            if agent["id"] == agent_id:
+                return dict(agent)
+        label = agent_id.replace("-", " ").replace("_", " ").strip()
+        return {
+            "id": agent_id,
+            "name": " ".join(part.capitalize() for part in label.split()) or agent_id,
+            "model": "claude",
+            "role": "",
+        }
+
+    def _referenced_agent_ids(self) -> List[str]:
+        agent_ids = set(self._discover_claude_agent_ids())
+        agent_ids.update(
+            self._canonical_agent_id(stage.get("agent"))
+            for stage in self._stage_definitions()
+            if stage.get("agent")
+        )
+
+        runtime = getattr(self, "runtime", {}) or {}
+        for task in runtime.get("tasks", []):
+            agent_ids.update(
+                self._canonical_agent_id(stage.get("agent"))
+                for stage in self._task_stage_definitions(task)
+                if stage.get("agent")
+            )
+            for stage_state in (task.get("stages") or {}).values():
+                agent_id = self._canonical_agent_id(stage_state.get("agent_id"))
+                if agent_id:
+                    agent_ids.add(agent_id)
+
+        agent_ids.add("debugger")
+        return [agent_id for agent_id in sorted(agent_ids) if agent_id]
+
+    def _ensure_agent_state(self, agent_id: str) -> Dict:
+        agent = self.agents.get(agent_id)
+        if agent:
+            return agent
+
+        merged = self._agent_metadata(agent_id)
+        merged.update(
+            {
+                "status": "idle",
+                "current_task_id": None,
+                "last_stage": None,
+                "last_message": "",
+                "completed_tasks": 0,
+            }
+        )
+        self.agents[agent_id] = merged
+        return merged
+
+    def _sync_agent_registry(self) -> None:
+        current_agents = getattr(self, "agents", {}) or {}
+        refreshed: Dict[str, Dict] = {}
+
+        for agent_id in self._referenced_agent_ids():
+            merged = self._agent_metadata(agent_id)
+            current = current_agents.get(agent_id, {})
+            merged.update(
+                {
+                    "status": current.get("status", "idle"),
+                    "current_task_id": current.get("current_task_id"),
+                    "last_stage": current.get("last_stage"),
+                    "last_message": current.get("last_message", ""),
+                    "completed_tasks": current.get("completed_tasks", 0),
+                }
+            )
+            refreshed[agent_id] = merged
+
+        self.agents = refreshed
+
+    def _build_agent_state(self) -> Dict[str, Dict]:
+        agents: Dict[str, Dict] = {}
+        for agent_id in self._referenced_agent_ids():
+            merged = self._agent_metadata(agent_id)
             merged.update(
                 {
                     "status": "idle",
@@ -272,7 +410,7 @@ class PipelineRunner:
                     "completed_tasks": 0,
                 }
             )
-            agents[merged["id"]] = merged
+            agents[agent_id] = merged
         return agents
 
     def _resolve_pipeline_order(self) -> List[str]:
@@ -302,6 +440,7 @@ class PipelineRunner:
             return json.load(handle)
 
     def _ensure_runtime_shape(self) -> None:
+        runtime_changed = False
         self.runtime.setdefault("tasks", [])
         self.runtime.setdefault("current_task_id", None)
         self.runtime.setdefault("started_at", datetime.now().isoformat())
@@ -318,18 +457,53 @@ class PipelineRunner:
             task.setdefault("yield_to_front", False)
             task.setdefault("yield_target_status", "queued")
             task.setdefault("run_dir", self._ensure_run_layout(task["id"]))
-            stage_defaults = self._empty_stage_map()
+            runtime_changed = self._migrate_legacy_task_agents(task) or runtime_changed
+            stage_defaults = self._empty_stage_map(self._task_stage_definitions(task))
             existing = task.setdefault("stages", {})
             for stage_id, stage_payload in stage_defaults.items():
-                existing.setdefault(stage_id, stage_payload)
+                current_stage = existing.setdefault(stage_id, stage_payload)
+                current_stage.setdefault("title", stage_payload["title"])
+                if current_stage.get("agent_id") != self._canonical_agent_id(current_stage.get("agent_id")):
+                    current_stage["agent_id"] = self._canonical_agent_id(current_stage.get("agent_id"))
+                    runtime_changed = True
+                current_stage.setdefault("agent_id", stage_payload["agent_id"])
             self._write_run_metadata(task)
+        if runtime_changed:
+            self._persist_runtime()
 
-    def _empty_stage_map(self) -> Dict[str, Dict]:
+    def _migrate_legacy_task_agents(self, task: Dict) -> bool:
+        changed = False
+
+        snapshot = task.get("pipeline_snapshot")
+        if isinstance(snapshot, list):
+            for stage in snapshot:
+                if not isinstance(stage, dict):
+                    continue
+                canonical_agent = self._canonical_agent_id(stage.get("agent"))
+                if canonical_agent and stage.get("agent") != canonical_agent:
+                    stage["agent"] = canonical_agent
+                    changed = True
+
+        for stage_state in (task.get("stages") or {}).values():
+            if not isinstance(stage_state, dict):
+                continue
+            canonical_agent = self._canonical_agent_id(stage_state.get("agent_id"))
+            if canonical_agent and stage_state.get("agent_id") != canonical_agent:
+                stage_state["agent_id"] = canonical_agent
+                changed = True
+
+        return changed
+
+    def _empty_stage_map(self, stage_definitions: Optional[List[Dict]] = None) -> Dict[str, Dict]:
+        definitions = self._stage_definitions(stage_definitions)
+        stage_ids = [stage.get("id") for stage in definitions if stage.get("id")]
+        if not stage_ids:
+            stage_ids = list(self.pipeline_order)
         return {
-            stage: {
-                "title": STAGE_TITLES.get(stage, stage),
+            stage_id: {
+                "title": STAGE_TITLES.get(stage_id, stage_id),
                 "status": "pending",
-                "agent_id": STAGE_TO_AGENT.get(stage, "planner"),
+                "agent_id": self._stage_agent_id(stage_id, definitions),
                 "attempts": 0,
                 "summary": "",
                 "verdict": None,
@@ -338,7 +512,7 @@ class PipelineRunner:
                 "artifact_paths": [],
                 "logs": [],
             }
-            for stage in self.pipeline_order
+            for stage_id in stage_ids
         }
 
     def _task_pipeline_order(self, task: Dict) -> List[str]:
@@ -574,7 +748,7 @@ class PipelineRunner:
             "yield_reason": "",
             "yield_to_front": False,
             "yield_target_status": "queued",
-            "stages": self._empty_stage_map(),
+            "stages": self._empty_stage_map(pipeline_snapshot),
             "pipeline_template_id": template["id"],
             "pipeline_template_name": template.get("name", ""),
             "pipeline_snapshot": pipeline_snapshot,
@@ -593,6 +767,7 @@ class PipelineRunner:
                     running_task["updated_at"] = datetime.now().isoformat()
             insert_at = self._queue_insert_index_locked(front=prioritize)
             self.runtime["tasks"].insert(insert_at, task)
+            self._sync_agent_registry()
             self._persist_runtime()
         self._update_latest_run_link(run_dir)
         self._write_run_metadata(task)
@@ -1319,7 +1494,7 @@ class PipelineRunner:
                     task["stages"][stage_id] = {
                         "title": STAGE_TITLES.get(stage_id, stage_id),
                         "status": "pending",
-                        "agent_id": STAGE_TO_AGENT.get(stage_id, "planner"),
+                        "agent_id": self._task_stage_agent_id(task, stage_id),
                         "attempts": 0,
                         "summary": "",
                         "verdict": None,
@@ -1641,7 +1816,7 @@ class PipelineRunner:
         )
 
     def _set_agent_status(self, agent_id: str, status: str, task_id: Optional[str], stage: Optional[str], message: str) -> None:
-        agent = self.agents[agent_id]
+        agent = self._ensure_agent_state(agent_id)
         agent["status"] = status
         agent["current_task_id"] = task_id
         agent["last_stage"] = stage
@@ -1653,7 +1828,7 @@ class PipelineRunner:
         # Inject memory context (historical experience)
         memory_section = []
         try:
-            agent_id = STAGE_TO_AGENT.get(stage, stage)
+            agent_id = self._task_stage_agent_id(task, stage)
             memory_ctx = self.memory_injector.build_memory_context(stage, task["request_text"], agent_id)
             if memory_ctx:
                 memory_section = [self.memory_injector.format_for_prompt(memory_ctx), ""]
@@ -1802,7 +1977,7 @@ class PipelineRunner:
         self._write_run_metadata(task)
 
     def _capture_success_memory(self, task: Dict, stage: str, summary: str) -> None:
-        agent_id = STAGE_TO_AGENT.get(stage)
+        agent_id = self._task_stage_agent_id(task, stage)
         if agent_id and summary:
             self.memory_extractor.extract_agent_memory(
                 agent_id=agent_id,
@@ -1890,8 +2065,7 @@ class PipelineRunner:
         )
 
     def _agent_identity(self, agent_id: str) -> Optional[str]:
-        identity = self.agent_identities.get(agent_id)
-        return identity if isinstance(identity, str) and identity.strip() else None
+        return None
 
     def _wrap_output(self, task: Dict, stage: str, output_text: str, heading: Optional[str] = None) -> str:
         title = heading or STAGE_TITLES.get(stage, stage)
@@ -2165,12 +2339,13 @@ def create_api_app(runner: PipelineRunner) -> Flask:
             return jsonify({"error": "stages list is required"}), 400
         # 验证所有 stage 有对应的 agent 和 title
         stage_ids = [s.get("id") for s in new_stages if s.get("id")]
-        invalid_stages = [s for s in stage_ids if s not in STAGE_TO_AGENT or s not in STAGE_TITLES]
+        invalid_stages = [s for s in stage_ids if s not in STAGE_TITLES]
         if invalid_stages:
-            return jsonify({"error": f"Unknown stage IDs: {invalid_stages}. Valid stages: {list(STAGE_TO_AGENT.keys())}"}), 400
+            return jsonify({"error": f"Unknown stage IDs: {invalid_stages}. Valid stages: {list(STAGE_TITLES.keys())}"}), 400
         # Save to custom file, never touch pipeline.yaml
         runner.pipeline_config = {"stages": new_stages}
         runner.pipeline_order = runner._resolve_pipeline_order()
+        runner._sync_agent_registry()
         if yaml:
             with open(runner.custom_pipeline_file, "w", encoding="utf-8") as fh:
                 yaml.dump(runner.pipeline_config, fh, allow_unicode=True, default_flow_style=False, sort_keys=False)
@@ -2184,6 +2359,7 @@ def create_api_app(runner: PipelineRunner) -> Flask:
             os.remove(runner.custom_pipeline_file)
         runner.pipeline_config = dict(runner.default_pipeline_config)
         runner.pipeline_order = runner._resolve_pipeline_order()
+        runner._sync_agent_registry()
         runner._emit("pipeline_reset", "Pipeline reverted to system default", source="system")
         return jsonify({"stages": runner.pipeline_config.get("stages", []), "order": runner.pipeline_order, "is_custom": False})
 
