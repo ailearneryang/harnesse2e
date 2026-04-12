@@ -4013,6 +4013,7 @@ function renderApp(options = {}) {
     const savedText = document.getElementById('req-text')?.value ?? '';
     const savedSource = document.getElementById('req-source')?.value ?? 'web';
     const savedPrioritize = !!document.getElementById('req-prioritize')?.checked;
+    const savedTemplateId = document.getElementById('req-template')?.value ?? selectedTemplateId ?? '';
     const savedPageScrollTop = document.getElementById('page-' + activeTabId)?.scrollTop ?? 0;
 
     app.classList.toggle('no-page-animation', !animate);
@@ -4120,6 +4121,11 @@ function renderApp(options = {}) {
     if (tx) tx.value = savedText;
     if (sr) sr.value = savedSource;
     if (pr) pr.checked = savedPrioritize;
+    selectedTemplateId = savedTemplateId || selectedTemplateId || null;
+    updateTemplateSelector();
+    const templateSelect = document.getElementById('req-template');
+    if (templateSelect) templateSelect.value = savedTemplateId || '';
+    updateTemplatePreview();
     updateRequestTitleState();
 
     /* Restore sidebar collapsed state */
@@ -4154,6 +4160,7 @@ function updateRuntimeUI(options = {}) {
     const savedText = document.getElementById('req-text')?.value ?? '';
     const savedSource = document.getElementById('req-source')?.value ?? 'web';
     const savedPrioritize = !!document.getElementById('req-prioritize')?.checked;
+    const savedTemplateId = document.getElementById('req-template')?.value ?? selectedTemplateId ?? '';
     const activePage = document.getElementById('page-' + activeTabId);
     const savedPageScrollTop = activePage?.scrollTop ?? 0;
 
@@ -4181,6 +4188,11 @@ function updateRuntimeUI(options = {}) {
     if (tx) tx.value = savedText;
     if (sr) sr.value = savedSource;
     if (pr) pr.checked = savedPrioritize;
+    selectedTemplateId = savedTemplateId || selectedTemplateId || null;
+    updateTemplateSelector();
+    const templateSelect = document.getElementById('req-template');
+    if (templateSelect) templateSelect.value = savedTemplateId || '';
+    updateTemplatePreview();
     updateRequestTitleState();
 
     if (activeTabId === 'pipeline') {

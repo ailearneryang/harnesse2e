@@ -55,3 +55,6 @@ specs/processed/
 
 # Test files
 test_parse_harness.py
+
+# Generated files
+.feishu-bot.pid

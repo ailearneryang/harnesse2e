@@ -1,7 +1,7 @@
 description: ''
 id: tpl-20260411-4bd614
 is_builtin: false
-is_default: false
+is_default: true
 name: 我的流程
 stages:
 - agent: planner
