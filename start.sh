@@ -14,7 +14,7 @@ FEISHU_PID=""
 pkill -f "claude --print" 2>/dev/null || true
 
 # 加载 Claude Code CLI 环境（代理 + 认证）
-CLAUDE_ENV="/Users/xing/cc-haha/claude-global-env.sh"
+CLAUDE_ENV="$DIR/../cc-haha/claude-global-env.sh"
 if [ -f "$CLAUDE_ENV" ]; then
     echo "Loading Claude Code environment..."
     source "$CLAUDE_ENV"
