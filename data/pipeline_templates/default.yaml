@@ -1,7 +1,7 @@
 description: 包含从需求分析到构建验证的完整 pipeline，适用于正式需求
 id: default
 is_builtin: true
-is_default: false
+is_default: true
 name: 完整流程
 stages:
 - agent: planner

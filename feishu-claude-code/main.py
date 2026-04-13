@@ -647,12 +647,18 @@ def on_card_action(data: P2CardActionTrigger) -> P2CardActionTriggerResponse:
     # 命令菜单按钮 → 当作用户发了一条命令消息
     if action_type == "run_cmd":
         cmd_text = value.get("cmd", "")
+        # 如果卡片带有 form_value，如 supplement_input，则追加到指令后面
+        if hasattr(event.action, "form_value") and event.action.form_value:
+            extra_input = event.action.form_value.get("supplemental_input", "").strip()
+            if extra_input:
+                cmd_text += f"\n补充说明：{extra_input}"
+
         if cmd_text and _ws_loop:
             asyncio.ensure_future(_handle_menu_command(user_id, chat_id, cmd_text, clicked_msg_id))
         resp = P2CardActionTriggerResponse()
         toast = CallBackToast()
         toast.type = "info"
-        toast.content = cmd_text
+        toast.content = cmd_text[:50] + "..." if len(cmd_text) > 50 else cmd_text
         resp.toast = toast
         return resp
 

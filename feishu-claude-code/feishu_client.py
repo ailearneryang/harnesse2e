@@ -274,9 +274,23 @@ class FeishuClient:
         return tmp_path
 
     async def update_card_with_buttons(self, message_id: str, content: str, buttons: list[dict],
-                                      flow: bool = False):
-        """更新卡片内容并附加操作按钮。flow=True 时横排自动换行，False 时竖排。"""
+                                      flow: bool = False, use_input: bool = False):
+        """
+        更新卡片内容并附加操作按钮。
+        flow=True 时横排自动换行，False 时竖排。
+        use_input=True 时在按钮上方添加一个带 name 的文本输入框（供表单提交）。
+        """
         base = json.loads(_card_json(content))
+        
+        # 添加文本输入框组件 (表单)
+        if use_input:
+            base["body"]["elements"].append({
+                "tag": "input",
+                "name": "supplemental_input",
+                "placeholder": {"tag": "plain_text", "content": "补充说明（选填）"},
+                "max_length": 1000
+            })
+            
         btn_elements = []
         for i, btn in enumerate(buttons):
             btn_elements.append({

@@ -49,7 +49,7 @@ def _run_async_send(send_coro):
     else:
         loop.run_until_complete(send_coro())
 
-def notify_stage_completed(title: str, content: str, stage: str, task_id: str):
+def notify_stage_completed(title: str, content: str, stage: str, task_id: str, artifact_paths: list = None):
     """
     Called by the engine when a task stage completes successfully.
     Sends an informational rich text card to the admin user via Feishu.
@@ -58,11 +58,35 @@ def notify_stage_completed(title: str, content: str, stage: str, task_id: str):
     if not fc or not admin_open_id:
         return
 
+    extra_info = ""
+    # 提取 intake 阶段需要确认的点并在飞书展示
+    if artifact_paths:
+        extra_info += "\n\n**📦 阶段产物 (Artifacts)**"
+        for p in artifact_paths:
+            if p.endswith(".md"):
+                # 如果是 Markdown 文件，记录它的文件名
+                filename = os.path.basename(p)
+                extra_info += f"\n- {filename} (已生成)"
+                
+                # 特别针对 intake/requirements/planning 等文档，尝试提取 "需确认的点" 或 "待确认"
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        text = f.read()
+                        
+                    # 尝试寻找相关标题
+                    import re
+                    match = re.search(r'(#{2,4}\s*(需确认的点|待确认的问题|问题与澄清|Issues to Clarify|待沟通事宜)[\s\S]*?)(?=\n#{1,4}\s|\Z)', text, re.IGNORECASE)
+                    if match:
+                        questions = match.group(1).strip()
+                        extra_info += f"\n\n**❓ 发现待确认事项 ({filename})**\n> " + questions.replace('\n', '\n> ')
+                except Exception:
+                    pass
     msg = (f"**✅ 阶段完成通知 (Stage Completed)**\n\n"
            f"**Task ID**: {task_id}\n"
            f"**Stage**: {stage}\n\n"
            f"**状态摘要**: {title}\n\n"
-           f"{content}")
+           f"{content}"
+           f"{extra_info}")
 
     async def _send():
         try:
@@ -73,7 +97,7 @@ def notify_stage_completed(title: str, content: str, stage: str, task_id: str):
 
     _run_async_send(_send)
 
-def notify_user_for_feedback(title: str, content: str, stage: str, task_id: str):
+def notify_user_for_feedback(title: str, content: str, stage: str, task_id: str, options: list = None):
     """
     Called by the engine when a task fails and needs human intervention.
     Sends a rich text card to the admin user via Feishu.
@@ -88,14 +112,29 @@ def notify_user_for_feedback(title: str, content: str, stage: str, task_id: str)
            f"**异常/确认摘要**: {title}\n\n"
            f"{content}\n\n"
            f"---\n"
-           f"💡 *操作指南*：您可以直接在这里回复我，比如：\n"
-           f"> 帮我看下错误日志里写了{stage}什么问题，修复该问题然后恢复流水线！\n"
-           f"> (通过 CLI 会自动调用 /api/control/resume)")
+           f"💡 *操作指南*：请选择下方选项，您可以同时填写补充说明一起提交。\n")
+
+    # 构建动态选项或兜底按钮
+    buttons = []
+    if options and isinstance(options, list) and len(options) > 0:
+        for opt in options:
+            buttons.append({
+                "text": str(opt),
+                "value": {"action": "run_cmd", "cmd": f"/reply {str(opt)}"}
+            })
+    else:
+        buttons = [
+            {"text": "✅ 没问题，直接放行", "value": {"action": "run_cmd", "cmd": "/reply 授权通过，无额外修改意见"}},
+            {"text": "🔧 尝试使用 debug 模式修复", "value": {"action": "run_cmd", "cmd": "/reply 请查阅日志并尝试自动修复"}},
+            {"text": "🛑 拒绝挂起", "value": {"action": "run_cmd", "cmd": "/reply 拒绝挂起"}}
+        ]
 
     async def _send():
         try:
-            await fc.send_card_to_user(open_id=admin_open_id, content=msg, loading=False)
-            print(f"Successfully sent feishu notification to {admin_open_id}")
+            msg_id = await fc.send_card_to_user(open_id=admin_open_id, content=msg, loading=False)
+            if msg_id:
+                await fc.update_card_with_buttons(msg_id, msg, buttons, use_input=True)
+            print(f"Successfully sent feishu notification with options to {admin_open_id}")
         except Exception as e:
             print(f"Failed to send Feishu notification: {e}")
 

@@ -32,8 +32,12 @@ if [ ! -d "$FEISHU_VENV" ]; then
 fi
 
 # 安装依赖
-"$VENV/bin/pip" install -q -r "$DIR/requirements/runtime.txt"
-"$FEISHU_VENV/bin/pip" install -q -r "$FEISHU_DIR/requirements.txt"
+if [ -f "$DIR/requirements/runtime.txt" ]; then
+    "$VENV/bin/pip" install -q -r "$DIR/requirements/runtime.txt"
+fi
+if [ -f "$FEISHU_DIR/requirements.txt" ]; then
+    "$FEISHU_VENV/bin/pip" install -q -r "$FEISHU_DIR/requirements.txt"
+fi
 
 cleanup() {
     if [ -n "$FEISHU_PID" ] && kill -0 "$FEISHU_PID" 2>/dev/null; then
@@ -58,6 +62,9 @@ fi
 
 # 杀掉占用端口的进程
 lsof -ti:"$PORT" | xargs kill -9 2>/dev/null || true
+
+export HARNESS_CLAUDE_HARD_TIMEOUT=3600
+export HARNESS_CLAUDE_IDLE_TIMEOUT=600
 
 # 检查是否启用 Feishu
 FEISHU_ENABLED=$(python3 -c "import json; print(json.load(open('$DIR/data/integration_settings.json')).get('feishu',{}).get('enabled', False))" 2>/dev/null || echo "False")

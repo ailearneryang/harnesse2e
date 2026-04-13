@@ -56,15 +56,15 @@ DEFAULT_PIPELINE_ORDER = [
 ]
 
 DEFAULT_AGENTS = [
-    {"id": "planner", "name": "Planner", "model": "claude-opus", "role": "scope tasks and define a sprint contract"},
-    {"id": "software-requirement-orchestrator", "name": "Software Requirement Orchestrator", "model": "claude-opus", "role": "orchestrate software requirement generation and quality gate"},
-    {"id": "cockpit-middleware-architect", "name": "Cockpit Middleware Architect", "model": "claude-opus", "role": "design IVI/cockpit middleware architecture across Linux/QNX/Android"},
-    {"id": "developer", "name": "Developer", "model": "claude-sonnet", "role": "implement changes in the target workspace"},
-    {"id": "code-reviewer", "name": "Code Reviewer", "model": "claude-opus", "role": "independently review code quality and logic"},
-    {"id": "security-reviewer", "name": "Security Reviewer", "model": "claude-opus", "role": "independently review security and compliance risks"},
-    {"id": "safety-reviewer", "name": "Safety Reviewer", "model": "claude-opus", "role": "review ISO 26262, AUTOSAR, and vehicle safety compliance impacts"},
-    {"id": "qa-engineer", "name": "QA Engineer", "model": "claude-sonnet", "role": "execute validation, tests, and acceptance checks"},
-    {"id": "debugger", "name": "Debugger", "model": "claude-sonnet", "role": "apply narrow fixes after failed review or QA"},
+    {"id": "planner", "name": "Planner", "model": "anthropic/claude-opus-4-6", "role": "scope tasks and define a sprint contract"},
+    {"id": "software-requirement-orchestrator", "name": "Software Requirement Orchestrator", "model": "anthropic/claude-opus-4-6", "role": "orchestrate software requirement generation and quality gate"},
+    {"id": "cockpit-middleware-architect", "name": "Cockpit Middleware Architect", "model": "anthropic/claude-opus-4-6", "role": "design IVI/cockpit middleware architecture across Linux/QNX/Android"},
+    {"id": "developer", "name": "Developer", "model": "anthropic/claude-sonnet-4-6", "role": "implement changes in the target workspace"},
+    {"id": "code-reviewer", "name": "Code Reviewer", "model": "anthropic/claude-opus-4-6", "role": "independently review code quality and logic"},
+    {"id": "security-reviewer", "name": "Security Reviewer", "model": "anthropic/claude-opus-4-6", "role": "independently review security and compliance risks"},
+    {"id": "safety-reviewer", "name": "Safety Reviewer", "model": "anthropic/claude-opus-4-6", "role": "review ISO 26262, AUTOSAR, and vehicle safety compliance impacts"},
+    {"id": "qa-engineer", "name": "QA Engineer", "model": "anthropic/claude-sonnet-4-6", "role": "execute validation, tests, and acceptance checks"},
+    {"id": "debugger", "name": "Debugger", "model": "anthropic/claude-sonnet-4-6", "role": "apply narrow fixes after failed review or QA"},
     {"id": "build-verifier", "name": "Build Verifier", "model": "system", "role": "trigger downstream build, static analysis, SBOM, and signing checks"},
     {"id": "delivery-manager", "name": "Delivery Manager", "model": "system", "role": "submit changes to Gerrit and notify Feishu"},
 ]
@@ -597,7 +597,10 @@ class PipelineRunner:
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2, ensure_ascii=False)
 
-    def _save_text(self, path: str, content: str) -> None:
+    def _save_text(self, path: str, content: str, preserve: bool = False) -> None:
+        if preserve and os.path.exists(path) and os.path.getsize(path) > 100:
+            # Don't clobber files that agents proactively created via tools
+            return
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(content)
@@ -1314,7 +1317,7 @@ class PipelineRunner:
                 return False
 
             transcript_path = self._write_transcript(task, stage, result)
-            summary, verdict = self._summarize_result(stage, result.output_text, result.verdict)
+            summary, verdict, options = self._summarize_result(stage, result.output_text, result.verdict)
             artifact_paths = self._materialize_stage_artifacts(task, stage, summary, result.output_text, transcript_path)
             context[stage] = {"summary": summary, "verdict": verdict, "artifact_paths": artifact_paths}
 
@@ -1344,7 +1347,8 @@ class PipelineRunner:
                     title=f"✓ 阶段 {STAGE_TITLES.get(stage, stage)} 通过",
                     content=summary or "顺利完成",
                     stage=stage,
-                    task_id=task["id"]
+                    task_id=task["id"],
+                    artifact_paths=artifact_paths
                 )
                 
                 self._emit("stage_completed", f"{STAGE_TITLES.get(stage, stage)} passed", source="pipeline", task_id=task["id"], stage=stage, data={"verdict": verdict})
@@ -1357,7 +1361,7 @@ class PipelineRunner:
             self._emit("stage_failed", f"{STAGE_TITLES.get(stage, stage)} failed on attempt {attempt}/{max_retries}", source="pipeline", task_id=task["id"], stage=stage, level="error", data={"summary": summary, "verdict": verdict})
 
             if verdict == "NEED_HUMAN":
-                feishu_notifier.notify_user_for_feedback("Manual action required", summary or f"Verification needed at {stage}.", stage, task["id"])
+                feishu_notifier.notify_user_for_feedback("Manual action required", summary or f"Verification needed at {stage}.", stage, task["id"], options)
                 self._set_task_waiting_human(task, stage, summary or f"Manual action required at {stage}")
                 return False
 
@@ -1418,7 +1422,7 @@ class PipelineRunner:
             event_callback=lambda event: self._record_agent_event(task, "debugger", "debugger", event),
         )
         transcript_path = self._write_transcript(task, "debugger", result)
-        summary, verdict = self._summarize_result("debugger", result.output_text, result.verdict)
+        summary, verdict, options = self._summarize_result("debugger", result.output_text, result.verdict)
         artifacts = self._materialize_stage_artifacts(task, "debugger", summary, result.output_text, transcript_path)
         task["stages"]["debugger"].update({"status": "passed" if result.success else "failed", "summary": summary, "verdict": verdict, "ended_at": datetime.now().isoformat(), "artifact_paths": artifacts})
         self._persist_runtime()
@@ -1922,15 +1926,39 @@ class PipelineRunner:
                 "",
                 "## Stage Instructions",
                 stage_instructions.get(stage, f"Complete the {stage} stage."),
+                "",
+                "👉 IMPORTANT: You MUST output a `<summary>` tag at the end of your response.",
+                "Inside `<summary>`, provide a Chinese summary containing:",
+                "1. What exactly was done (做了什么).",
+                "2. Quantitative metrics (完成了几项数据/量化结果).",
+                "Example: <summary>分析了 5 个文件，发现了 2 个隐患，生成了 3 条测试用例，代码重构已完成。</summary>",
             ]
         )
 
-    def _summarize_result(self, stage: str, output_text: str, verdict: Optional[str]) -> tuple[str, str]:
-        lines = [line.strip() for line in output_text.splitlines() if line.strip()]
-        summary = " ".join(lines[:4])[:500] if lines else f"{stage} completed"
+    def _summarize_result(self, stage: str, output_text: str, verdict: Optional[str]) -> tuple[str, str, list]:
+        import re
+        
+        # 尝试提取 <summary> 标签内容
+        summary_match = re.search(r'<summary>\s*(.*?)\s*</summary>', output_text, re.DOTALL)
+        if summary_match:
+            summary = summary_match.group(1).strip()[:500]
+        else:
+            lines = [line.strip() for line in output_text.splitlines() if line.strip()]
+            summary = " ".join(lines[:4])[:500] if lines else f"{stage} completed"
+            
         if verdict is None:
             verdict = "PASS"
-        return summary, verdict
+            
+        options = []
+        try:
+            import re, json
+            match = re.search(r'<options>\s*(.*?)\s*</options>', output_text, re.DOTALL)
+            if match:
+                options = json.loads(match.group(1))
+        except Exception:
+            pass
+            
+        return summary, verdict, options
 
     def _write_transcript(self, task: Dict, stage: str, result) -> str:
         transcript_path = os.path.join(task["run_dir"], "transcripts", f"{stage}.json")
@@ -1957,26 +1985,28 @@ class PipelineRunner:
 
         if stage == "planning":
             path = os.path.join(run_dir, "planning", "sprint_contract.md")
-            self._save_text(path, f"# Sprint Contract - {task['title']}\n\n{output_text}\n")
+            self._save_text(path, f"# Sprint Contract - {task['title']}\n\n{output_text}\n", preserve=True)
             artifact_paths.append(path)
         elif stage in REQUIREMENT_STAGE_IDS:
             path = os.path.join(run_dir, stage, "requirements_spec.md")
             content = self._wrap_output(task, stage, output_text)
-            self._save_text(path, content)
+            self._save_text(path, content, preserve=True)
             copy_path = os.path.join(task_dir, "requirements_spec.md")
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
             self._save_text(copy_path, content)
             artifact_paths.extend([path, copy_path])
         elif stage in DESIGN_STAGE_IDS:
             architecture = os.path.join(run_dir, stage, "architecture.md")
             api = os.path.join(run_dir, stage, "api_design.md")
             data_model = os.path.join(run_dir, stage, "data_model.md")
-            self._save_text(architecture, self._wrap_output(task, stage, output_text, heading="Architecture"))
-            self._save_text(api, self._design_api_content(task, output_text))
-            self._save_text(data_model, self._design_data_content(task, output_text))
+            self._save_text(architecture, self._wrap_output(task, stage, output_text, heading="Architecture"), preserve=True)
+            self._save_text(api, self._design_api_content(task, output_text), preserve=True)
+            self._save_text(data_model, self._design_data_content(task, output_text), preserve=True)
             artifact_paths.extend([architecture, api, data_model])
         elif stage == "testing":
             path = os.path.join(run_dir, stage, "test_report.md")
-            self._save_text(path, self._wrap_output(task, stage, output_text))
+            self._save_text(path, self._wrap_output(task, stage, output_text), preserve=True)
             self._snapshot_repo_tree("tests", os.path.join(run_dir, "tests", "workspace_snapshot"))
             artifact_paths.append(path)
         elif stage == "development":
