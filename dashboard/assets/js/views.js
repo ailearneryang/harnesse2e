@@ -93,7 +93,7 @@ function renderRequestPage(activeTask, tasks, stats, budget, settings) {
                             <select id="req-template" onchange="onTemplateSelect(this.value)">
                                 <option value="">加载中...</option>
                             </select>
-                            <button class="btn ghost" onclick="openTemplateManager()">管理模版</button>
+                            <button class="btn ghost" onclick="openPage('pipeline')">管理模版</button>
                         </div>
                     </div>
                 </div>
