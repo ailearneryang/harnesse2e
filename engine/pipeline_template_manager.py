@@ -33,53 +33,9 @@ BUILTIN_TEMPLATES = [
             {"id": "code_review", "name": "Code Review", "agent": "code-reviewer"},
             {"id": "security_review", "name": "Security Review", "agent": "security-reviewer"},
             {"id": "safety_review", "name": "Safety Review", "agent": "safety-reviewer"},
-            {"id": "testing", "name": "QA Testing", "agent": "qa-engineer"},
+            {"id": "testing", "name": "Unit Testing", "agent": "unite-test"},
             {"id": "delivery", "name": "Gerrit Delivery", "agent": "delivery-manager"},
             {"id": "build_verification", "name": "Build Verification", "agent": "build-verifier"},
-        ],
-    },
-    {
-        "id": "quick-dev",
-        "name": "快速开发",
-        "description": "跳过设计和安全审查，适用于小型代码修改或 bug 修复",
-        "is_default": False,
-        "is_builtin": True,
-        "stages": [
-            {"id": "intake", "name": "Request Intake", "agent": "planner"},
-            {"id": "development", "name": "Implementation", "agent": "developer"},
-            {"id": "code_review", "name": "Code Review", "agent": "code-reviewer"},
-            {"id": "testing", "name": "QA Testing", "agent": "qa-engineer"},
-        ],
-    },
-    {
-        "id": "design-only",
-        "name": "仅设计",
-        "description": "只进行需求分析和架构设计，不进行开发实现",
-        "is_default": False,
-        "is_builtin": True,
-        "stages": [
-            {"id": "intake", "name": "Request Intake", "agent": "planner"},
-            {"id": "planning", "name": "Sprint Planning", "agent": "planner"},
-            {"id": "software-requirement-orchestrator", "name": "Software Requirement Orchestrator", "agent": "software-requirement-orchestrator"},
-            {"id": "cockpit-middleware-architect", "name": "Cockpit Middleware Architect", "agent": "cockpit-middleware-architect"},
-        ],
-    },
-    {
-        "id": "cockpit-middleware",
-        "name": "车载中间件流程",
-        "description": "针对 IVI/座舱中间件的完整流程，包含安全审查",
-        "is_default": False,
-        "is_builtin": True,
-        "stages": [
-            {"id": "intake", "name": "Request Intake", "agent": "planner"},
-            {"id": "planning", "name": "Sprint Planning", "agent": "planner"},
-            {"id": "software-requirement-orchestrator", "name": "Software Requirement Orchestrator", "agent": "software-requirement-orchestrator"},
-            {"id": "cockpit-middleware-architect", "name": "Cockpit Middleware Architect", "agent": "cockpit-middleware-architect"},
-            {"id": "development", "name": "Implementation", "agent": "developer"},
-            {"id": "code_review", "name": "Code Review", "agent": "code-reviewer"},
-            {"id": "security_review", "name": "Security Review", "agent": "security-reviewer"},
-            {"id": "safety_review", "name": "Safety Review", "agent": "safety-reviewer"},
-            {"id": "testing", "name": "QA Testing", "agent": "qa-engineer"},
         ],
     },
 ]
@@ -96,7 +52,7 @@ AVAILABLE_STAGES = {
     "code_review": {"name": "Code Review", "default_agent": "code-reviewer"},
     "security_review": {"name": "Security Review", "default_agent": "security-reviewer"},
     "safety_review": {"name": "Safety Review", "default_agent": "safety-reviewer"},
-    "testing": {"name": "QA Testing", "default_agent": "qa-engineer"},
+    "testing": {"name": "Unit Testing", "default_agent": "unite-test"},
     "delivery": {"name": "Gerrit Delivery", "default_agent": "delivery-manager"},
     "build_verification": {"name": "Build Verification", "default_agent": "build-verifier"},
 }
@@ -190,13 +146,21 @@ class PipelineTemplateManager:
     def _ensure_builtin_templates(self) -> None:
         """Insert or update builtin templates."""
         now = datetime.now().isoformat()
+        builtin_ids = {template["id"] for template in BUILTIN_TEMPLATES}
         with self._lock:
             conn = self.state_store._connect()
             try:
+                conn.execute("BEGIN IMMEDIATE")
                 existing_rows = conn.execute(
                     "SELECT id, is_builtin, is_default, created_at, updated_at FROM pipeline_templates"
                 ).fetchall()
-                preferred_default_id = self._preferred_default_template_id(existing_rows)
+                conn.execute(
+                    "DELETE FROM pipeline_templates WHERE id NOT IN ({})".format(
+                        ", ".join("?" for _ in builtin_ids)
+                    ),
+                    tuple(builtin_ids),
+                )
+                preferred_default_id = "default"
 
                 for template in BUILTIN_TEMPLATES:
                     existing = conn.execute(
@@ -253,31 +217,37 @@ class PipelineTemplateManager:
             finally:
                 conn.close()
 
+        self._prune_template_files(builtin_ids)
+
+    def _prune_template_files(self, builtin_ids: set[str]) -> None:
+        """Remove template backup files that are no longer supported."""
+        for entry in os.listdir(self.templates_dir):
+            path = os.path.join(self.templates_dir, entry)
+            if entry == "custom":
+                if os.path.isdir(path):
+                    for custom_entry in os.listdir(path):
+                        if custom_entry.endswith(".yaml"):
+                            try:
+                                os.remove(os.path.join(path, custom_entry))
+                            except FileNotFoundError:
+                                pass
+                continue
+            if entry.endswith(".yaml") and entry[:-5] not in builtin_ids:
+                try:
+                    os.remove(path)
+                except FileNotFoundError:
+                    pass
+
     def _migrate_existing_pipeline(self) -> None:
-        """Migrate existing custom_pipeline.yaml to template system."""
+        """Retire legacy custom pipeline files without recreating extra templates."""
         custom_path = os.path.join(self.harness_dir, "data", "custom_pipeline.yaml")
         if not os.path.exists(custom_path) or yaml is None:
             return
 
         try:
-            with open(custom_path, "r", encoding="utf-8") as f:
-                custom = yaml.safe_load(f)
-            
-            if custom and custom.get("stages"):
-                # Check if already migrated
-                template_id = "migrated-custom"
-                existing = self.get_template(template_id)
-                if not existing:
-                    self.create_template(
-                        name="迁移的自定义流程",
-                        stages=custom["stages"],
-                        description="从 custom_pipeline.yaml 自动迁移",
-                        template_id=template_id,
-                    )
-                # Backup and rename old file
-                backup_path = custom_path + ".migrated"
-                if not os.path.exists(backup_path):
-                    shutil.move(custom_path, backup_path)
+            backup_path = custom_path + ".migrated"
+            if not os.path.exists(backup_path):
+                shutil.move(custom_path, backup_path)
         except Exception:
             pass  # Silently ignore migration errors
 
@@ -291,6 +261,7 @@ class PipelineTemplateManager:
             file_path = os.path.join(self.templates_dir, f"{template_id}.yaml")
         else:
             file_path = os.path.join(self.templates_dir, "custom", f"{template_id}.yaml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
         # Prepare clean template for YAML
         yaml_data = {

@@ -63,6 +63,7 @@ DEFAULT_AGENTS = [
     {"id": "code-reviewer", "name": "Code Reviewer", "model": "claude-opus", "role": "independently review code quality and logic"},
     {"id": "security-reviewer", "name": "Security Reviewer", "model": "claude-opus", "role": "independently review security and compliance risks"},
     {"id": "safety-reviewer", "name": "Safety Reviewer", "model": "claude-opus", "role": "review ISO 26262, AUTOSAR, and vehicle safety compliance impacts"},
+    {"id": "unite-test", "name": "Unite Test", "model": "claude-sonnet", "role": "add, run, and summarize unit tests for the current change set"},
     {"id": "qa-engineer", "name": "QA Engineer", "model": "claude-sonnet", "role": "execute validation, tests, and acceptance checks"},
     {"id": "debugger", "name": "Debugger", "model": "claude-sonnet", "role": "apply narrow fixes after failed review or QA"},
     {"id": "build-verifier", "name": "Build Verifier", "model": "system", "role": "trigger downstream build, static analysis, SBOM, and signing checks"},
@@ -80,7 +81,7 @@ STAGE_DEFAULT_AGENTS = {
     "code_review": "code-reviewer",
     "security_review": "security-reviewer",
     "safety_review": "safety-reviewer",
-    "testing": "qa-engineer",
+    "testing": "unite-test",
     "delivery": "delivery-manager",
     "build_verification": "build-verifier",
     "debugger": "debugger",
@@ -89,6 +90,7 @@ STAGE_DEFAULT_AGENTS = {
 LEGACY_AGENT_ALIASES = {
     "requirements-analyst": "software-requirement-orchestrator",
     "system-architect": "cockpit-middleware-architect",
+    "qa-engineer": "unite-test",
 }
 
 REQUIREMENT_STAGE_IDS = {"requirements", "software-requirement-orchestrator"}
@@ -117,7 +119,7 @@ STAGE_TITLES = {
     "code_review": "Code Review",
     "security_review": "Security Review",
     "safety_review": "Safety Review",
-    "testing": "QA Testing",
+    "testing": "Unit Testing",
     "delivery": "Gerrit Delivery",
     "build_verification": "Build Verification",
     "debugger": "Targeted Debugging",
@@ -1902,11 +1904,11 @@ class PipelineRunner:
             "planning": "Break the request into a sprint contract with clear subtasks, dependencies, and definition of done.",
             "requirements": "Write a traceable requirement spec with IDs, acceptance criteria, and non-functional constraints.",
             "design": "Create an implementation design covering architecture, APIs, data flow, observability, and recovery paths.",
-            "development": "Describe the implementation plan for Claude Code CLI in the target repo. Mention expected files, tests, and git workflow.",
+            "development": "Describe the implementation plan for Claude Code CLI in the target repo. Mention expected files, testing handoff notes, and git workflow.",
             "code_review": "Review the latest changes critically. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "security_review": "Review security, secrets, auth, and unsafe side effects. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "safety_review": "Review ISO 26262, AUTOSAR, OTA rollback safety, WP.29, and vehicle-side functional safety impacts. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
-            "testing": "Report validation strategy, tests to run, and quality gates. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
+            "testing": "Run or propose the relevant unit tests for the current change, summarize results and risks, and end with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "build_verification": "Summarize CI build, static analysis, SBOM, and signing checks. End with VERDICT: PASS or FAIL.",
         }
         prompt_core = self.context_manager.build_stage_context(

@@ -402,9 +402,40 @@
         }
         .shell.sidebar-collapsed .runner-detail { display: none; }
         .runner-btns { display: flex; gap: 8px; }
-        .runner-btns .btn { flex: 1; min-width: 0; }
-        .shell.sidebar-collapsed .runner-btns { flex-direction: column; gap: 4px; }
-        .shell.sidebar-collapsed .runner-btns .btn { padding: 6px; font-size: 10px; }
+        .runner-btns .btn {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .runner-btns .btn-icon {
+            display: none;
+            font-size: 13px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .runner-btns .btn-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .shell.sidebar-collapsed .runner-btns {
+            flex-direction: column;
+            gap: 6px;
+            align-items: center;
+        }
+        .shell.sidebar-collapsed .runner-btns .btn {
+            width: 40px;
+            min-width: 40px;
+            height: 40px;
+            padding: 0;
+            font-size: 12px;
+            border-radius: 10px;
+        }
+        .shell.sidebar-collapsed .runner-btns .btn-icon { display: inline-flex; }
+        .shell.sidebar-collapsed .runner-btns .btn-text { display: none; }
 
         .nav-section { padding: 12px; flex: 1; overflow-y: auto; }
         .nav-group { margin-bottom: 16px; }

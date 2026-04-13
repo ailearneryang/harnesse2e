@@ -267,7 +267,7 @@ harness/
 | **requirements-analyst** | 需求分析 | 功能规范 | requirements_spec.md |
 | **system-architect** | 系统设计 | 需求规格 | architecture.md + api_design.md + data_model.md |
 | **developer** | 代码开发 | 设计文档 | src/ 源码 |
-| **qa-engineer** | 质量测试 | 源码+需求 | 测试用例 + 测试报告 |
+| **unite-test** | 单元测试 | 源码+开发交接信息 | 单元测试 + 测试报告 |
 | **review-agent** | 独立评审 | 阶段产物 | 评分 + 改进建议 |
 
 ### 5.2 Claude Code CLI Agent 模式
@@ -279,7 +279,7 @@ Agent 定义文件存放在 `.claude/agents/` 目录下：
 ├── requirements-analyst.md
 ├── system-architect.md
 ├── developer.md
-├── qa-engineer.md
+├── unite-test.md
 ├── code-reviewer.md
 ├── security-reviewer.md
 └── debugger.md

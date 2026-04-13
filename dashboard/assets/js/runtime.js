@@ -252,7 +252,6 @@ function renderApp(options = {}) {
                         <div class="logo-sub">Mission Console</div>
                     </div>
                 </div>
-                <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠/展开">◀</button>
             </div>
 
             <div class="runner-widget" id="runner-widget">
@@ -322,9 +321,7 @@ function renderApp(options = {}) {
     updateTemplatePreview();
     updateRequestSubmitState();
 
-    if (sidebarCollapsed) {
-        app.classList.add('sidebar-collapsed');
-    }
+    app.classList.remove('sidebar-collapsed');
 
     if (activeTabId === 'pipeline') {
         initPipelineEditor();

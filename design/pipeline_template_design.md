@@ -161,7 +161,7 @@ stages:
     - { id: code_review, name: Code Review, agent: code-reviewer }
     - { id: security_review, name: Security Review, agent: security-reviewer }
     - { id: safety_review, name: Safety Review, agent: safety-reviewer }
-    - { id: testing, name: QA Testing, agent: qa-engineer }
+    - { id: testing, name: Unit Testing, agent: unite-test }
     - { id: delivery, name: Gerrit Delivery, agent: delivery-manager }
     - { id: build_verification, name: Build Verification, agent: build-verifier }
 
@@ -174,7 +174,7 @@ stages:
     - { id: intake, name: Request Intake, agent: planner }
     - { id: development, name: Implementation, agent: developer }
     - { id: code_review, name: Code Review, agent: code-reviewer }
-    - { id: testing, name: QA Testing, agent: qa-engineer }
+    - { id: testing, name: Unit Testing, agent: unite-test }
 
 # 3. 仅设计模板
 - id: design-only
@@ -200,7 +200,7 @@ stages:
     - { id: code_review, name: Code Review, agent: code-reviewer }
     - { id: security_review, name: Security Review, agent: security-reviewer }
     - { id: safety_review, name: Safety Review, agent: safety-reviewer }
-    - { id: testing, name: QA Testing, agent: qa-engineer }
+    - { id: testing, name: Unit Testing, agent: unite-test }
 ```
 
 ---
@@ -298,7 +298,7 @@ stages:
   "stages": [
     { "id": "intake", "name": "Request Intake", "agent": "planner" },
     { "id": "development", "name": "Implementation", "agent": "developer" },
-    { "id": "testing", "name": "QA Testing", "agent": "qa-engineer" }
+    { "id": "testing", "name": "Unit Testing", "agent": "unite-test" }
   ],
   "set_as_default": false
 }
@@ -554,7 +554,7 @@ data/
 │  │                                                         │ │
 │  │  ☰  1. Request Intake        [planner    ▼]      [✕]   │ │
 │  │  ☰  2. Implementation        [developer  ▼]      [✕]   │ │
-│  │  ☰  3. QA Testing            [qa-engineer▼]      [✕]   │ │
+│  │  ☰  3. Unit Testing          [unite-test ▼]      [✕]   │ │
 │  │                                                         │ │
 │  │  [ + 添加阶段 ]                                         │ │
 │  └─────────────────────────────────────────────────────────┘ │
@@ -579,7 +579,7 @@ data/
 │   ┌──────┐    ┌──────────────┐    ┌───────────┐    ┌─────┐ │
 │   │Intake│ -> │Implementation│ -> │Code Review│ -> │ QA  │ │
 │   └──────┘    └──────────────┘    └───────────┘    └─────┘ │
-│    planner       developer        code-reviewer   qa-engineer│
+│    planner       developer        code-reviewer   unite-test │
 │                                                              │
 │  ─────────────────────────────────────────────────────────  │
 │  描述: 跳过设计和安全审查，适用于小型代码修改或 bug 修复   │
@@ -847,7 +847,7 @@ sequenceDiagram
 | code_review | Code Review | code-reviewer |
 | security_review | Security Review | security-reviewer |
 | safety_review | Safety Review | safety-reviewer |
-| testing | QA Testing | qa-engineer |
+| testing | Unit Testing | unite-test |
 | delivery | Gerrit Delivery | delivery-manager |
 | build_verification | Build Verification | build-verifier |
 

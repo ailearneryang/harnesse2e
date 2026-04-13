@@ -8,7 +8,7 @@ const ALL_STAGES = [
     { id: 'code_review', name: 'Code Review', agent: 'code-reviewer', icon: '👁️' },
     { id: 'security_review', name: 'Security Review', agent: 'security-reviewer', icon: '🔒' },
     { id: 'safety_review', name: 'Safety Review', agent: 'safety-reviewer', icon: '🛡️' },
-    { id: 'testing', name: 'QA Testing', agent: 'qa-engineer', icon: '🧪' },
+    { id: 'testing', name: 'Unit Testing', agent: 'unite-test', icon: '🧪' },
     { id: 'build_verification', name: 'Build Verify', agent: 'build-verifier', icon: '🔧' },
     { id: 'delivery', name: 'Gerrit Delivery', agent: 'delivery-manager', icon: '🚀' },
 ];
@@ -594,12 +594,9 @@ function connectStream() {
 
 /* ── Boot ── */
 (function init() {
-    const savedCollapsed = localStorage.getItem('sidebarCollapsed');
-    sidebarCollapsed = savedCollapsed === 'true';
-
-    if (sidebarCollapsed) {
-        document.getElementById('app')?.classList.add('sidebar-collapsed');
-    }
+    sidebarCollapsed = false;
+    localStorage.setItem('sidebarCollapsed', 'false');
+    document.getElementById('app')?.classList.remove('sidebar-collapsed');
 
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {

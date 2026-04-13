@@ -3,10 +3,10 @@
    ══════════════════════════════════════════════════════════════ */
 
 function toggleSidebar() {
-    sidebarCollapsed = !sidebarCollapsed;
     const shell = document.getElementById('app');
-    shell.classList.toggle('sidebar-collapsed', sidebarCollapsed);
-    localStorage.setItem('sidebarCollapsed', sidebarCollapsed);
+    sidebarCollapsed = false;
+    shell?.classList.remove('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed', 'false');
 }
 
 function enableNextPageTransition() {
@@ -60,9 +60,18 @@ function renderRunnerWidget(activeTask, isLive, isPaused) {
         </div>
         <div class="runner-detail">${activeTask ? esc(activeTask.title||'Untitled') : '暂无活动任务'}</div>
         <div class="runner-btns">
-            <button class="btn primary sm" onclick="controlRunner('resume')">恢复</button>
-            <button class="btn warn sm" onclick="controlRunner('pause')">暂停</button>
-            <button class="btn danger sm" onclick="controlRunner('stop')">停止</button>
+            <button class="btn primary sm" onclick="controlRunner('resume')" title="恢复">
+                <span class="btn-icon" aria-hidden="true">▶</span>
+                <span class="btn-text">恢复</span>
+            </button>
+            <button class="btn warn sm" onclick="controlRunner('pause')" title="暂停">
+                <span class="btn-icon" aria-hidden="true">⏸</span>
+                <span class="btn-text">暂停</span>
+            </button>
+            <button class="btn danger sm" onclick="controlRunner('stop')" title="停止">
+                <span class="btn-icon" aria-hidden="true">■</span>
+                <span class="btn-text">停止</span>
+            </button>
         </div>
     `;
 }
