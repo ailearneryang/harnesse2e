@@ -2185,10 +2185,15 @@ def create_api_app(runner: PipelineRunner) -> Flask:
     app = Flask(__name__, static_folder=None)
     app.config["MAX_CONTENT_LENGTH"] = REQUEST_UPLOAD_MAX_TOTAL_BYTES + (2 * 1024 * 1024)
     template_dir = os.path.abspath(os.path.join(runner.harness_dir, "dashboard", "templates"))
+    asset_dir = os.path.abspath(os.path.join(runner.harness_dir, "dashboard", "assets"))
 
     @app.route("/")
     def index():
         return send_from_directory(template_dir, "index.html")
+
+    @app.route("/assets/<path:filename>")
+    def dashboard_assets(filename: str):
+        return send_from_directory(asset_dir, filename)
 
     @app.route("/api/runtime")
     def api_runtime():
@@ -2387,6 +2392,8 @@ def create_api_app(runner: PipelineRunner) -> Flask:
             runner.pause()
         elif action == "resume":
             runner.resume()
+        elif action == "stop":
+            runner.stop()
         else:
             return jsonify({"error": "unsupported action"}), 400
         return jsonify({"ok": True, "action": action})
