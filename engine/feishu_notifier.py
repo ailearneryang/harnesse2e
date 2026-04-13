@@ -75,7 +75,7 @@ def notify_stage_completed(title: str, content: str, stage: str, task_id: str, a
                         
                     # 尝试寻找相关标题
                     import re
-                    match = re.search(r'(#{2,4}\s*(需确认的点|待确认的问题|问题与澄清|Issues to Clarify|待沟通事宜)[\s\S]*?)(?=\n#{1,4}\s|\Z)', text, re.IGNORECASE)
+                    match = re.search(r'(#{2,4}\s*(需确认的点|待确认的问题|问题与澄清|Issues to Clarify|待沟通事宜|待确认项)[\s\S]*?)(?=\n#{1,4}\s|\Z)', text, re.IGNORECASE)
                     if match:
                         questions = match.group(1).strip()
                         extra_info += f"\n\n**❓ 发现待确认事项 ({filename})**\n> " + questions.replace('\n', '\n> ')

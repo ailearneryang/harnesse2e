@@ -1321,9 +1321,9 @@ class PipelineRunner:
             artifact_paths = self._materialize_stage_artifacts(task, stage, summary, result.output_text, transcript_path)
             context[stage] = {"summary": summary, "verdict": verdict, "artifact_paths": artifact_paths}
 
+            # 任何阶段只要大模型认为需要人工干预（NEED_HUMAN）都不算 PASS
             passed = result.success and verdict != "FAIL"
-            if stage in {"code_review", "security_review", "safety_review", "testing"}:
-                passed = passed and verdict != "NEED_HUMAN"
+            passed = passed and verdict != "NEED_HUMAN"
 
             with self.lock:
                 stage_state["status"] = "passed" if passed else "failed"
@@ -1932,6 +1932,11 @@ class PipelineRunner:
                 "1. What exactly was done (做了什么).",
                 "2. Quantitative metrics (完成了几项数据/量化结果).",
                 "Example: <summary>分析了 5 个文件，发现了 2 个隐患，生成了 3 条测试用例，代码重构已完成。</summary>",
+                "",
+                "🚨 CRITICAL DECISION RULE (ALL STAGES):",
+                "If you find ANY critical issues, unclear requirements, risks or '待确认项' that strictly require a human's decision before proceeding, you MUST end your response with `VERDICT: NEED_HUMAN`.",
+                "Whenever you output `VERDICT: NEED_HUMAN`, you MUST also provide a `<options>` tag with a valid JSON array of strings representing the choices the human can make.",
+                """Example: <options>["1. 忽略警告继续", "2. 执行代码回退"]</options>"""
             ]
         )
 

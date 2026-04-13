@@ -1,0 +1,12 @@
+description: '1'
+id: tpl-20260413-18720e
+is_builtin: false
+is_default: false
+name: '1'
+stages:
+- agent: planner
+  id: intake
+  name: Request Intake
+- agent: software-requirement-orchestrator
+  id: software-requirement-orchestrator
+  name: Software Requirement Orchestrator
