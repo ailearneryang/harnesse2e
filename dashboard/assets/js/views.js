@@ -134,9 +134,18 @@ function renderRuntimePage(activeTask, tasks, stats, budget, approvals, agents) 
     return `
         <div class="workspace-page runtime-scene">
             <div class="runtime-top-grid">
-                <section class="studio-panel runtime-task-panel">
-                    <div class="panel-kicker">1.任务信息</div>
-                    <div class="runtime-task-title">${esc(activeTask?.title || '等待新任务')}</div>
+                <section class="studio-panel runtime-task-panel runtime-task-panel-wide">
+                    <div class="runtime-task-header">
+                        <div>
+                            <div class="panel-kicker">任务信息</div>
+                            <div class="runtime-task-title">${esc(activeTask?.title || '等待新任务')}</div>
+                        </div>
+                        <div class="runtime-task-actions">
+                            <button class="btn primary" onclick="controlRunner('resume')">恢复</button>
+                            <button class="btn warn" onclick="controlRunner('pause')">暂停</button>
+                            <button class="btn danger" onclick="controlRunner('stop')">停止</button>
+                        </div>
+                    </div>
                     <div class="runtime-task-desc">${esc(activeTask?.request_text || '当前没有正在执行的任务。你可以从“需求发起”页提交新请求，系统会在这里展示最新任务的执行状态。')}</div>
                     <div class="runtime-task-metrics">
                         <div class="runtime-task-metric"><span>状态</span><strong>${getStatusText(activeTask?.status)}</strong></div>
@@ -144,28 +153,18 @@ function renderRuntimePage(activeTask, tasks, stats, budget, approvals, agents) 
                         <div class="runtime-task-metric"><span>进度</span><strong>${progress}%</strong></div>
                         <div class="runtime-task-metric"><span>耗时</span><strong>${taskDuration(activeTask)}</strong></div>
                     </div>
-                </section>
-
-                <section class="studio-panel runtime-control-panel">
-                    <div class="panel-kicker">2.控制按钮</div>
-                    <div class="runtime-control-buttons">
-                        <button class="btn primary" onclick="controlRunner('resume')">恢复</button>
-                        <button class="btn warn" onclick="controlRunner('pause')">暂停</button>
-                        <button class="btn danger" onclick="controlRunner('stop')">停止</button>
-                    </div>
-                    <div class="runtime-control-hint">Runner 当前状态：${runtime?.runner?.paused ? '已暂停' : (runtime?.runner?.running ? '运行中' : '已停止')} · 队列任务 ${tasks.length} 个</div>
                     ${activeTask?.status === 'running' ? `<div class="runtime-control-secondary"><button class="btn ghost sm" onclick="pauseTask('${esc(activeTask.id)}')">暂停当前任务</button><button class="btn ghost sm" onclick="deferTask('${esc(activeTask.id)}')">让出执行位</button></div>` : ''}
                 </section>
             </div>
 
             <section class="studio-panel runtime-stage-panel">
-                <div class="panel-kicker">3.当前任务状态</div>
+                <div class="panel-kicker">当前任务状态</div>
                 ${renderRuntimeStageRail(activeTask)}
             </section>
 
             <div class="runtime-main-grid">
                 <section class="studio-panel runtime-monitor-panel">
-                    <div class="panel-kicker">4.状态监控</div>
+                    <div class="panel-kicker">状态监控</div>
                     <div class="runtime-monitor-top">
                         <div class="runtime-agent-card">
                             <div class="runtime-agent-eyebrow">当前 Agent</div>
@@ -202,12 +201,12 @@ function renderRuntimePage(activeTask, tasks, stats, budget, approvals, agents) 
 
                 <div class="runtime-side-stack">
                     <section class="studio-panel runtime-output-panel">
-                        <div class="panel-kicker">5.输出物</div>
+                        <div class="panel-kicker">输出物</div>
                         ${renderRuntimeOutputPreview(activeTask)}
                     </section>
 
                     <section class="studio-panel runtime-approval-panel">
-                        <div class="panel-kicker">审批（如果有的话）</div>
+                        <div class="panel-kicker">任务审批</div>
                         ${renderRuntimeApprovalPanel(activeTask, taskApprovals)}
                     </section>
                 </div>

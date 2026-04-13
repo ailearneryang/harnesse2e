@@ -1076,6 +1076,22 @@
             gap: 12px;
             margin-top: 16px;
         }
+        .runtime-task-panel-wide {
+            grid-column: 1 / -1;
+        }
+        .runtime-task-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .runtime-task-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            flex-shrink: 0;
+        }
         .runtime-task-metric {
             padding: 12px 14px;
             border-radius: 14px;
@@ -1102,12 +1118,6 @@
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-        }
-        .runtime-control-hint {
-            margin: 14px 0;
-            font-size: 12px;
-            color: var(--text-secondary);
-            line-height: 1.6;
         }
         .runtime-stage-panel {
             overflow-x: auto;
@@ -1342,7 +1352,7 @@
         /* Outputs scene */
         .outputs-layout-grid {
             display: grid;
-            grid-template-columns: 320px minmax(0, 1fr) 360px;
+            grid-template-columns: 280px minmax(0, 1.3fr) 320px;
             gap: 18px;
             align-items: start;
         }
@@ -1458,6 +1468,12 @@
             .request-support-row,
             .request-form-row {
                 grid-template-columns: 1fr;
+            }
+            .runtime-task-header {
+                flex-direction: column;
+            }
+            .runtime-task-actions {
+                justify-content: flex-start;
             }
             .request-composer-actions,
             .request-pipeline-actions,
