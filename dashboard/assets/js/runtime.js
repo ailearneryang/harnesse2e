@@ -37,22 +37,17 @@ function mergeEvents(existingEvents, incomingEvents) {
 }
 
 async function submitRequest() {
-    const title = document.getElementById('req-title')?.value.trim();
     const text = document.getElementById('req-text')?.value.trim();
-    const source = document.getElementById('req-source')?.value.trim() || 'web';
+    const source = 'web';
     const prioritizeRunning = !!document.getElementById('req-prioritize')?.checked;
     const templateId = document.getElementById('req-template')?.value || selectedTemplateId || '';
-    if (!title) {
-        updateRequestTitleState(true);
-        showToast('请输入标题', true);
-        return;
-    }
     if (!text && !pendingRequestFiles.length) {
         showToast('请输入需求内容或上传文件', true);
         return;
     }
+    const title = buildRequestTitle(text, pendingRequestFiles);
 
-    const btn = document.querySelector('.composer-actions .btn.primary');
+    const btn = document.getElementById('req-submit-btn');
     if (btn) btn.classList.add('loading');
 
     try {
@@ -85,17 +80,16 @@ async function submitRequest() {
             throw new Error(data.error || '提交失败');
         }
 
-        const titleEl = document.getElementById('req-title');
         const textEl = document.getElementById('req-text');
         const prioritizeEl = document.getElementById('req-prioritize');
         const templateEl = document.getElementById('req-template');
-        if (titleEl) titleEl.value = '';
         if (textEl) textEl.value = '';
         if (prioritizeEl) prioritizeEl.checked = false;
         if (templateEl) templateEl.value = '';
         selectedTemplateId = null;
         updateTemplatePreview();
         clearPendingRequestFiles();
+        updateRequestSubmitState();
         showToast(prioritizeRunning ? '请求已提交，系统会优先尝试中断当前 agent 执行以让出任务位' : '请求已提交');
         await fetchRuntime();
     } catch (e) {
@@ -105,19 +99,25 @@ async function submitRequest() {
     }
 }
 
-function updateRequestTitleState(showError = false) {
-    const input = document.getElementById('req-title');
-    const field = document.getElementById('req-title-group');
-    const hint = document.getElementById('req-title-hint');
-    const submitBtn = document.getElementById('req-submit-btn');
-    const hasTitle = !!(input?.value || '').trim();
-
-    if (submitBtn) submitBtn.disabled = !hasTitle;
-    if (field) field.classList.toggle('invalid', showError && !hasTitle);
-    if (hint) {
-        hint.textContent = showError && !hasTitle ? '标题为必填项' : ' ';
-        hint.classList.toggle('error', showError && !hasTitle);
+function buildRequestTitle(text, files = []) {
+    const normalized = String(text || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (normalized) {
+        return normalized.length > 40 ? `${normalized.slice(0, 40)}...` : normalized;
     }
+    const firstFile = files[0]?.name;
+    if (firstFile) {
+        return files.length > 1 ? `${firstFile} 等 ${files.length} 个附件` : firstFile;
+    }
+    return '未命名请求';
+}
+
+function updateRequestSubmitState() {
+    const text = document.getElementById('req-text')?.value.trim() || '';
+    const submitBtn = document.getElementById('req-submit-btn');
+    const hasPayload = !!text || pendingRequestFiles.length > 0;
+    if (submitBtn) submitBtn.disabled = !hasPayload;
 }
 
 async function controlRunner(action) {
@@ -233,9 +233,7 @@ function renderApp(options = {}) {
     if (!context) return;
     const { tasks, approvals, agents, stats, runner, settings, activeTask, budget, isLive, isPaused, navItems } = context;
 
-    const savedTitle = document.getElementById('req-title')?.value ?? '';
     const savedText = document.getElementById('req-text')?.value ?? '';
-    const savedSource = document.getElementById('req-source')?.value ?? 'web';
     const savedPrioritize = !!document.getElementById('req-prioritize')?.checked;
     const savedTemplateId = document.getElementById('req-template')?.value ?? selectedTemplateId ?? '';
     const savedPageScrollTop = document.getElementById('page-' + activeTabId)?.scrollTop ?? 0;
@@ -313,20 +311,16 @@ function renderApp(options = {}) {
         activePage.scrollTop = savedPageScrollTop;
     }
 
-    const ti = document.getElementById('req-title');
     const tx = document.getElementById('req-text');
-    const sr = document.getElementById('req-source');
     const pr = document.getElementById('req-prioritize');
-    if (ti) ti.value = savedTitle;
     if (tx) tx.value = savedText;
-    if (sr) sr.value = savedSource;
     if (pr) pr.checked = savedPrioritize;
     selectedTemplateId = savedTemplateId || selectedTemplateId || null;
     updateTemplateSelector();
     const templateSelect = document.getElementById('req-template');
     if (templateSelect) templateSelect.value = savedTemplateId || '';
     updateTemplatePreview();
-    updateRequestTitleState();
+    updateRequestSubmitState();
 
     if (sidebarCollapsed) {
         app.classList.add('sidebar-collapsed');
@@ -354,9 +348,7 @@ function updateRuntimeUI(options = {}) {
     if (!context) return;
     const { tasks, approvals, agents, stats, runner, settings, activeTask, budget, isLive, isPaused, navItems } = context;
 
-    const savedTitle = document.getElementById('req-title')?.value ?? '';
     const savedText = document.getElementById('req-text')?.value ?? '';
-    const savedSource = document.getElementById('req-source')?.value ?? 'web';
     const savedPrioritize = !!document.getElementById('req-prioritize')?.checked;
     const savedTemplateId = document.getElementById('req-template')?.value ?? selectedTemplateId ?? '';
     const activePage = document.getElementById('page-' + activeTabId);
@@ -378,20 +370,16 @@ function updateRuntimeUI(options = {}) {
         activePage.scrollTop = savedPageScrollTop;
     }
 
-    const ti = document.getElementById('req-title');
     const tx = document.getElementById('req-text');
-    const sr = document.getElementById('req-source');
     const pr = document.getElementById('req-prioritize');
-    if (ti) ti.value = savedTitle;
     if (tx) tx.value = savedText;
-    if (sr) sr.value = savedSource;
     if (pr) pr.checked = savedPrioritize;
     selectedTemplateId = savedTemplateId || selectedTemplateId || null;
     updateTemplateSelector();
     const templateSelect = document.getElementById('req-template');
     if (templateSelect) templateSelect.value = savedTemplateId || '';
     updateTemplatePreview();
-    updateRequestTitleState();
+    updateRequestSubmitState();
 
     if (activeTabId === 'pipeline') {
         initPipelineEditor();

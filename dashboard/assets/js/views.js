@@ -43,62 +43,27 @@ function fmtTokensK(tokens) {
    ══════════════════════════════════════════════════════════════ */
 
 function renderRequestPage(activeTask, tasks, stats, budget, settings) {
-    const selectedTemplate = getSelectedTemplateDefinition();
-    const stageIds = selectedTemplate?.stage_ids?.length ? selectedTemplate.stage_ids : STAGES;
-    const repoTarget = runtime?.resolved_target_repo || settings?.target_repo || '未设置目标仓库';
-
     return `
         <div class="workspace-page request-scene">
-            <div class="scene-header request-scene-header">
-                <div>
-                    <div class="scene-kicker">需求描述</div>
-                    <h1 class="scene-title">输入需求背景、目标仓库、验收条件等</h1>
-                    <div class="scene-subtitle">支持文字输入、文件上传，并在提交前完成 pipeline 选择或进入编排页微调。</div>
-                </div>
-                <div class="scene-header-meta">
-                    <div class="scene-meta-card">
-                        <span class="scene-meta-label">目标仓库</span>
-                        <strong>${esc(repoTarget)}</strong>
-                    </div>
-                    <div class="scene-meta-card">
-                        <span class="scene-meta-label">队列任务</span>
-                        <strong>${tasks.length}</strong>
-                    </div>
-                    <div class="scene-meta-card ${tokenStatusCls(budget.status)}">
-                        <span class="scene-meta-label">Token 用量</span>
-                        <strong>${fmtTokens(budget.used)} / ${fmtTokens(budget.limit)}</strong>
-                    </div>
-                </div>
-            </div>
-
             <section class="studio-panel request-composer-panel">
                 <div class="studio-panel-header">
                     <div>
                         <div class="studio-panel-title">需求输入</div>
-                        <div class="studio-panel-desc">为任务补充标题、来源和详细说明。没有附件时，也可以直接提交纯文字需求。</div>
+                        <div class="studio-panel-desc">填写需求说明并按需添加附件。系统会自动生成任务标题。</div>
                     </div>
-                    <div class="studio-panel-actions">
-                        <button class="btn ghost" onclick="fetchRuntime()">同步状态</button>
+                    <div class="studio-panel-actions request-composer-actions">
+                        <label class="request-priority-inline" for="req-prioritize">
+                            <input id="req-prioritize" type="checkbox" />
+                            <span>优先执行</span>
+                        </label>
                         <button class="btn primary" id="req-submit-btn" onclick="submitRequest()" disabled>提交请求</button>
                     </div>
                 </div>
 
                 <div class="request-form-grid">
-                    <div class="composer-row request-form-row">
-                        <div class="field-group" id="req-title-group">
-                            <div class="field-label">任务标题 *</div>
-                            <input id="req-title" placeholder="例如：重构控制台布局" required aria-required="true" oninput="updateRequestTitleState()" onblur="updateRequestTitleState(true)" />
-                            <div class="field-hint" id="req-title-hint"> </div>
-                        </div>
-                        <div class="field-group">
-                            <div class="field-label">来源</div>
-                            <input id="req-source" value="web" placeholder="web / feishu / api" />
-                        </div>
-                    </div>
-
                     <div class="field-group full request-main-field">
                         <div class="field-label">需求背景与约束</div>
-                        <textarea id="req-text" class="request-main-textarea" placeholder="输入需求背景、目标仓库、验收条件等"></textarea>
+                        <textarea id="req-text" class="request-main-textarea" placeholder="输入需求背景、目标仓库、验收条件等" oninput="updateRequestSubmitState()"></textarea>
                     </div>
 
                     <div class="request-support-row">
@@ -113,14 +78,6 @@ function renderRequestPage(activeTask, tasks, stats, budget, settings) {
                                 <div class="request-file-list" id="req-file-list">${renderSelectedRequestFiles()}</div>
                             </div>
                         </div>
-
-                        <label class="priority-toggle request-priority-toggle" for="req-prioritize">
-                            <input id="req-prioritize" type="checkbox" />
-                            <div class="priority-toggle-copy">
-                                <div class="priority-toggle-title">优先执行</div>
-                                <div class="priority-toggle-desc">适合热修、阻塞性需求和临时插单。系统会优先尝试让当前执行位让出。</div>
-                            </div>
-                        </label>
                     </div>
                 </div>
             </section>
@@ -129,27 +86,15 @@ function renderRequestPage(activeTask, tasks, stats, budget, settings) {
                 <div class="studio-panel-header">
                     <div>
                         <div class="studio-panel-title">选择 pipeline</div>
-                        <div class="studio-panel-desc">先选择模板，再决定是否进入编排页做任务级自定义。</div>
+                        <div class="studio-panel-desc">先选择模板，需要时再统一进入模版管理。</div>
                     </div>
                     <div class="studio-panel-actions request-pipeline-actions">
-                        <select id="req-template" onchange="onTemplateSelect(this.value)">
-                            <option value="">加载中...</option>
-                        </select>
-                        <button class="btn ghost" onclick="openTemplateManager()">模板库</button>
-                        <button class="btn ghost" onclick="openPage('pipeline')">编辑流程</button>
-                    </div>
-                </div>
-
-                <div class="pipeline-intake-shell">
-                    <div class="pipeline-intake-flow">
-                        ${renderRequestPipelineStrip(stageIds)}
-                    </div>
-
-                    <div class="pipeline-intake-sidecard">
-                        <div class="pipeline-intake-sidecard-title">当前流程</div>
-                        <div class="pipeline-intake-sidecard-name">${esc(selectedTemplate?.name || '系统默认 Pipeline')}</div>
-                        <div class="pipeline-intake-sidecard-desc">${esc(selectedTemplate?.description || '未选择模板时，系统会使用当前默认流程。')}</div>
-                        <div class="pipeline-intake-sidecard-meta">${stageIds.length} 个阶段 · 当前活动任务：${esc(activeTask?.title || '暂无活动任务')}</div>
+                        <div class="request-template-toolbar">
+                            <select id="req-template" onchange="onTemplateSelect(this.value)">
+                                <option value="">加载中...</option>
+                            </select>
+                            <button class="btn ghost" onclick="openTemplateManager()">管理模版</button>
+                        </div>
                     </div>
                 </div>
 
@@ -160,20 +105,6 @@ function renderRequestPage(activeTask, tasks, stats, budget, settings) {
             </section>
         </div>
     `;
-}
-
-function renderRequestPipelineStrip(stageIds) {
-    return stageIds.map((stageId, index) => {
-        const meta = getStageMeta(stageId);
-        return `
-            <div class="pipeline-intake-node">
-                <div class="pipeline-intake-icon">${meta.icon}</div>
-                <div class="pipeline-intake-name">${esc(meta.name)}</div>
-                <div class="pipeline-intake-status">待处理</div>
-            </div>
-            ${index < stageIds.length - 1 ? '<div class="pipeline-intake-connector"></div>' : ''}
-        `;
-    }).join('');
 }
 
 /* ══════════════════════════════════════════════════════════════

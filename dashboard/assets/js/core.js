@@ -281,6 +281,7 @@ function ensureRequestFileInput() {
         pendingRequestFiles = files;
         const list = document.getElementById('req-file-list');
         if (list) list.innerHTML = renderSelectedRequestFiles();
+        if (typeof updateRequestSubmitState === 'function') updateRequestSubmitState();
         event.target.value = '';
     });
     document.body.appendChild(requestFileInput);
@@ -295,12 +296,14 @@ function removePendingRequestFile(index) {
     pendingRequestFiles.splice(index, 1);
     const list = document.getElementById('req-file-list');
     if (list) list.innerHTML = renderSelectedRequestFiles();
+    if (typeof updateRequestSubmitState === 'function') updateRequestSubmitState();
 }
 
 function clearPendingRequestFiles() {
     pendingRequestFiles = [];
     const list = document.getElementById('req-file-list');
     if (list) list.innerHTML = renderSelectedRequestFiles();
+    if (typeof updateRequestSubmitState === 'function') updateRequestSubmitState();
 }
 
 function toStageId(stage) {
