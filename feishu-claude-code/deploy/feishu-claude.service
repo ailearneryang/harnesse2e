@@ -1,18 +1,18 @@
 [Unit]
-Description=Feishu Claude Code Bot
+Description=Feishu Copilot CLI Bot
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=YOUR_USER
-WorkingDirectory=/path/to/feishu-claude
-ExecStart=/path/to/feishu-claude/.venv/bin/python main.py
+WorkingDirectory=/path/to/feishu-copilot
+ExecStart=/path/to/feishu-copilot/.venv/bin/python main.py
 Restart=always
 RestartSec=10
 
 # 环境变量（也可以用 EnvironmentFile 指向 .env）
-EnvironmentFile=/path/to/feishu-claude/.env
+EnvironmentFile=/path/to/feishu-copilot/.env
 
 StandardOutput=journal
 StandardError=journal

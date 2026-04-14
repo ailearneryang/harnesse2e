@@ -6,6 +6,7 @@ import pytest
 
 os.environ.setdefault("FEISHU_APP_ID", "test_app_id")
 os.environ.setdefault("FEISHU_APP_SECRET", "test_app_secret")
+os.environ.setdefault("CLI_BACKEND", "claude")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

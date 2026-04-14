@@ -113,8 +113,9 @@ openclaw status --deep
 
 | 路线 | 命令 |
 |------|------|
-| Claude Code（默认，同事不受影响）| `./start.sh` |
-| Copilot（本路线）| `HARNESS_CLAUDE_COMMAND="python3 engine/copilot_shim.py" ./start.sh` |
+| Copilot（默认）| `./start.sh` |
+| Copilot（显式指定）| `HARNESS_AGENT_COMMAND="python3 engine/copilot_shim.py" ./start.sh` |
+| Claude 兼容路线| `HARNESS_AGENT_COMMAND="claude" ./start.sh` |
 
 切换方式详见 `TOOLS.md`。
 

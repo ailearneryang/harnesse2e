@@ -1,10 +1,12 @@
 import os
 import shutil
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+LEGACY_SESSIONS_DIR = os.path.expanduser("~/.feishu-claude")
 
 
 def _resolve_default_cwd() -> str:
@@ -14,18 +16,38 @@ def _resolve_default_cwd() -> str:
         return expanded
     return os.path.abspath(os.path.join(PROJECT_DIR, expanded))
 
+
+def _resolve_sessions_dir() -> str:
+    configured = os.getenv("SESSIONS_DIR")
+    if configured:
+        return os.path.expanduser(configured)
+    preferred = os.path.expanduser("~/.feishu-copilot")
+    if os.path.isdir(preferred) or not os.path.isdir(LEGACY_SESSIONS_DIR):
+        return preferred
+    return LEGACY_SESSIONS_DIR
+
+
 FEISHU_APP_ID = os.environ["FEISHU_APP_ID"]
 FEISHU_APP_SECRET = os.environ["FEISHU_APP_SECRET"]
 ADMIN_OPEN_ID = os.getenv("ADMIN_OPEN_ID")
 
-CLAUDE_CLI = os.getenv("CLAUDE_CLI_PATH") or shutil.which("claude") or "claude"
+CLI_BACKEND = (os.getenv("CLI_BACKEND", "copilot") or "copilot").strip().lower()
+if CLI_BACKEND not in {"copilot", "claude"}:
+    CLI_BACKEND = "copilot"
 
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "claude-opus-4-6")
+COPILOT_CLI = os.getenv("COPILOT_CLI_PATH") or shutil.which("copilot") or "copilot"
+CLAUDE_CLI = os.getenv("CLAUDE_CLI_PATH") or shutil.which("claude") or "claude"
+CLI_BIN = COPILOT_CLI if CLI_BACKEND == "copilot" else CLAUDE_CLI
+
+DEFAULT_MODEL = os.getenv(
+    "DEFAULT_MODEL",
+    "gpt-5.4" if CLI_BACKEND == "copilot" else "claude-opus-4-6",
+)
 DEFAULT_CWD = _resolve_default_cwd()
 PERMISSION_MODE = os.getenv("PERMISSION_MODE", "bypassPermissions")
 CALLBACK_PUBLIC_URL = os.getenv("CALLBACK_PUBLIC_URL", "").rstrip("/")
 
-SESSIONS_DIR = os.path.expanduser("~/.feishu-claude")
+SESSIONS_DIR = _resolve_sessions_dir()
 
 # 卡片按钮回调 HTTP 端口（需 ngrok 暴露）
 CALLBACK_PORT = int(os.getenv("CALLBACK_PORT", "9981"))

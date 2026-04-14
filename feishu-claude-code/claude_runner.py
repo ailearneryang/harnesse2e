@@ -1,6 +1,8 @@
 """
-通过 subprocess 调用本机 claude CLI，解析 stream-json 输出。
-复用 ~/.claude/ 中已有的 Max 订阅登录凭证，无需额外 API Key。
+CLI runner for Feishu chat integration.
+
+Copilot CLI is the default backend. Claude Code remains available as a
+compatibility backend because the bot still supports older environments.
 """
 
 import asyncio
@@ -8,13 +10,12 @@ import json
 import os
 from typing import Callable, Optional
 
-from bot_config import PERMISSION_MODE, CLAUDE_CLI
+from bot_config import CLAUDE_CLI, CLI_BACKEND, COPILOT_CLI, PERMISSION_MODE
 
 IDLE_TIMEOUT = 300  # 5 分钟无任何输出视为挂死
 
 
 def _extract_text_content(value) -> str:
-    """Extract final assistant text from Claude CLI result payload."""
     if isinstance(value, str):
         return value
     if isinstance(value, list):
@@ -35,7 +36,45 @@ async def _fire_callback(cb, *args):
         cb(*args)
 
 
-async def run_claude(
+def _build_command(
+    message: str,
+    active_session_id: Optional[str],
+    model: Optional[str],
+    cwd: str,
+    permission_mode: Optional[str],
+) -> tuple[list[str], bool]:
+    if CLI_BACKEND == "copilot":
+        cmd = [
+            COPILOT_CLI,
+            "-p",
+            message,
+            "--allow-all-tools",
+            "--allow-all-paths",
+            "--add-dir",
+            cwd,
+        ]
+        if model:
+            cmd.extend(["--model", model])
+        return cmd, False
+
+    cmd = [
+        CLAUDE_CLI,
+        "--print",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--include-partial-messages",
+        "--permission-mode",
+        permission_mode or PERMISSION_MODE,
+    ]
+    if active_session_id:
+        cmd += ["--resume", active_session_id]
+    if model:
+        cmd += ["--model", model]
+    return cmd, True
+
+
+async def run_backend(
     message: str,
     session_id: Optional[str] = None,
     model: Optional[str] = None,
@@ -46,25 +85,22 @@ async def run_claude(
     on_process_start: Optional[Callable[[asyncio.subprocess.Process], None]] = None,
 ) -> tuple[str, Optional[str], bool]:
     """
-    调用 claude CLI 并流式解析输出。
+    调用后端 CLI 并尽量以统一方式流式解析输出。
 
     Returns:
-        (full_response_text, new_session_id, used_fresh_session_fallback)
+        (full_response_text, session_id, used_fresh_session_fallback)
     """
 
+    resolved_cwd = cwd or os.path.expanduser("~")
+
     async def _run_once(active_session_id: Optional[str]) -> tuple[str, Optional[str], int, str]:
-        cmd = [
-            CLAUDE_CLI,
-            "--print",
-            "--output-format", "stream-json",
-            "--verbose",
-            "--include-partial-messages",
-            "--permission-mode", permission_mode or PERMISSION_MODE,
-        ]
-        if active_session_id:
-            cmd += ["--resume", active_session_id]
-        if model:
-            cmd += ["--model", model]
+        cmd, uses_stdin = _build_command(
+            message=message,
+            active_session_id=active_session_id,
+            model=model,
+            cwd=resolved_cwd,
+            permission_mode=permission_mode,
+        )
 
         env = os.environ.copy()
         env.pop("CLAUDECODE", None)
@@ -74,45 +110,48 @@ async def run_claude(
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=cwd or os.path.expanduser("~"),
+            cwd=resolved_cwd,
             env=env,
             limit=10 * 1024 * 1024,
         )
 
         await _fire_callback(on_process_start, proc)
 
-        proc.stdin.write((message + "\n").encode())
-        await proc.stdin.drain()
-        proc.stdin.close()
+        if uses_stdin and proc.stdin is not None:
+            proc.stdin.write((message + "\n").encode())
+            await proc.stdin.drain()
+            proc.stdin.close()
+        elif proc.stdin is not None:
+            proc.stdin.close()
 
         full_text = ""
-        new_session_id = None
+        new_session_id = active_session_id
         pending_tool_name = ""
         pending_tool_input_json = ""
 
         try:
             while True:
                 try:
-                    raw_line = await asyncio.wait_for(
-                        proc.stdout.readline(), timeout=IDLE_TIMEOUT
-                    )
+                    raw_line = await asyncio.wait_for(proc.stdout.readline(), timeout=IDLE_TIMEOUT)
                 except asyncio.TimeoutError:
                     proc.kill()
                     await proc.wait()
                     raise RuntimeError(
-                        f"Claude 执行超时（{IDLE_TIMEOUT}秒无输出），已终止进程"
+                        f"{CLI_BACKEND} 执行超时（{IDLE_TIMEOUT}秒无输出），已终止进程"
                     )
 
-                if not raw_line:  # EOF
+                if not raw_line:
                     break
 
-                line = raw_line.decode("utf-8", errors="replace").strip()
-                if not line:
+                line = raw_line.decode("utf-8", errors="replace").rstrip("\n")
+                if not line.strip():
                     continue
 
                 try:
                     data = json.loads(line)
                 except json.JSONDecodeError:
+                    full_text = f"{full_text}\n{line}".strip() if full_text else line
+                    await _fire_callback(on_text_chunk, line)
                     continue
 
                 event_type = data.get("type")
@@ -121,8 +160,9 @@ async def run_claude(
                     sid = data.get("session_id")
                     if sid:
                         new_session_id = sid
+                    continue
 
-                elif event_type == "stream_event":
+                if event_type == "stream_event":
                     evt = data.get("event", {})
                     evt_type = evt.get("type")
 
@@ -155,14 +195,23 @@ async def run_claude(
                             await _fire_callback(on_tool_use, pending_tool_name, inp)
                         pending_tool_name = ""
                         pending_tool_input_json = ""
+                    continue
 
-                elif event_type == "result":
+                if event_type == "result":
                     sid = data.get("session_id")
                     if sid:
                         new_session_id = sid
                     final_text = _extract_text_content(data.get("result", ""))
                     if final_text:
                         full_text = final_text
+                    continue
+
+                text_value = _extract_text_content(data.get("content"))
+                if not text_value:
+                    text_value = data.get("text", "")
+                if text_value:
+                    full_text = f"{full_text}\n{text_value}".strip() if full_text else text_value
+                    await _fire_callback(on_text_chunk, text_value)
 
         except RuntimeError:
             raise
@@ -175,10 +224,14 @@ async def run_claude(
     final_text, new_session_id, returncode, stderr_text = await _run_once(session_id)
     used_fresh_session_fallback = False
 
-    # Claude 的 session 与 cwd 不兼容时，CLI 有时直接 code=1 且 stderr 为空。
-    # 这种场景自动退回新 session，避免用户必须手动 /new。
-    if session_id and returncode != 0 and not stderr_text and not final_text:
-        print("[run_claude] resume failed without stderr, retrying with fresh session", flush=True)
+    if (
+        CLI_BACKEND == "claude"
+        and session_id
+        and returncode != 0
+        and not stderr_text
+        and not final_text
+    ):
+        print("[run_backend] resume failed without stderr, retrying with fresh session", flush=True)
         final_text, new_session_id, returncode, stderr_text = await _run_once(None)
         used_fresh_session_fallback = True
 
@@ -186,9 +239,16 @@ async def run_claude(
         detail = stderr_text or "no stderr"
         if final_text:
             detail += f" (partial output length={len(final_text)})"
-        # 如果有部分输出，返回给用户看而不是抛异常
         if final_text:
             return final_text, new_session_id, used_fresh_session_fallback
-        raise RuntimeError(f"claude exited with code {returncode}: {detail}")
+        raise RuntimeError(f"{CLI_BACKEND} exited with code {returncode}: {detail}")
 
     return final_text, new_session_id, used_fresh_session_fallback
+
+
+async def run_copilot(*args, **kwargs):
+    return await run_backend(*args, **kwargs)
+
+
+async def run_claude(*args, **kwargs):
+    return await run_backend(*args, **kwargs)

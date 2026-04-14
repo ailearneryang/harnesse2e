@@ -10,10 +10,11 @@ import os
 import shlex
 import subprocess
 import sys
+import inspect
 from datetime import datetime
 from typing import Optional, Tuple
 
-from bot_config import CLAUDE_CLI, DEFAULT_CWD
+from bot_config import CLI_BACKEND, CLI_BIN, DEFAULT_CWD
 from session_store import SessionStore, scan_cli_sessions, generate_summary, _get_api_token, _write_custom_title
 
 PLUGINS_DIR = os.path.expanduser("~/.claude/plugins")
@@ -34,6 +35,9 @@ MODE_ALIASES = {
 }
 
 MODEL_ALIASES = {
+    "best": "gpt-5.4",
+    "fast": "gpt-5.4-mini",
+    "mini": "gpt-5-mini",
     "opus": "claude-opus-4-6",
     "sonnet": "claude-sonnet-4-6",
     "haiku": "claude-haiku-4-5-20251001",
@@ -55,18 +59,18 @@ HELP_TEXT = """\
 `/workspace` 或 `/ws` — 保存/切换群组工作空间
 
 **查看能力：**
-`/skills` — 列出已安装的 Claude Skills
-`/mcp` — 列出已配置的 MCP Servers
-`/usage` — 查看 Claude Max 订阅用量百分比和重置时间
+`/skills` — 列出当前仓库可见的 Skills / 指令
+`/mcp` — 查看 MCP 配置入口说明
+`/usage` — 查看当前 CLI 的用量查询方式
 
 
-**Claude Skills（直接转发给 Claude 执行）：**
+**Skill / Prompt 透传（直接转发给 CLI 执行）：**
 `/commit` — 提交代码
-其他 `/xxx` — 自动转发给 Claude 处理
+其他 `/xxx` — 自动转发给 CLI 处理
 
 **MCP 工具：** 已配置的 MCP servers 自动可用，直接对话即可调用。
 
-**发送任意普通消息即可与 Claude 对话。**\
+**发送任意普通消息即可与 Copilot 对话。**\
 """
 
 
@@ -78,7 +82,7 @@ def parse_command(text: str) -> Optional[Tuple[str, str]]:
     text = text.strip()
     
     # 匹配自然语言的快捷方式，把没有斜杠的 "帮我写/帮我做/新建需求" 都转到 /harness
-    magic_starters = ["帮我", "请帮我", "新建需求", "提需求"]
+    magic_starters = ["新建需求", "提需求"]
     
     # 正规的斜杠命令处理
     if text.startswith("/"):
@@ -95,7 +99,7 @@ def parse_command(text: str) -> Optional[Tuple[str, str]]:
     return None
 
 
-# Bot 自身处理的命令，其余 /xxx 转发给 Claude
+# Bot 自身处理的命令，其余 /xxx 转发给 CLI
 BOT_COMMANDS = {
     "help", "h", "new", "clear", "resume", "model", "mode", "status", "cd", "ls",
     "workspace", "ws", "skills", "mcp", "usage", "stop", "harness", "task", "job", "run"
@@ -223,33 +227,39 @@ async def _format_session_list(user_id: str, chat_id: str, store: SessionStore):
     return "\n".join(lines)
 
 
+def _candidate_skill_sources() -> list[tuple[str, str]]:
+    project_root = os.path.abspath(DEFAULT_CWD)
+    return [
+        ("dir", os.path.join(project_root, ".claude", "skills")),
+        ("dir", os.path.join(project_root, "openclaw", "skills")),
+        ("dir", os.path.expanduser("~/.claude/skills")),
+        ("dir", os.path.expanduser("~/.claude/plugins")),
+        ("file", os.path.join(project_root, "AGENTS.md")),
+        ("file", os.path.join(project_root, ".github", "copilot-instructions.md")),
+    ]
+
+
 def _list_skills(chat_id: str = ""):
-    """扫描 ~/.claude/plugins + ~/.claude/skills 目录，返回 dict(text, buttons) 或 str"""
+    """扫描仓库与本地技能目录，返回 dict(text, buttons) 或 str"""
     skills = []
-    # 扫描 plugins (旧格式)
-    if os.path.isdir(PLUGINS_DIR):
-        for root, dirs, files in os.walk(PLUGINS_DIR):
-            if os.path.basename(root) != "commands":
-                continue
+    for source_type, path in _candidate_skill_sources():
+        if source_type == "file":
+            if os.path.isfile(path):
+                skills.append((os.path.splitext(os.path.basename(path))[0], _read_skill_desc(path)))
+            continue
+        if not os.path.isdir(path):
+            continue
+        for root, _, files in os.walk(path):
             for fname in files:
-                if not fname.endswith(".md"):
+                if fname not in {"SKILL.md", "AGENTS.md"} and not fname.endswith(".md"):
                     continue
-                name = fname[:-3]
                 fpath = os.path.join(root, fname)
+                name = os.path.basename(root) if fname == "SKILL.md" else os.path.splitext(fname)[0]
                 desc = _read_skill_desc(fpath)
                 skills.append((name, desc))
 
-    # 扫描 skills (新格式)
-    skills_dir = os.path.expanduser("~/.claude/skills")
-    if os.path.isdir(skills_dir):
-        for entry in os.listdir(skills_dir):
-            skill_md = os.path.join(skills_dir, entry, "SKILL.md")
-            if os.path.isfile(skill_md):
-                desc = _read_skill_desc(skill_md)
-                skills.append((entry, desc))
-
     if not skills:
-        return "暂无已安装的 skills。"
+        return "暂无可见的 skills / 指令文件。"
 
     skills.sort(key=lambda x: x[0])
     # 去重
@@ -265,7 +275,7 @@ def _list_skills(chat_id: str = ""):
         for name, desc in unique[:15]
     ]
     return {
-        "text": f"🛠 **可用 Skills** ({len(unique)} 个)",
+        "text": f"🛠 **可用 Skills / 指令** ({len(unique)} 个)",
         "buttons": buttons,
     }
 
@@ -290,115 +300,43 @@ def _read_skill_desc(fpath: str) -> str:
 
 
 def _get_usage() -> str:
-    """
-    发一个轻量 API 请求，从响应 headers 获取 Claude Max 订阅用量百分比和重置时间。
-    """
-    if sys.platform != "darwin":
-        return "❌ /usage 目前只支持 macOS"
-
-    import urllib.request
-    import urllib.error
-    import ssl
-
-    try:
-        result = subprocess.run(
-            ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
-            capture_output=True, text=True, timeout=5,
+    if CLI_BACKEND == "claude":
+        return (
+            "📊 **Usage**\n\n"
+            "Claude 路线的自动用量查询已下线。"
+            "如需查看，请直接在终端进入交互式 CLI 后执行相应命令。"
         )
-        creds = json.loads(result.stdout.strip())
-        token = creds["claudeAiOauth"]["accessToken"]
-    except Exception as e:
-        return f"❌ 读取凭证失败：{e}"
-
-    body = json.dumps({
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 1,
-        "messages": [{"role": "user", "content": "hi"}],
-    }).encode()
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "anthropic-beta": "oauth-2025-04-20",
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        },
-        method="POST",
+    return (
+        "📊 **Usage**\n\n"
+        "Copilot CLI 的用量信息建议在交互式终端里查看：\n"
+        "1. 运行 `copilot`\n"
+        "2. 输入 `/usage`\n"
+        "3. 如需更详细上下文，可再用 `/context`"
     )
-
-    try:
-        ctx = ssl.create_default_context()
-        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
-            headers = dict(resp.headers)
-    except urllib.error.HTTPError as e:
-        headers = dict(e.headers)
-    except Exception as e:
-        return f"❌ 获取用量失败：{e}"
-
-    def h(key):
-        return headers.get(key) or headers.get(key.lower()) or headers.get(key.replace("-", "_"))
-
-    def fmt_pct(val):
-        if val is None:
-            return "未知"
-        pct = float(val) * 100
-        bar_len = 20
-        filled = round(pct / 100 * bar_len)
-        bar = "█" * filled + "░" * (bar_len - filled)
-        return f"{bar} {pct:.1f}%"
-
-    def fmt_reset(ts):
-        if ts is None:
-            return "未知"
-        try:
-            dt = datetime.fromtimestamp(int(ts))
-            now = datetime.now()
-            diff = dt - now
-            hours = int(diff.total_seconds() // 3600)
-            minutes = int((diff.total_seconds() % 3600) // 60)
-            return f"{dt.strftime('%m/%d %H:%M')}（{hours}h{minutes}m 后）"
-        except Exception:
-            return ts
-
-    u5h = h("anthropic-ratelimit-unified-5h-utilization")
-    u7d = h("anthropic-ratelimit-unified-7d-utilization")
-    r5h = h("anthropic-ratelimit-unified-5h-reset")
-    r7d = h("anthropic-ratelimit-unified-7d-reset")
-    s5h = h("anthropic-ratelimit-unified-5h-status") or "unknown"
-    s7d = h("anthropic-ratelimit-unified-7d-status") or "unknown"
-
-    if u5h is None and u7d is None:
-        return "📊 **Usage**\n\n未能获取用量数据（响应中无用量 headers）。"
-
-    lines = ["📊 **Claude Max 用量**\n"]
-    lines.append(f"**5小时窗口**（状态：{s5h}）")
-    lines.append(f"{fmt_pct(u5h)}")
-    lines.append(f"重置时间：{fmt_reset(r5h)}\n")
-    lines.append(f"**7天窗口**（状态：{s7d}）")
-    lines.append(f"{fmt_pct(u7d)}")
-    lines.append(f"重置时间：{fmt_reset(r7d)}")
-
-    return "\n".join(lines)
 
 
 
 def _list_mcp() -> str:
-    """调用 claude mcp list 获取已配置的 MCP servers"""
-    try:
-        result = subprocess.run(
-            [CLAUDE_CLI, "mcp", "list"],
-            capture_output=True, text=True, timeout=10,
-        )
-        output = result.stdout.strip()
-    except Exception as e:
-        return f"❌ 获取 MCP 列表失败：{e}"
+    if CLI_BACKEND == "claude":
+        try:
+            result = subprocess.run(
+                [CLI_BIN, "mcp", "list"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            output = result.stdout.strip()
+        except Exception as e:
+            return f"❌ 获取 MCP 列表失败：{e}"
+        if not output:
+            return "暂无已配置的 MCP servers。"
+        return f"🔌 **已配置的 MCP Servers**\n\n{output}"
 
-    if not output:
-        return "暂无已配置的 MCP servers。\n\n用 `claude mcp add` 在终端添加。"
-
-    return f"🔌 **已配置的 MCP Servers**\n\n{output}"
+    return (
+        "🔌 **MCP 配置**\n\n"
+        "Copilot CLI 的 MCP 管理入口在交互式会话里。\n"
+        "请在终端运行 `copilot` 后输入 `/mcp` 查看或修改。"
+    )
 
 
 async def _list_directory(user_id: str, chat_id: str, store: SessionStore, args: str) -> str:
@@ -558,10 +496,10 @@ async def handle_command(
     chat_id: str,
     store: SessionStore,
 ) -> Optional[str]:
-    """处理命令，返回回复文本。返回 None 表示不是 bot 命令，应转发给 Claude。"""
+    """处理命令，返回回复文本。返回 None 表示不是 bot 命令，应转发给 CLI。"""
 
     if cmd not in BOT_COMMANDS:
-        return None  # 不认识的 /xxx → 转发给 Claude（如 /commit 等 skill）
+        return None  # 不认识的 /xxx → 转发给 CLI（如 /commit 等 skill）
 
     if cmd == "ws":
         cmd = "workspace"
@@ -705,15 +643,30 @@ async def handle_command(
             return "❌ 请提供需求内容，例如：`/harness 帮我写一个贪吃蛇`"
         
         # 把刚发的附件加进 context 里
-        recent_file = await store.peek_recent_file(user_id, chat_id)
+        recent_file = None
+        peek_recent_file = getattr(store, "peek_recent_file", None)
+        if callable(peek_recent_file):
+            result = peek_recent_file(user_id, chat_id)
+            recent_file = await result if inspect.isawaitable(result) else result
         if recent_file:
             args = f"{args}\n[附件内容路径]: {recent_file}"
-            await store.clear_recent_file(user_id, chat_id)
+            clear_recent_file = getattr(store, "clear_recent_file", None)
+            if callable(clear_recent_file):
+                result = clear_recent_file(user_id, chat_id)
+                if inspect.isawaitable(result):
+                    await result
 
         try:
+            # Generate a title from the first 20 characters of the request
+            title = (args.split('\n')[0][:20] + "...") if args else "Feishu Request"
+            
             req = urllib.request.Request(
                 "http://localhost:8080/api/requests",
-                data=json.dumps({"text": args, "source": "feishu-bot"}).encode("utf-8"),
+                data=json.dumps({
+                    "title": title,
+                    "text": args, 
+                    "source": "feishu-bot"
+                }).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
             with urllib.request.urlopen(req) as response:

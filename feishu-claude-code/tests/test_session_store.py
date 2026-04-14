@@ -9,6 +9,7 @@ os.environ.setdefault("FEISHU_APP_ID", "test_app_id")
 os.environ.setdefault("FEISHU_APP_SECRET", "test_app_secret")
 os.environ.setdefault("DEFAULT_MODEL", "claude-opus-4-6")
 os.environ.setdefault("PERMISSION_MODE", "bypassPermissions")
+os.environ.setdefault("CLI_BACKEND", "claude")
 
 # Add parent directory to path to import session_store
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

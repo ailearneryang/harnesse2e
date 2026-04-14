@@ -3516,7 +3516,7 @@ function renderSidebarFooter(settings, runner) {
     return `
         <div class="info-row"><span>Target Repo</span><span class="info-val">${esc(configuredRepo)}</span></div>
         ${showResolvedRepo ? `<div class="info-row"><span>Resolved</span><span class="info-val">${esc(resolvedRepo)}</span></div>` : ''}
-        <div class="info-row"><span>Claude</span><span class="info-val">${settings.claude?.simulate?'Simulation':'CLI'}</span></div>
+        <div class="info-row"><span>Copilot</span><span class="info-val">${(settings.copilot ?? settings.claude)?.simulate?'Simulation':'CLI'}</span></div>
         <div class="info-row"><span>Synced</span><span class="info-val">${fmtTime(displayTime)}</span></div>
     `;
 }
@@ -4306,7 +4306,7 @@ function renderDashboardPage(activeTask, tasks, stats, budget, settings) {
                             <input id="req-prioritize" type="checkbox" />
                             <div class="priority-toggle-copy">
                                 <div class="priority-toggle-title">新请求优先执行</div>
-                                <div class="priority-toggle-desc">系统会先尝试中断当前 Claude agent 执行并回队列；若当前阶段不可中断，再退回到阶段边界让出。适合热修、阻塞性任务和临时插单。</div>
+                                <div class="priority-toggle-desc">系统会先尝试中断当前 Copilot agent 执行并回队列；若当前阶段不可中断，再退回到阶段边界让出。适合热修、阻塞性任务和临时插单。</div>
                             </div>
                         </label>
                         <div class="field-group full">

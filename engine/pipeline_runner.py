@@ -31,7 +31,7 @@ import feishu_notifier
 from context_manager import TaskContextManager
 from distillers.context_distiller import ContextDistiller
 from event_bus import EventBus
-from integrations import BuildVerificationAdapter, ClaudeCLIAdapter, FeishuAdapter, GerritAdapter, HILAdapter
+from integrations import BuildVerificationAdapter, ClaudeCLIAdapter, CopilotCLIAdapter, FeishuAdapter, GerritAdapter, HILAdapter
 from memory_store import MemoryStore
 from memory_extractor import MemoryExtractor, MemoryInjector
 from pipeline_template_manager import PipelineTemplateManager
@@ -56,15 +56,15 @@ DEFAULT_PIPELINE_ORDER = [
 ]
 
 DEFAULT_AGENTS = [
-    {"id": "planner", "name": "Planner", "model": "anthropic/claude-opus-4-6", "role": "scope tasks and define a sprint contract"},
-    {"id": "software-requirement-orchestrator", "name": "Software Requirement Orchestrator", "model": "anthropic/claude-opus-4-6", "role": "orchestrate software requirement generation and quality gate"},
-    {"id": "cockpit-middleware-architect", "name": "Cockpit Middleware Architect", "model": "anthropic/claude-opus-4-6", "role": "design IVI/cockpit middleware architecture across Linux/QNX/Android"},
-    {"id": "developer", "name": "Developer", "model": "anthropic/claude-sonnet-4-6", "role": "implement changes in the target workspace"},
-    {"id": "code-reviewer", "name": "Code Reviewer", "model": "anthropic/claude-opus-4-6", "role": "independently review code quality and logic"},
-    {"id": "security-reviewer", "name": "Security Reviewer", "model": "anthropic/claude-opus-4-6", "role": "independently review security and compliance risks"},
-    {"id": "safety-reviewer", "name": "Safety Reviewer", "model": "anthropic/claude-opus-4-6", "role": "review ISO 26262, AUTOSAR, and vehicle safety compliance impacts"},
-    {"id": "qa-engineer", "name": "QA Engineer", "model": "anthropic/claude-sonnet-4-6", "role": "execute validation, tests, and acceptance checks"},
-    {"id": "debugger", "name": "Debugger", "model": "anthropic/claude-sonnet-4-6", "role": "apply narrow fixes after failed review or QA"},
+    {"id": "planner", "name": "Planner", "model": "gpt-5.4", "role": "scope tasks and define a sprint contract"},
+    {"id": "software-requirement-orchestrator", "name": "Software Requirement Orchestrator", "model": "gpt-5.4", "role": "orchestrate software requirement generation and quality gate"},
+    {"id": "cockpit-middleware-architect", "name": "Cockpit Middleware Architect", "model": "gpt-5.4", "role": "design IVI/cockpit middleware architecture across Linux/QNX/Android"},
+    {"id": "developer", "name": "Developer", "model": "gpt-5-mini", "role": "implement changes in the target workspace"},
+    {"id": "code-reviewer", "name": "Code Reviewer", "model": "gpt-5.4", "role": "independently review code quality and logic"},
+    {"id": "security-reviewer", "name": "Security Reviewer", "model": "gpt-5.4", "role": "independently review security and compliance risks"},
+    {"id": "safety-reviewer", "name": "Safety Reviewer", "model": "gpt-5.4", "role": "review ISO 26262, AUTOSAR, and vehicle safety compliance impacts"},
+    {"id": "qa-engineer", "name": "QA Engineer", "model": "gpt-5-mini", "role": "execute validation, tests, and acceptance checks"},
+    {"id": "debugger", "name": "Debugger", "model": "gpt-5-mini", "role": "apply narrow fixes after failed review or QA"},
     {"id": "build-verifier", "name": "Build Verifier", "model": "system", "role": "trigger downstream build, static analysis, SBOM, and signing checks"},
     {"id": "delivery-manager", "name": "Delivery Manager", "model": "system", "role": "submit changes to Gerrit and notify Feishu"},
 ]
@@ -193,7 +193,8 @@ class PipelineRunner:
         self.memory_injector = MemoryInjector(self.memory_store)
         self.consistency_checker = ConsistencyChecker(harness_dir)
         self.change_impact_analyzer = ChangeImpactAnalyzer(harness_dir)
-        self.claude = ClaudeCLIAdapter(self.settings["claude"])
+        self.agent_cli = CopilotCLIAdapter(self._agent_cli_settings())
+        self.claude = self.agent_cli
         self.feishu = FeishuAdapter(self.settings["feishu"], state_store=self.state_store)
         self.gerrit = GerritAdapter(self.settings["gerrit"])
         self.hil = HILAdapter(self.settings["hil"])
@@ -217,19 +218,24 @@ class PipelineRunner:
         return loaded if isinstance(loaded, dict) else default
 
     def _default_settings(self) -> Dict:
+        agent_defaults = {
+            "command": os.environ.get("HARNESS_AGENT_COMMAND")
+            or os.environ.get("HARNESS_CLAUDE_COMMAND")
+            or "python3 engine/copilot_shim.py",
+            "model": os.environ.get("HARNESS_AGENT_MODEL")
+            or os.environ.get("HARNESS_CLAUDE_MODEL", "gpt-5.4"),
+            "max_turns": int(os.environ.get("HARNESS_AGENT_MAX_TURNS") or os.environ.get("HARNESS_CLAUDE_MAX_TURNS", "30")),
+            "output_format": "stream-json",
+            "simulate": (os.environ.get("HARNESS_SIMULATE_AGENT") or os.environ.get("HARNESS_SIMULATE_CLAUDE", "1")) == "1",
+            "hard_timeout_seconds": int(os.environ.get("HARNESS_AGENT_HARD_TIMEOUT") or os.environ.get("HARNESS_CLAUDE_HARD_TIMEOUT", "1800")),
+            "idle_timeout_seconds": int(os.environ.get("HARNESS_AGENT_IDLE_TIMEOUT") or os.environ.get("HARNESS_CLAUDE_IDLE_TIMEOUT", "300")),
+            "max_tokens_per_run": int(os.environ.get("HARNESS_AGENT_MAX_TOKENS_PER_RUN") or os.environ.get("HARNESS_CLAUDE_MAX_TOKENS_PER_RUN", "0")),
+        }
         return {
             "target_repo": self.harness_dir,
             "budget_limit": 500000,
-            "claude": {
-                "command": os.environ.get("HARNESS_CLAUDE_COMMAND", "claude"),
-                "model": os.environ.get("HARNESS_CLAUDE_MODEL", ""),
-                "max_turns": int(os.environ.get("HARNESS_CLAUDE_MAX_TURNS", "30")),
-                "output_format": "stream-json",
-                "simulate": os.environ.get("HARNESS_SIMULATE_CLAUDE", "1") == "1",
-                "hard_timeout_seconds": int(os.environ.get("HARNESS_CLAUDE_HARD_TIMEOUT", "1800")),
-                "idle_timeout_seconds": int(os.environ.get("HARNESS_CLAUDE_IDLE_TIMEOUT", "300")),
-                "max_tokens_per_run": int(os.environ.get("HARNESS_CLAUDE_MAX_TOKENS_PER_RUN", "0")),
-            },
+            "copilot": dict(agent_defaults),
+            "claude": dict(agent_defaults),
             "feishu": {
                 "enabled": False,
                 "webhook": "",
@@ -251,12 +257,25 @@ class PipelineRunner:
             },
         }
 
+    def _normalize_agent_settings(self, settings: Dict) -> Dict:
+        copilot_settings = settings.get("copilot") or settings.get("claude") or {}
+        claude_settings = settings.get("claude") or settings.get("copilot") or {}
+        settings["copilot"] = dict(copilot_settings)
+        settings["claude"] = dict(claude_settings)
+        if not settings["copilot"].get("command"):
+            settings["copilot"]["command"] = "python3 engine/copilot_shim.py"
+        return settings
+
+    def _agent_cli_settings(self) -> Dict:
+        return self.settings.get("copilot") or self.settings.get("claude") or {}
+
     def _load_settings(self) -> Dict:
         settings = self._default_settings()
         if os.path.exists(self.settings_file):
             with open(self.settings_file, "r", encoding="utf-8") as handle:
                 loaded = json.load(handle)
             settings = self._deep_merge(settings, loaded)
+        settings = self._normalize_agent_settings(settings)
         self._save_json(self.settings_file, settings)
         return settings
 
@@ -335,7 +354,7 @@ class PipelineRunner:
             return {
                 "id": agent_id,
                 "name": frontmatter.get("name") or agent_id,
-                "model": frontmatter.get("model") or "claude",
+                "model": frontmatter.get("model") or "copilot",
                 "role": frontmatter.get("description") or "",
                 "description": frontmatter.get("description") or "",
                 "doc_path": self._claude_agent_doc_path(agent_id),
@@ -347,7 +366,7 @@ class PipelineRunner:
         return {
             "id": agent_id,
             "name": " ".join(part.capitalize() for part in label.split()) or agent_id,
-            "model": "claude",
+            "model": "copilot",
             "role": "",
         }
 
@@ -890,9 +909,11 @@ class PipelineRunner:
     def update_settings(self, payload: Dict) -> Dict:
         with self.lock:
             self.settings = self._deep_merge(self.settings, payload)
+            self.settings = self._normalize_agent_settings(self.settings)
             self._save_json(self.settings_file, self.settings)
             self.target_repo = self._resolve_target_repo(self.settings.get("target_repo"))
-            self.claude = ClaudeCLIAdapter(self.settings["claude"])
+            self.agent_cli = CopilotCLIAdapter(self._agent_cli_settings())
+            self.claude = self.agent_cli
             self.feishu = FeishuAdapter(self.settings["feishu"], state_store=self.state_store)
             self.gerrit = GerritAdapter(self.settings["gerrit"])
             self.hil = HILAdapter(self.settings["hil"])
@@ -1906,7 +1927,7 @@ class PipelineRunner:
             "planning": "Break the request into a sprint contract with clear subtasks, dependencies, and definition of done.",
             "requirements": "Write a traceable requirement spec with IDs, acceptance criteria, and non-functional constraints.",
             "design": "Create an implementation design covering architecture, APIs, data flow, observability, and recovery paths.",
-            "development": "Describe the implementation plan for Claude Code CLI in the target repo. Mention expected files, tests, and git workflow.",
+            "development": "Describe the implementation plan for GitHub Copilot CLI in the target repo. Mention expected files, tests, and git workflow.",
             "code_review": "Review the latest changes critically. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "security_review": "Review security, secrets, auth, and unsafe side effects. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",
             "safety_review": "Review ISO 26262, AUTOSAR, OTA rollback safety, WP.29, and vehicle-side functional safety impacts. End with VERDICT: PASS, FAIL, or NEED_HUMAN.",

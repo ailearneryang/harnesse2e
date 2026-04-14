@@ -1,4 +1,4 @@
-"""External integration adapters for Claude Code CLI, Feishu, and Gerrit."""
+"""External integration adapters for the agent CLI, Feishu, and Gerrit."""
 
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ class AgentRunResult:
     interrupt_reason: Optional[str] = None
 
 
-class ClaudeCLIAdapter:
-    """Runs Claude Code CLI if available, otherwise falls back to simulation."""
+class CopilotCLIAdapter:
+    """Runs the configured agent CLI if available, otherwise falls back to simulation."""
 
     def __init__(self, settings: Dict):
         self.settings = settings
@@ -88,10 +88,10 @@ class ClaudeCLIAdapter:
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
     ) -> AgentRunResult:
-        command_text = self.settings.get("command", "claude")
+        command_text = self.settings.get("command", "python3 engine/copilot_shim.py")
         simulate = self.settings.get("simulate", False)
         command_parts = shlex.split(command_text)
-        binary = command_parts[0] if command_parts else "claude"
+        binary = command_parts[0] if command_parts else "python3"
 
         if simulate or shutil.which(binary) is None:
             return self._simulate(agent_id, prompt, stage, event_callback)
@@ -108,7 +108,8 @@ class ClaudeCLIAdapter:
         if system_prompt:
             cli_command.extend(["--system-prompt", system_prompt])
 
-        # stream-json requires --verbose in Claude Code CLI 2.x
+        # Claude-compatible stream-json requires --verbose in Claude Code CLI 2.x.
+        # Copilot runs through engine/copilot_shim.py and ignores unsupported flags.
         if output_format == "stream-json":
             cli_command.append("--verbose")
 
@@ -146,7 +147,7 @@ class ClaudeCLIAdapter:
                 errors="replace",
             )
         except Exception as exc:
-            error_message = f"Claude CLI failed to start: {exc}"
+            error_message = f"Agent CLI failed to start: {exc}"
             return AgentRunResult(
                 success=False,
                 output_text="",
@@ -283,7 +284,7 @@ class ClaudeCLIAdapter:
                 transcript=transcript,
                 command=cli_command,
                 return_code=process.returncode or -9,
-                error=f"Claude CLI stream reader failed: {stream_error}",
+                error=f"Agent CLI stream reader failed: {stream_error}",
                 verdict=verdict,
                 tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
                 duration_seconds=duration,
@@ -297,7 +298,7 @@ class ClaudeCLIAdapter:
                 transcript=transcript,
                 command=cli_command,
                 return_code=process.returncode or -9,
-                error=f"Claude CLI exceeded hard timeout of {hard_timeout_seconds}s",
+                error=f"Agent CLI exceeded hard timeout of {hard_timeout_seconds}s",
                 verdict=verdict,
                 tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
                 duration_seconds=duration,
@@ -311,7 +312,7 @@ class ClaudeCLIAdapter:
                 transcript=transcript,
                 command=cli_command,
                 return_code=process.returncode or -9,
-                error=f"Claude CLI exceeded idle timeout of {idle_timeout_seconds}s without output",
+                error=f"Agent CLI exceeded idle timeout of {idle_timeout_seconds}s without output",
                 verdict=verdict,
                 tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
                 duration_seconds=duration,
@@ -325,7 +326,7 @@ class ClaudeCLIAdapter:
                 transcript=transcript,
                 command=cli_command,
                 return_code=process.returncode or -9,
-                error=f"Claude CLI exceeded token budget limit ({budget_limit})",
+                error=f"Agent CLI exceeded token budget limit ({budget_limit})",
                 verdict=verdict,
                 tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
                 duration_seconds=duration,
@@ -346,7 +347,7 @@ class ClaudeCLIAdapter:
                 transcript=transcript,
                 command=cli_command,
                 return_code=process.returncode,
-                error=None if soft_success else f"Claude CLI exited with code {process.returncode}",
+                error=None if soft_success else f"Agent CLI exited with code {process.returncode}",
                 verdict=verdict,
                 tokens_estimate=total_usage or self._estimate_tokens(prompt, output_text),
                 duration_seconds=duration,
@@ -433,7 +434,7 @@ class ClaudeCLIAdapter:
             success=True,
             output_text=output_text,
             transcript=transcript,
-            command=[self.settings.get("command", "claude"), "--simulate"],
+            command=[self.settings.get("command", "python3 engine/copilot_shim.py"), "--simulate"],
             verdict=verdict,
             tokens_estimate=self._estimate_tokens(prompt, output_text),
             duration_seconds=1.0,
@@ -495,6 +496,9 @@ class ClaudeCLIAdapter:
 
     def _estimate_tokens(self, prompt: str, output_text: str) -> int:
         return max(1, int((len(prompt) + len(output_text)) / 4))
+
+
+ClaudeCLIAdapter = CopilotCLIAdapter
 
 
 class FeishuAdapter:

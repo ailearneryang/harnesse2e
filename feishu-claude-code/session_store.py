@@ -1,52 +1,41 @@
 import asyncio
 import json
 import os
-import subprocess
-import ssl
-import urllib.request
-import urllib.error
+import re
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from bot_config import SESSIONS_DIR, DEFAULT_MODEL, DEFAULT_CWD, PERMISSION_MODE
+from bot_config import CLI_BACKEND, DEFAULT_CWD, DEFAULT_MODEL, PERMISSION_MODE, SESSIONS_DIR
 
-CLAUDE_PROJECTS_DIR = os.path.expanduser("~/.claude/projects")
+TRANSCRIPTS_DIR = os.path.join(SESSIONS_DIR, "transcripts")
+
+
+def _ensure_transcripts_dir() -> None:
+    os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
+
+
+def _transcript_path(session_id: str) -> str:
+    _ensure_transcripts_dir()
+    return os.path.join(TRANSCRIPTS_DIR, f"{session_id}.jsonl")
 
 
 def scan_cli_sessions(limit: int = 30) -> list[dict]:
     """
-    扫描 ~/.claude/projects/ 下所有 session .jsonl 文件。
-    返回列表，每项：{session_id, started_at, cwd, preview, source="terminal"}
-    按最近修改时间倒序，最多返回 limit 条。
+    扫描 bot 自己维护的 transcripts 目录。
+    Copilot 默认不暴露可恢复的本地会话文件，因此这里统一使用 bot transcript。
     """
+    _ensure_transcripts_dir()
     results = []
-    if not os.path.isdir(CLAUDE_PROJECTS_DIR):
-        return results
-
-    for project_dir in os.listdir(CLAUDE_PROJECTS_DIR):
-        project_path = os.path.join(CLAUDE_PROJECTS_DIR, project_dir)
-        if not os.path.isdir(project_path):
+    for fname in os.listdir(TRANSCRIPTS_DIR):
+        if not fname.endswith(".jsonl"):
             continue
-        for fname in os.listdir(project_path):
-            if not fname.endswith(".jsonl"):
-                continue
-            session_id = fname[:-6]  # 去掉 .jsonl
-            fpath = os.path.join(project_path, fname)
-            mtime = os.path.getmtime(fpath)
-            results.append((mtime, session_id, fpath))
+        session_id = fname[:-6]
+        fpath = os.path.join(TRANSCRIPTS_DIR, fname)
+        results.append((os.path.getmtime(fpath), session_id, fpath))
 
-    # 按最近修改时间倒序
     results.sort(key=lambda x: x[0], reverse=True)
-    results = results[:limit]
-
-    sessions = []
-    for mtime, session_id, fpath in results:
-        info = _parse_session_file(fpath, session_id, mtime)
-        sessions.append(info)
-    return sessions
-
-
-import re
+    return [_parse_session_file(fpath, session_id, mtime) for mtime, session_id, fpath in results[:limit]]
 
 def _clean_preview(text: str) -> str:
     """清洗 preview 文本，去掉系统注入内容"""
@@ -62,7 +51,7 @@ def _clean_preview(text: str) -> str:
 
 
 def _parse_session_file(fpath: str, session_id: str, mtime: float) -> dict:
-    """从 .jsonl 文件提取首条用户消息（作为 preview）、cwd、时间戳"""
+    """从 bot transcript 提取 preview / cwd / started_at。"""
     preview = ""
     cwd = ""
     started_at = datetime.fromtimestamp(mtime).isoformat()
@@ -77,23 +66,17 @@ def _parse_session_file(fpath: str, session_id: str, mtime: float) -> dict:
                     d = json.loads(raw)
                 except json.JSONDecodeError:
                     continue
-                if d.get("type") != "user":
+                entry_type = d.get("type")
+                if entry_type == "custom-title" and d.get("customTitle"):
+                    preview = d["customTitle"][:50]
                     continue
-                # 取 cwd
+                if entry_type != "message" or d.get("role") != "user":
+                    continue
                 if not cwd and d.get("cwd"):
                     cwd = d["cwd"]
-                # 取 timestamp
                 if d.get("timestamp"):
                     started_at = d["timestamp"][:19].replace("T", " ")
-                # 取用户消息文本
-                msg = d.get("message", {})
-                content = msg.get("content", "")
-                if isinstance(content, list):
-                    text = " ".join(
-                        b.get("text", "") for b in content if b.get("type") == "text"
-                    ).strip()
-                else:
-                    text = str(content).strip()
+                text = str(d.get("content", "")).strip()
                 if text:
                     text = _clean_preview(text)
                     if text:
@@ -111,21 +94,12 @@ def _parse_session_file(fpath: str, session_id: str, mtime: float) -> dict:
     }
 
 def _find_session_file(session_id: str) -> Optional[str]:
-    """在 ~/.claude/projects/ 下找到 session 对应的 .jsonl 文件"""
-    if not os.path.isdir(CLAUDE_PROJECTS_DIR):
-        return None
-    for project_dir in os.listdir(CLAUDE_PROJECTS_DIR):
-        project_path = os.path.join(CLAUDE_PROJECTS_DIR, project_dir)
-        if not os.path.isdir(project_path):
-            continue
-        fpath = os.path.join(project_path, f"{session_id}.jsonl")
-        if os.path.isfile(fpath):
-            return fpath
-    return None
+    fpath = _transcript_path(session_id)
+    return fpath if os.path.isfile(fpath) else None
 
 
 def _extract_conversation_context(fpath: str, max_chars: int = 2000) -> str:
-    """从 .jsonl 提取前几轮对话文本，用于生成摘要"""
+    """从 bot transcript 提取最近对话文本。"""
     parts = []
     total = 0
     try:
@@ -138,25 +112,15 @@ def _extract_conversation_context(fpath: str, max_chars: int = 2000) -> str:
                     d = json.loads(raw)
                 except json.JSONDecodeError:
                     continue
-                if d.get("type") not in ("user", "assistant"):
+                if d.get("type") != "message":
                     continue
-                if d.get("isMeta"):
-                    continue
-                msg = d.get("message", {})
-                content = msg.get("content", "")
-                if isinstance(content, list):
-                    text = " ".join(
-                        b.get("text", "") for b in content
-                        if b.get("type") == "text"
-                    ).strip()
-                else:
-                    text = str(content).strip()
+                text = str(d.get("content", "")).strip()
                 if not text:
                     continue
                 text = _clean_preview(text)
                 if not text:
                     continue
-                role = "用户" if d["type"] == "user" else "助手"
+                role = "用户" if d.get("role") == "user" else "助手"
                 part = f"{role}: {text}"
                 parts.append(part)
                 total += len(part)
@@ -168,74 +132,27 @@ def _extract_conversation_context(fpath: str, max_chars: int = 2000) -> str:
 
 
 def _get_api_token() -> Optional[str]:
-    """获取 Claude API token，先试 credentials 文件，再试 keychain"""
-    try:
-        creds_path = os.path.expanduser("~/.claude/.credentials.json")
-        if os.path.isfile(creds_path):
-            with open(creds_path) as f:
-                creds = json.load(f)
-            return creds["claudeAiOauth"]["accessToken"]
-        result = subprocess.run(
-            ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
-            capture_output=True, text=True, timeout=5,
-        )
-        creds = json.loads(result.stdout.strip())
-        return creds["claudeAiOauth"]["accessToken"]
-    except Exception:
-        return None
+    """兼容旧导入，Copilot 路线下不再直接访问 Claude token。"""
+    return None
 
 
 def generate_summary(session_id: str, token: Optional[str] = None) -> str:
-    """为指定 session 调用 haiku 生成一句话摘要"""
+    """为指定 session 生成本地摘要，避免依赖特定云厂商 API。"""
     fpath = _find_session_file(session_id)
     if not fpath:
         return ""
     context = _extract_conversation_context(fpath)
     if not context:
         return ""
-    if token is None:
-        token = _get_api_token()
-    if not token:
+    first_line = context.splitlines()[0].replace("用户: ", "").replace("助手: ", "").strip()
+    if not first_line:
         return ""
-
-    body = json.dumps({
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 40,
-        "messages": [{"role": "user", "content": (
-            "用10-20个中文字总结这段对话的主题。"
-            "直接返回摘要，不加引号不加标点。\n\n"
-            + context[:2000]
-        )}],
-    }).encode()
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "anthropic-beta": "oauth-2025-04-20",
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-
-    try:
-        ctx = ssl.create_default_context()
-        with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
-            result = json.loads(resp.read())
-            blocks = result.get("content", [])
-            if blocks and blocks[0].get("type") == "text":
-                return blocks[0]["text"].strip()
-    except urllib.error.HTTPError as e:
-        print(f"[摘要API] {session_id[:8]} HTTP {e.code}: {e.read().decode()[:100]}", flush=True)
-    except Exception as e:
-        print(f"[摘要API] {session_id[:8]} {type(e).__name__}: {e}", flush=True)
-    return ""
+    compact = re.sub(r"\s+", " ", first_line)
+    return compact[:18] + ("…" if len(compact) > 18 else "")
 
 
 def _write_custom_title(session_id: str, title: str):
-    """将摘要作为 custom-title 写入 .jsonl，让 CLI 终端也能显示"""
+    """将摘要作为 custom-title 写入 bot transcript。"""
     fpath = _find_session_file(session_id)
     if not fpath:
         return
@@ -265,6 +182,29 @@ def _write_custom_title(session_id: str, title: str):
             f.write(entry + "\n")
     except OSError:
         pass
+
+
+def _append_message(
+    session_id: str,
+    role: str,
+    content: str,
+    cwd: str = "",
+    model: str = "",
+    backend: str = "",
+):
+    if not content.strip():
+        return
+    entry = {
+        "type": "message",
+        "role": role,
+        "content": content,
+        "cwd": cwd,
+        "model": model,
+        "backend": backend or CLI_BACKEND,
+        "timestamp": datetime.now().isoformat(),
+    }
+    with open(_transcript_path(session_id), "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 SESSIONS_FILE = os.path.join(SESSIONS_DIR, "sessions.json")
@@ -461,8 +401,56 @@ class SessionStore:
             workspace=cur.get("workspace", ""),
         )
 
-    async def on_claude_response(self, user_id: str, chat_id: str, new_session_id: str, first_message: str):
-        """Claude 回复后用返回的 session_id 更新状态"""
+    async def prepare_backend_input(
+        self,
+        user_id: str,
+        chat_id: str,
+        user_message: str,
+        max_context_chars: int = 5000,
+    ) -> tuple[str, str]:
+        """
+        为 Copilot/Claude 生成本轮输入。
+
+        Copilot 默认不提供可恢复 session，因此这里会把本地 transcript 拼回 prompt，
+        从而在 one-shot 调用里维持连续上下文。
+        """
+        chat_data = await self._ensure_chat_data(user_id, chat_id)
+        cur = chat_data["current"]
+        session_id = cur.get("session_id")
+        if not session_id:
+            session_id = f"sid_{uuid.uuid4().hex[:12]}"
+            cur["session_id"] = session_id
+            cur["started_at"] = datetime.now().isoformat()
+            if not cur.get("preview"):
+                cur["preview"] = _clean_preview(user_message)[:40]
+            await self._save_async()
+
+        transcript_path = _find_session_file(session_id)
+        if not transcript_path:
+            return session_id, user_message
+
+        context = _extract_conversation_context(transcript_path, max_chars=max_context_chars)
+        if not context:
+            return session_id, user_message
+
+        prompt = (
+            "你正在继续一个飞书中的开发助手会话。以下是最近对话记录，"
+            "请保持上下文连续，并只回答最新用户消息。\n\n"
+            f"{context}\n\n"
+            "## 最新用户消息\n"
+            f"{user_message}"
+        )
+        return session_id, prompt
+
+    async def on_backend_response(
+        self,
+        user_id: str,
+        chat_id: str,
+        new_session_id: str,
+        first_message: str,
+        assistant_message: str = "",
+    ):
+        """后端回复后更新状态，并把对话写入 bot transcript。"""
         chat_data = await self._ensure_chat_data(user_id, chat_id)
         cur = chat_data["current"]
         old_id = cur.get("session_id")
@@ -486,6 +474,37 @@ class SessionStore:
         if not cur.get("preview"):
             cur["preview"] = _clean_preview(first_message)[:40]
         await self._save_async()
+
+        _append_message(
+            new_session_id,
+            "user",
+            first_message,
+            cwd=cur.get("cwd", ""),
+            model=cur.get("model", ""),
+        )
+        _append_message(
+            new_session_id,
+            "assistant",
+            assistant_message,
+            cwd=cur.get("cwd", ""),
+            model=cur.get("model", ""),
+        )
+
+    async def on_claude_response(
+        self,
+        user_id: str,
+        chat_id: str,
+        new_session_id: str,
+        first_message: str,
+        assistant_message: str = "",
+    ):
+        await self.on_backend_response(
+            user_id=user_id,
+            chat_id=chat_id,
+            new_session_id=new_session_id,
+            first_message=first_message,
+            assistant_message=assistant_message,
+        )
 
     async def new_session(self, user_id: str, chat_id: str) -> str:
         """Start a new session for a specific chat, return old session title"""

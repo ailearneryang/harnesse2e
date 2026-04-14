@@ -1,6 +1,6 @@
 """
-飞书 × Claude Code Bot
-通过飞书 WebSocket 长连接接收私聊/群聊消息，调用本机 claude CLI 回复，支持流式卡片输出。
+飞书 × Copilot CLI Bot
+通过飞书 WebSocket 长连接接收私聊/群聊消息，调用本机 CLI 回复，支持流式卡片输出。
 
 启动：python main.py
 """
@@ -14,6 +14,7 @@ import os
 import threading
 import time
 import traceback
+import uuid
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # 确保项目目录在 sys.path 最前面
@@ -200,7 +201,7 @@ async def handle_message_async(event: P2ImMessageReceiveV1):
     print(f"\n>>>>>>>> [非常重要!!!] 你要找的 ADMIN_OPEN_ID 是: {user_id} <<<<<<<<\n", flush=True)
     print(f"[Chat Info] user={user_id}... chat={chat_id}... is_group={is_group}", flush=True)
 
-    # /stop 和 / 在锁外处理（不需要排队等 Claude）
+    # /stop 和 / 在锁外处理（不需要排队等 CLI）
     if msg.message_type == "text":
         try:
             _text = json.loads(msg.content).get("text", "").strip()
@@ -244,7 +245,7 @@ async def handle_message_async(event: P2ImMessageReceiveV1):
         if len(_chat_locks) >= _MAX_CHAT_LOCKS:
             # 只清理未持有的锁，避免误杀正在使用的锁导致并发串行保护失效
             idle = [k for k, v in _chat_locks.items() if not v.locked()]
-            for k in idle[:len(idle) // 2]:
+            for k in idle:
                 del _chat_locks[k]
         _chat_locks[chat_id] = asyncio.Lock()
     lock = _chat_locks[chat_id]
@@ -262,14 +263,15 @@ async def _run_and_display(
     user_id: str, chat_id: str, is_group: bool,
     text: str, card_msg_id: str, session, notify_msg_id: str,
 ):
-    """调用 Claude 并流式展示结果，检测选项时附加按钮。消息处理和按钮回复共用此函数。"""
+    """调用 CLI 并流式展示结果，检测选项时附加按钮。消息处理和按钮回复共用此函数。"""
     active_run = _active_runs.start_run(user_id, card_msg_id)
 
     accumulated = ""
     tool_history: list[str] = []
     ask_options: list[tuple[str, str]] = []  # AskUserQuestion 解析出的选项
-    plan_exited = False  # Claude 调了 ExitPlanMode
+    plan_exited = False  # 兼容旧的 ExitPlanMode 信号
     last_push_time = 0.0
+    last_push_chars = 0
     push_failures = 0
     _PUSH_INTERVAL = 0.4
     _MAX_STREAM_DISPLAY = 2500
@@ -335,19 +337,31 @@ async def _run_and_display(
         last_push_time = time.time()
 
     async def on_text_chunk(chunk: str):
-        nonlocal accumulated, last_push_time
+        nonlocal accumulated, last_push_time, last_push_chars
         accumulated += chunk
         now = time.time()
-        if now - last_push_time >= _PUSH_INTERVAL:
+        if (
+            len(accumulated) - last_push_chars >= config.STREAM_CHUNK_SIZE
+            or now - last_push_time >= _PUSH_INTERVAL
+        ):
             await push(_build_display())
             last_push_time = now
+            last_push_chars = len(accumulated)
 
-    claude_msg = text
+    logical_session_id = session.session_id or f"sid_{uuid.uuid4().hex[:12]}"
+    cli_message = text
+    prepare_backend_input = getattr(store, "prepare_backend_input", None)
+    if callable(prepare_backend_input):
+        prepared = prepare_backend_input(user_id, chat_id, text)
+        if asyncio.iscoroutine(prepared):
+            prepared = await prepared
+        if isinstance(prepared, tuple) and len(prepared) == 2:
+            logical_session_id, cli_message = prepared
     try:
-        print(f"[run_claude] 开始调用...", flush=True)
+        print(f"[run_cli] 开始调用...", flush=True)
         full_text, new_session_id, used_fresh_session_fallback = await run_claude(
-            message=claude_msg,
-            session_id=session.session_id,
+            message=cli_message,
+            session_id=session.session_id if config.CLI_BACKEND == "claude" else logical_session_id,
             model=session.model,
             cwd=session.cwd,
             permission_mode=session.permission_mode,
@@ -355,14 +369,14 @@ async def _run_and_display(
             on_tool_use=on_tool_use,
             on_process_start=lambda proc: _active_runs.attach_process(user_id, proc),
         )
-        print(f"[run_claude] 完成, session={new_session_id}", flush=True)
+        print(f"[run_cli] 完成, session={new_session_id}", flush=True)
     except Exception as e:
         if active_run.stop_requested:
             return
-        print(f"[error] Claude 运行失败: {type(e).__name__}: {e}", flush=True)
+        print(f"[error] CLI 运行失败: {type(e).__name__}: {e}", flush=True)
         traceback.print_exc()
         try:
-            await feishu.update_card(card_msg_id, f"❌ Claude 执行出错：{type(e).__name__}: {e}")
+            await feishu.update_card(card_msg_id, f"❌ Copilot 执行出错：{type(e).__name__}: {e}")
         except Exception:
             pass
         return
@@ -411,9 +425,15 @@ async def _run_and_display(
             pass
 
     if new_session_id:
-        await store.on_claude_response(user_id, chat_id, new_session_id, text)
+        await store.on_claude_response(
+            user_id,
+            chat_id,
+            new_session_id,
+            text,
+            assistant_message=final,
+        )
 
-    # ExitPlanMode: Claude 批准方案后要切到执行模式
+    # ExitPlanMode: 兼容旧规划模式信号
     if plan_exited and session.permission_mode == "plan":
         print(f"[Plan] ExitPlanMode 检测到，切换为 bypassPermissions", flush=True)
         await store.set_permission_mode(user_id, chat_id, "bypassPermissions")
@@ -526,11 +546,11 @@ async def _process_message(user_id: str, chat_id: str, is_group: bool, msg):
                 else:
                     await feishu.send_card_to_user(user_id, content=reply_text, loading=False)
             return
-        # reply is None → 不是 bot 命令，当作普通消息（含 /xxx）转发给 Claude
+        # reply is None → 不是 bot 命令，当作普通消息（含 /xxx）转发给 CLI
 
-    # ── 普通消息 → 调用 Claude ──────────────────────────────
+    # ── 普通消息 → 调用 CLI ──────────────────────────────
     session = await store.get_current(user_id, chat_id)
-    print(f"[Claude] session={session.session_id} model={session.model}", flush=True)
+    print(f"[CLI] backend={config.CLI_BACKEND} session={session.session_id} model={session.model}", flush=True)
 
     # 1. 发送"思考中"占位卡片，拿到 message_id
     try:
@@ -554,7 +574,7 @@ async def _process_message(user_id: str, chat_id: str, is_group: bool, msg):
 
 
 def _extract_options(text: str) -> list[tuple[str, str]]:
-    """从文本中提取选项，适配 Claude Code 原生输出格式。返回 [(按钮文字, 回复值), ...]"""
+    """从文本中提取选项，适配常见 CLI 输出格式。返回 [(按钮文字, 回复值), ...]"""
     lines = text.strip().split('\n')
 
     # 从末尾向上扫描连续的编号选项
@@ -674,7 +694,7 @@ def on_card_action(data: P2CardActionTrigger) -> P2CardActionTriggerResponse:
         resp.toast = toast
         return resp
 
-    # 选项回复按钮（发给 Claude）
+    # 选项回复按钮（发给 CLI）
     reply_text = value.get("reply", "")
     if reply_text:
         print(f"[按钮] user={user_id[:8]}... reply={reply_text}", flush=True)
@@ -758,7 +778,7 @@ async def _handle_set_mode(user_id: str, chat_id: str, mode: str, card_msg_id: s
 
 
 async def _handle_button_reply(user_id: str, chat_id: str, text: str, clicked_msg_id: str):
-    """按钮点击 → 走正常的 lock + Claude 流程"""
+    """按钮点击 → 走正常的 lock + CLI 流程"""
     is_group = (chat_id != user_id)
 
     # 自动打断活跃任务
@@ -769,7 +789,7 @@ async def _handle_button_reply(user_id: str, chat_id: str, text: str, clicked_ms
     if chat_id not in _chat_locks:
         if len(_chat_locks) >= _MAX_CHAT_LOCKS:
             idle = [k for k, v in _chat_locks.items() if not v.locked()]
-            for k in idle[:len(idle) // 2]:
+            for k in idle:
                 del _chat_locks[k]
         _chat_locks[chat_id] = asyncio.Lock()
     lock = _chat_locks[chat_id]
@@ -962,8 +982,9 @@ def _start_ngrok(port):
 # ── 启动 ──────────────────────────────────────────────────────
 
 def main():
-    print("🚀 飞书 Claude Bot 启动中...")
+    print("🚀 飞书 Copilot Bot 启动中...")
     print(f"   App ID      : {config.FEISHU_APP_ID}")
+    print(f"   后端        : {config.CLI_BACKEND}")
     print(f"   默认模型    : {config.DEFAULT_MODEL}")
     print(f"   默认工作目录: {config.DEFAULT_CWD}")
     print(f"   权限模式    : {config.PERMISSION_MODE}")

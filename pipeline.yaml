@@ -1,6 +1,6 @@
 name: Harness Control Plane
 version: 2.0.0
-description: Feishu -> Claude Code CLI -> Review -> QA -> Gerrit 的长运行 harness 编排配置
+description: Feishu -> GitHub Copilot CLI -> Review -> QA -> Gerrit 的长运行 harness 编排配置
 stages:
 - id: intake
   name: Request Intake
@@ -64,7 +64,7 @@ integrations:
     - approval_required
   gerrit:
     strategy: push refs/for/<branch>%topic=<task_id>
-  claude_code_cli:
+  copilot_cli:
     output_format: stream-json
     expected_verdicts:
     - PASS

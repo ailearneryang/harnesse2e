@@ -11,12 +11,13 @@ PORT="${1:-8080}"
 FEISHU_PID=""
 
 # 先杀掉残留的 claude CLI 进程（不杀代理）
-pkill -f "claude --print" 2>/dev/null || true
+# 先杀掉残留的 agent shim 进程（不杀代理）
+pkill -f "engine/copilot_shim.py" 2>/dev/null || true
 
-# 加载 Claude Code CLI 环境（代理 + 认证）
+# 可选加载旧的 Claude 环境（仅兼容历史代理配置）
 CLAUDE_ENV="$DIR/../cc-haha/claude-global-env.sh"
 if [ -f "$CLAUDE_ENV" ]; then
-    echo "Loading Claude Code environment..."
+    echo "Loading optional legacy Claude environment..."
     source "$CLAUDE_ENV"
 fi
 
@@ -63,8 +64,12 @@ fi
 # 杀掉占用端口的进程
 lsof -ti:"$PORT" | xargs kill -9 2>/dev/null || true
 
-export HARNESS_CLAUDE_HARD_TIMEOUT=3600
-export HARNESS_CLAUDE_IDLE_TIMEOUT=600
+export HARNESS_AGENT_COMMAND="${HARNESS_AGENT_COMMAND:-python3 engine/copilot_shim.py}"
+export HARNESS_AGENT_HARD_TIMEOUT="${HARNESS_AGENT_HARD_TIMEOUT:-3600}"
+export HARNESS_AGENT_IDLE_TIMEOUT="${HARNESS_AGENT_IDLE_TIMEOUT:-600}"
+export HARNESS_CLAUDE_COMMAND="${HARNESS_CLAUDE_COMMAND:-$HARNESS_AGENT_COMMAND}"
+export HARNESS_CLAUDE_HARD_TIMEOUT="${HARNESS_CLAUDE_HARD_TIMEOUT:-$HARNESS_AGENT_HARD_TIMEOUT}"
+export HARNESS_CLAUDE_IDLE_TIMEOUT="${HARNESS_CLAUDE_IDLE_TIMEOUT:-$HARNESS_AGENT_IDLE_TIMEOUT}"
 
 # 检查是否启用 Feishu
 FEISHU_ENABLED=$(python3 -c "import json; print(json.load(open('$DIR/data/integration_settings.json')).get('feishu',{}).get('enabled', False))" 2>/dev/null || echo "False")
