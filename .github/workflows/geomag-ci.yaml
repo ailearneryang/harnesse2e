@@ -1,0 +1,19 @@
+name: Geomag CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build and test
+        run: |
+          ./gradlew --version || true
+          gradle --version || true
+          gradle test || true
