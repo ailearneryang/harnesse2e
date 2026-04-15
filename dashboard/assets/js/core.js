@@ -15,11 +15,15 @@ let feedFilter = 'all';
 let artifactTaskId = '';
 let artifactCache = {};
 let openArtifacts = new Set();
+let selectedOutputTaskIds = new Set();
+let outputsTaskListScrollTop = 0;
 const RUNTIME_POLL_INTERVAL_MS = 60000;
 let needsVisibilitySync = false;
 let lastRuntimeSyncAt = null;
 let pendingRequestFiles = [];
 let requestFileInput = null;
+let runtimeStageRailScrollLeft = 0;
+let runtimeStageRailFocusIndex = -1;
 const REQUEST_FILE_ACCEPT = '.txt,.md,.markdown,.rst,.log,.json,.yaml,.yml,.xml,.csv,.tsv,.html,.htm,.ini,.cfg,.conf,.toml,.py,.js,.ts,.tsx,.jsx,.java,.go,.rs,.sh,.sql,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp';
 
 /* ── Tab & Navigation State ── */

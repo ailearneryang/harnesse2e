@@ -241,6 +241,30 @@ class MemoryStore:
         
         return self._row_to_task_summary(row) if row else None
 
+    def delete_task_records(self, task_id: str) -> Dict[str, int]:
+        """删除任务相关的历史、经验教训和衍生记忆记录。"""
+        with self._lock, self._connect() as conn:
+            deleted = {
+                "task_summaries": conn.execute(
+                    "DELETE FROM task_summaries WHERE task_id = ?",
+                    (task_id,),
+                ).rowcount,
+                "lessons_learned": conn.execute(
+                    "DELETE FROM lessons_learned WHERE task_id = ?",
+                    (task_id,),
+                ).rowcount,
+                "project_memories": conn.execute(
+                    "DELETE FROM project_memories WHERE source_task_id = ?",
+                    (task_id,),
+                ).rowcount,
+                "agent_memories": conn.execute(
+                    "DELETE FROM agent_memories WHERE source_task_id = ?",
+                    (task_id,),
+                ).rowcount,
+            }
+            conn.commit()
+        return deleted
+
     def find_similar_tasks(self, keywords: List[str], limit: int = 5) -> List[TaskSummary]:
         """查找相似任务"""
         with self._lock, self._connect() as conn:

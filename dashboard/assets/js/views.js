@@ -249,6 +249,13 @@ function renderRuntimePage(activeTask, tasks, stats, budget, approvals, agents) 
 function renderRuntimeStageRail(activeTask) {
     const stageIds = taskPipelineStageIds(activeTask);
     const stageMap = activeTask?.stages || {};
+    const currentStageIndex = activeTask?.current_stage ? stageIds.indexOf(activeTask.current_stage) : -1;
+    const resolvedProgressIndex = currentStageIndex >= 0
+        ? currentStageIndex
+        : stageIds.reduce((lastIndex, stageId, index) => {
+            const status = statusCls(stageMap[stageId]?.status || 'pending');
+            return ['passed', 'completed', 'running', 'current', 'failed', 'waiting_human'].includes(status) ? index : lastIndex;
+        }, -1);
 
     if (!stageIds.length) {
         return '<div class="empty no-icon"><div class="empty-title">暂无 pipeline 状态</div><div class="empty-desc">提交任务后，这里会按阶段展示当前执行进度。</div></div>';
@@ -263,18 +270,78 @@ function renderRuntimeStageRail(activeTask) {
                     ? 'current'
                     : statusCls(stageData.status || 'pending');
                 const status = stageData.status || (activeTask?.current_stage === stageId ? 'running' : 'pending');
+                const progressedClass = index <= resolvedProgressIndex ? 'progressed' : '';
+                const animationDelay = `${Math.max(index, 0) * 90}ms`;
+                const isFocusTarget = index === resolvedProgressIndex;
                 return `
-                    <div class="runtime-stage-node ${stateClass}">
+                    <div class="runtime-stage-node ${stateClass} ${progressedClass}" style="--stage-delay:${animationDelay}" data-stage-index="${index}" ${isFocusTarget ? 'data-focus-target="true"' : ''}>
                         <div class="runtime-stage-badge">${index + 1}</div>
                         <div class="runtime-stage-icon">${meta.icon}</div>
                         <div class="runtime-stage-name">${esc(meta.name)}</div>
                         <div class="runtime-stage-status">${esc(getStatusText(status))}</div>
                     </div>
-                    ${index < stageIds.length - 1 ? '<div class="runtime-stage-link"></div>' : ''}
+                    ${index < stageIds.length - 1 ? `<div class="runtime-stage-link ${index < resolvedProgressIndex ? 'progressed' : ''}" style="--stage-delay:${animationDelay}"></div>` : ''}
                 `;
             }).join('')}
         </div>
     `;
+}
+
+function captureRuntimeStageRailState() {
+    const panel = document.querySelector('.runtime-stage-panel');
+    const focusNode = panel?.querySelector('.runtime-stage-node[data-focus-target="true"]')
+        || panel?.querySelector('.runtime-stage-node.current, .runtime-stage-node.running');
+    if (!panel) return;
+    runtimeStageRailScrollLeft = panel.scrollLeft;
+    runtimeStageRailFocusIndex = Number(focusNode?.dataset.stageIndex || '-1');
+}
+
+function getRuntimeStageCenteredScrollLeft(panel, node) {
+    if (!panel || !node) return 0;
+    const panelRect = panel.getBoundingClientRect();
+    const nodeRect = node.getBoundingClientRect();
+    const currentScrollLeft = panel.scrollLeft;
+    const targetScrollLeft = currentScrollLeft + (nodeRect.left - panelRect.left) - ((panel.clientWidth - nodeRect.width) / 2);
+    const maxScrollLeft = Math.max(0, panel.scrollWidth - panel.clientWidth);
+    return Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
+}
+
+function restoreRuntimeStageRailPosition() {
+    const panel = document.querySelector('.runtime-stage-panel');
+    const rail = panel?.querySelector('.runtime-stage-rail');
+    if (!panel) return;
+    const previousFocusNode = runtimeStageRailFocusIndex >= 0
+        ? rail?.querySelector(`.runtime-stage-node[data-stage-index="${runtimeStageRailFocusIndex}"]`)
+        : null;
+    if (previousFocusNode) {
+        panel.scrollLeft = getRuntimeStageCenteredScrollLeft(panel, previousFocusNode);
+        return;
+    }
+    const maxScrollLeft = Math.max(0, panel.scrollWidth - panel.clientWidth);
+    panel.scrollLeft = Math.max(0, Math.min(runtimeStageRailScrollLeft, maxScrollLeft));
+}
+
+function centerRuntimeStageRail() {
+    const panel = document.querySelector('.runtime-stage-panel');
+    const rail = panel?.querySelector('.runtime-stage-rail');
+    if (!panel || !rail) return;
+
+    const focusNode = rail.querySelector('.runtime-stage-node[data-focus-target="true"]')
+        || rail.querySelector('.runtime-stage-node.current, .runtime-stage-node.running')
+        || rail.querySelector('.runtime-stage-node.progressed:last-of-type');
+    if (!focusNode) return;
+
+    const nextFocusIndex = Number(focusNode.dataset.stageIndex || '-1');
+    if (nextFocusIndex === runtimeStageRailFocusIndex) {
+        runtimeStageRailScrollLeft = panel.scrollLeft;
+        return;
+    }
+
+    const nextScrollLeft = getRuntimeStageCenteredScrollLeft(panel, focusNode);
+
+    panel.scrollTo({ left: nextScrollLeft, behavior: 'smooth' });
+    runtimeStageRailScrollLeft = nextScrollLeft;
+    runtimeStageRailFocusIndex = nextFocusIndex;
 }
 
 function renderRuntimeOutputPreview(activeTask) {
@@ -393,6 +460,10 @@ function getMergedOutputTasks(tasks) {
 
 function renderOutputsPage(tasks) {
     const outputTasks = getMergedOutputTasks(tasks);
+    const outputTaskIds = new Set(outputTasks.map(task => task.id));
+    selectedOutputTaskIds = new Set([...selectedOutputTaskIds].filter(taskId => outputTaskIds.has(taskId)));
+    const selectedForDeleteCount = selectedOutputTaskIds.size;
+    const allSelected = outputTasks.length > 0 && selectedForDeleteCount === outputTasks.length;
     const selectedTask = outputTasks.find(task => task.id === artifactTaskId) || outputTasks[0] || null;
     const selectedTaskId = artifactTaskId || selectedTask?.id || '';
     const selectedLessons = selectedTask ? (lessonsData || []).filter(item => item.task_id === selectedTask.id) : [];
@@ -420,16 +491,29 @@ function renderOutputsPage(tasks) {
                             <div class="studio-panel-title">选择任务</div>
                             <div class="studio-panel-desc">默认高亮最新任务，点击后加载对应产物。</div>
                         </div>
+                        ${outputTasks.length ? `
+                            <div class="outputs-task-toolbar">
+                                <button class="btn ghost sm" onclick="toggleAllOutputTaskSelections()">${allSelected ? '取消全选' : '全选'}</button>
+                                <button class="btn ghost sm" onclick="clearOutputTaskSelections()" ${selectedForDeleteCount ? '' : 'disabled'}>清空</button>
+                                <button class="btn ghost sm outputs-bulk-delete" onclick="deleteSelectedOutputTasks()" ${selectedForDeleteCount ? '' : 'disabled'}>批量删除${selectedForDeleteCount ? ` (${selectedForDeleteCount})` : ''}</button>
+                            </div>
+                        ` : ''}
                     </div>
                     <div class="outputs-task-list">
                         ${outputTasks.length ? outputTasks.map(task => `
-                            <button class="outputs-task-item ${selectedTaskId === task.id ? 'active' : ''}" onclick="selectOutputTask('${esc(task.id)}')">
-                                <div class="outputs-task-title-row">
-                                    <span class="outputs-task-title">${esc(task.title)}</span>
-                                    <span class="badge ${statusCls(task.status)}">${esc(task.status)}</span>
-                                </div>
-                                <div class="outputs-task-meta">${esc(task.current_stage ? getStageMeta(task.current_stage).name : '暂无阶段')} · ${esc(task.source || 'web')}</div>
-                            </button>
+                            <div class="outputs-task-card ${selectedTaskId === task.id ? 'active' : ''} ${selectedOutputTaskIds.has(task.id) ? 'selected' : ''}">
+                                <label class="outputs-task-select" onclick="event.stopPropagation()">
+                                    <input type="checkbox" ${selectedOutputTaskIds.has(task.id) ? 'checked' : ''} onchange="toggleOutputTaskSelection('${esc(task.id)}', this.checked)" />
+                                </label>
+                                <button class="outputs-task-item" onclick="selectOutputTask('${esc(task.id)}')">
+                                    <div class="outputs-task-title-row">
+                                        <span class="outputs-task-title">${esc(task.title)}</span>
+                                        <span class="badge ${statusCls(task.status)}">${esc(task.status)}</span>
+                                    </div>
+                                    <div class="outputs-task-meta">${esc(task.current_stage ? getStageMeta(task.current_stage).name : '暂无阶段')} · ${esc(task.source || 'web')}</div>
+                                </button>
+                                <button class="btn ghost sm outputs-task-delete" onclick="deleteOutputTask(event, '${esc(task.id)}')">删除</button>
+                            </div>
                         `).join('') : '<div class="empty no-icon"><div class="empty-title">暂无任务</div><div class="empty-desc">任务执行后，这里会按任务列出产物入口。</div></div>'}
                     </div>
                 </section>
@@ -607,7 +691,20 @@ function renderHistory() {
    ARTIFACTS
    ══════════════════════════════════════════════════════════════ */
 
+function captureOutputsTaskListState() {
+    const list = document.querySelector('#page-outputs .outputs-task-list');
+    if (list) outputsTaskListScrollTop = list.scrollTop;
+}
+
+function restoreOutputsTaskListState() {
+    const list = document.querySelector('#page-outputs .outputs-task-list');
+    if (!list) return;
+    const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
+    list.scrollTop = Math.min(outputsTaskListScrollTop, maxScrollTop);
+}
+
 function selectOutputTask(taskId) {
+    captureOutputsTaskListState();
     artifactTaskId = taskId;
     if (activeTabId !== 'outputs') {
         openPage('outputs');
@@ -617,6 +714,68 @@ function selectOutputTask(taskId) {
     loadArtifacts(taskId).catch(error => {
         showToast(error.message || '加载产物失败', true);
     });
+}
+
+async function deleteOutputTask(event, taskId) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!taskId) return;
+    const task = getMergedOutputTasks(runtime?.tasks || []).find(item => item.id === taskId);
+    const title = task?.title || taskId;
+    if (!confirm(`确定删除任务“${title}”？这会同时删除历史记录、经验教训和产物文件。`)) return;
+    await deleteTask(taskId, { skipConfirm: true });
+}
+
+function toggleOutputTaskSelection(taskId, checked) {
+    if (!taskId) return;
+    captureOutputsTaskListState();
+    if (checked) selectedOutputTaskIds.add(taskId);
+    else selectedOutputTaskIds.delete(taskId);
+    if (activeTabId === 'outputs') renderApp();
+}
+
+function toggleAllOutputTaskSelections() {
+    const outputTasks = getMergedOutputTasks(runtime?.tasks || []);
+    if (!outputTasks.length) return;
+    captureOutputsTaskListState();
+    const shouldSelectAll = outputTasks.some(task => !selectedOutputTaskIds.has(task.id));
+    if (shouldSelectAll) {
+        outputTasks.forEach(task => selectedOutputTaskIds.add(task.id));
+    } else {
+        selectedOutputTaskIds.clear();
+    }
+    if (activeTabId === 'outputs') renderApp();
+}
+
+function clearOutputTaskSelections() {
+    if (!selectedOutputTaskIds.size) return;
+    captureOutputsTaskListState();
+    selectedOutputTaskIds.clear();
+    if (activeTabId === 'outputs') renderApp();
+}
+
+async function deleteSelectedOutputTasks() {
+    const taskIds = [...selectedOutputTaskIds];
+    if (!taskIds.length) return;
+    const outputTasks = getMergedOutputTasks(runtime?.tasks || []);
+    const titles = outputTasks.filter(task => selectedOutputTaskIds.has(task.id)).map(task => task.title || task.id);
+    const preview = titles.slice(0, 3).join('、');
+    const suffix = titles.length > 3 ? ` 等 ${titles.length} 个任务` : '';
+    if (!confirm(`确定批量删除 ${taskIds.length} 个任务吗？${preview ? `\n\n${preview}${suffix}` : ''}\n\n这会同时删除历史记录、经验教训和产物文件。`)) return;
+
+    let successCount = 0;
+    for (const taskId of taskIds) {
+        const ok = await deleteTask(taskId, { skipConfirm: true, skipRefresh: true, skipToast: true });
+        if (ok) successCount += 1;
+    }
+
+    if (successCount) {
+        showToast(`已删除 ${successCount} 个任务`);
+    }
+    if (successCount !== taskIds.length) {
+        showToast(`有 ${taskIds.length - successCount} 个任务删除失败`, true);
+    }
+    await fetchRuntime({ forceFullRender: activeTabId === 'outputs' });
 }
 
 async function loadArtifacts(taskId, forceRefresh = true) {

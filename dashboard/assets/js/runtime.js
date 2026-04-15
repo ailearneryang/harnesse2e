@@ -213,11 +213,36 @@ async function deferTask(taskId) {
     await fetchRuntime();
 }
 
-async function deleteTask(taskId) {
-    if (!confirm('确定删除这个任务？')) return;
-    await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
-    showToast('任务已删除');
-    await fetchRuntime();
+async function deleteTask(taskId, options = {}) {
+    const { skipConfirm = false, skipRefresh = false, skipToast = false } = options;
+    if (!skipConfirm && !confirm('确定删除这个任务？')) return;
+    try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, { method: 'DELETE' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || '删除失败');
+        delete artifactCache[taskId];
+        if (typeof historyData !== 'undefined' && Array.isArray(historyData)) {
+            historyData = historyData.filter(task => task.task_id !== taskId);
+        }
+        if (typeof lessonsData !== 'undefined' && Array.isArray(lessonsData)) {
+            lessonsData = lessonsData.filter(lesson => lesson.task_id !== taskId);
+        }
+        if (artifactTaskId === taskId) {
+            artifactTaskId = '';
+            openArtifacts.clear();
+        }
+        if (typeof selectedOutputTaskIds !== 'undefined' && selectedOutputTaskIds instanceof Set) {
+            selectedOutputTaskIds.delete(taskId);
+        }
+        if (!skipToast) showToast('任务已删除');
+        if (!skipRefresh) {
+            await fetchRuntime({ forceFullRender: activeTabId === 'outputs' });
+        }
+        return true;
+    } catch (error) {
+        showToast(error.message || '删除失败', true);
+        return false;
+    }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -226,6 +251,11 @@ async function deleteTask(taskId) {
 
 function renderApp(options = {}) {
     if (!runtime) return;
+
+    captureRuntimeStageRailState();
+    if (activeTabId === 'outputs' && typeof captureOutputsTaskListState === 'function') {
+        captureOutputsTaskListState();
+    }
 
     const animate = options.animate ?? pageTransitionEnabled;
     const app = document.getElementById('app');
@@ -327,7 +357,15 @@ function renderApp(options = {}) {
         initPipelineEditor();
     }
 
+    if (activeTabId === 'runtime') {
+        requestAnimationFrame(() => {
+            restoreRuntimeStageRailPosition();
+            requestAnimationFrame(() => centerRuntimeStageRail());
+        });
+    }
+
     if (activeTabId === 'outputs') {
+        requestAnimationFrame(() => restoreOutputsTaskListState());
         const outputTasks = getMergedOutputTasks(tasks || []);
         const selectedOutputTaskId = artifactTaskId || outputTasks[0]?.id || '';
         if (selectedOutputTaskId) {
@@ -342,6 +380,11 @@ function renderApp(options = {}) {
 
 function updateRuntimeUI(options = {}) {
     if (!runtime) return;
+
+    captureRuntimeStageRailState();
+    if (activeTabId === 'outputs' && typeof captureOutputsTaskListState === 'function') {
+        captureOutputsTaskListState();
+    }
 
     const animate = options.animate ?? false;
     const app = document.getElementById('app');
@@ -392,7 +435,15 @@ function updateRuntimeUI(options = {}) {
         initPipelineEditor();
     }
 
+    if (activeTabId === 'runtime') {
+        requestAnimationFrame(() => {
+            restoreRuntimeStageRailPosition();
+            requestAnimationFrame(() => centerRuntimeStageRail());
+        });
+    }
+
     if (activeTabId === 'outputs') {
+        requestAnimationFrame(() => restoreOutputsTaskListState());
         const outputTasks = getMergedOutputTasks(tasks || []);
         const selectedOutputTaskId = artifactTaskId || outputTasks[0]?.id || '';
         if (selectedOutputTaskId) {

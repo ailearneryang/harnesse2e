@@ -1784,16 +1784,55 @@ class PipelineRunner:
         return task
 
     def delete_task(self, task_id: str) -> None:
-        """Remove a task from the runtime state."""
+        """Remove a task from runtime state, persisted history, and stored artifacts."""
+        task_dir = os.path.join(self.tasks_dir, task_id)
+        runtime_task = None
+        runtime_changed = False
+
         with self.lock:
-            task = self._require_task(task_id)
-            if task["status"] == "running":
-                raise ValueError(f"Cannot delete a running task")
-            if self.runtime.get("current_task_id") == task_id:
-                self.runtime["current_task_id"] = None
-            self.runtime["tasks"] = [t for t in self.runtime["tasks"] if t["id"] != task_id]
-            self._persist_runtime()
-        self._emit("task_deleted", f"Task {task_id} deleted", source="system", task_id=task_id)
+            runtime_task = next((item for item in self.runtime.get("tasks", []) if item.get("id") == task_id), None)
+            if runtime_task and runtime_task["status"] == "running":
+                raise ValueError("Cannot delete a running task")
+            if runtime_task:
+                if self.runtime.get("current_task_id") == task_id:
+                    self.runtime["current_task_id"] = None
+                self.runtime["tasks"] = [item for item in self.runtime["tasks"] if item.get("id") != task_id]
+                self._persist_runtime()
+                runtime_changed = True
+
+        run_dir = runtime_task.get("run_dir") if runtime_task else self._task_run_dir(task_id)
+        deleted_records = self.memory_store.delete_task_records(task_id)
+
+        deleted_paths = 0
+        for path, root in ((run_dir, self.runs_dir), (task_dir, self.tasks_dir)):
+            normalized_path = os.path.normpath(path)
+            normalized_root = os.path.normpath(root)
+            if not os.path.exists(normalized_path):
+                continue
+            try:
+                if os.path.commonpath([normalized_path, normalized_root]) != normalized_root:
+                    continue
+            except ValueError:
+                continue
+            shutil.rmtree(normalized_path)
+            deleted_paths += 1
+
+        if runtime_changed or deleted_paths:
+            self._refresh_latest_run_link()
+
+        if not (runtime_changed or deleted_paths or any(deleted_records.values())):
+            raise ValueError(f"Task {task_id} not found")
+
+        self._emit(
+            "task_deleted",
+            f"Task {task_id} deleted",
+            source="system",
+            task_id=task_id,
+            data={
+                "deleted_records": deleted_records,
+                "deleted_paths": deleted_paths,
+            },
+        )
 
     def _complete_task(self, task: Dict) -> None:
         processed_src = os.path.join(self.specs_pending, task["spec_file"])
@@ -2324,6 +2363,9 @@ class PipelineRunner:
             os.makedirs(os.path.join(run_dir, rel), exist_ok=True)
         return run_dir
 
+    def _task_run_dir(self, task_id: str) -> str:
+        return os.path.join(self.runs_dir, task_id)
+
     def _update_latest_run_link(self, run_dir: str) -> None:
         latest = os.path.join(self.runs_dir, "latest")
         if os.path.lexists(latest):
@@ -2336,6 +2378,32 @@ class PipelineRunner:
         except OSError:
             latest_pointer = os.path.join(self.runs_dir, "latest.txt")
             self._save_text(latest_pointer, run_dir + "\n")
+
+    def _refresh_latest_run_link(self) -> None:
+        latest_task = None
+        latest_key = ""
+
+        for task in self.runtime.get("tasks", []):
+            run_dir = task.get("run_dir")
+            if not run_dir or not os.path.isdir(run_dir):
+                continue
+            sort_key = task.get("updated_at") or task.get("created_at") or ""
+            if sort_key >= latest_key:
+                latest_key = sort_key
+                latest_task = task
+
+        latest = os.path.join(self.runs_dir, "latest")
+        latest_pointer = os.path.join(self.runs_dir, "latest.txt")
+        if latest_task:
+            self._update_latest_run_link(latest_task["run_dir"])
+            return
+
+        for path in (latest, latest_pointer):
+            try:
+                if os.path.lexists(path):
+                    os.unlink(path)
+            except OSError:
+                pass
 
     def _write_run_metadata(self, task: Dict, final_status: Optional[str] = None, failure_reason: str = "") -> None:
         payload = {
@@ -2449,9 +2517,14 @@ def create_api_app(runner: PipelineRunner) -> Flask:
             try:
                 runner.delete_task(task_id)
                 return jsonify({"ok": True})
+            except KeyError as exc:
+                return jsonify({"error": str(exc)}), 404
             except ValueError as exc:
                 return jsonify({"error": str(exc)}), 400
-        return jsonify(runner._require_task(task_id))
+        try:
+            return jsonify(runner._require_task(task_id))
+        except KeyError as exc:
+            return jsonify({"error": str(exc)}), 404
 
     @app.route("/api/tasks/<task_id>/retry", methods=["POST"])
     def api_retry_task(task_id: str):
