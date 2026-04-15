@@ -14,6 +14,7 @@ import lark_oapi as lark
 from lark_oapi.api.im.v1.model import (
     CreateMessageRequest,
     CreateMessageRequestBody,
+    GetMessageRequest,
     PatchMessageRequest,
     PatchMessageRequestBody,
     ReplyMessageRequest,
@@ -88,6 +89,27 @@ def _card_json(content: str, loading: bool = False) -> str:
         "schema": "2.0",
         "body": {"elements": elements},
     }, ensure_ascii=False)
+
+
+def build_card_button_element(btn: dict, name: str) -> dict:
+    """
+    构造卡片按钮元素。
+
+    默认仅附带 value，让按钮走飞书长连接 `p2_card_action_trigger` 事件；
+    只有显式声明 `use_callback` 时，才附加 HTTP callback behaviors。
+    """
+    value = btn["value"]
+    element = {
+        "tag": "button",
+        "text": {"tag": "plain_text", "content": btn["text"]},
+        "type": "default",
+        "size": "small",
+        "name": name,
+        "value": value,
+    }
+    if btn.get("use_callback"):
+        element["behaviors"] = [{"type": "callback", "value": value}]
+    return element
 
 
 class FeishuClient:
@@ -196,6 +218,22 @@ class FeishuClient:
 
         await self._retry_with_backoff(_update, max_retries=3)
 
+    async def get_message(self, message_id: str):
+        """获取单条消息详情，用于处理回复附件消息的场景。"""
+        async def _get():
+            req = (
+                GetMessageRequest.builder()
+                .message_id(message_id)
+                .build()
+            )
+            resp = await self.client.im.v1.message.aget(req)
+            if not resp.success():
+                raise RuntimeError(f"获取消息详情失败: {resp.code} {resp.msg}")
+            items = getattr(getattr(resp, "data", None), "items", None) or []
+            return items[0] if items else None
+
+        return await self._retry_with_backoff(_get, max_retries=2)
+
     async def download_image(self, message_id: str, image_key: str) -> str:
         """下载飞书图片到临时文件，返回本地路径（不阻塞事件循环）"""
         return await asyncio.to_thread(
@@ -293,15 +331,7 @@ class FeishuClient:
             
         btn_elements = []
         for i, btn in enumerate(buttons):
-            btn_elements.append({
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": btn["text"]},
-                "type": "default",
-                "size": "small",
-                "name": f"btn_{i}",
-                "value": btn["value"],
-                "behaviors": [{"type": "callback", "value": btn["value"]}],
-            })
+            btn_elements.append(build_card_button_element(btn, f"btn_{i}"))
         if flow and btn_elements:
             # 横排: column_set + flex_mode flow
             columns = [{"tag": "column", "width": "auto", "elements": [b]} for b in btn_elements]

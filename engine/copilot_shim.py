@@ -8,10 +8,32 @@ Usage: set settings.json "command" to the path of this script.
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 
-COPILOT_BIN = "/opt/homebrew/bin/copilot"
+DEFAULT_COPILOT_LOCATIONS = (
+    "/opt/homebrew/bin/copilot",
+    "/usr/local/bin/copilot",
+)
+
+
+def resolve_copilot_bin() -> str:
+    configured = os.environ.get("COPILOT_CLI_PATH", "").strip()
+    if configured:
+        expanded = os.path.expanduser(configured)
+        if os.path.isfile(expanded) and os.access(expanded, os.X_OK):
+            return expanded
+
+    discovered = shutil.which("copilot")
+    if discovered:
+        return discovered
+
+    for candidate in DEFAULT_COPILOT_LOCATIONS:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    return configured or DEFAULT_COPILOT_LOCATIONS[0]
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
@@ -38,9 +60,10 @@ def main():
     else:
         full_prompt = args.prompt
 
+    copilot_bin = resolve_copilot_bin()
     cwd = os.getcwd()
     cmd = [
-        COPILOT_BIN,
+        copilot_bin,
         "-p", full_prompt,
         "--allow-all-tools",
         "--allow-all-paths",
@@ -51,7 +74,7 @@ def main():
         result = subprocess.run(cmd, cwd=cwd)
         sys.exit(result.returncode)
     except FileNotFoundError:
-        print(f"[copilot-shim] error: copilot not found at {COPILOT_BIN}", file=sys.stderr)
+        print(f"[copilot-shim] error: copilot not found; checked COPILOT_CLI_PATH, PATH, and common locations. Last candidate: {copilot_bin}", file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":

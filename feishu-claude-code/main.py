@@ -11,6 +11,7 @@ import re
 import shutil
 import sys
 import os
+import urllib.request
 import threading
 import time
 import traceback
@@ -27,7 +28,7 @@ from lark_oapi.event.callback.model.p2_card_action_trigger import (
 )
 
 import bot_config as config
-from feishu_client import FeishuClient
+from feishu_client import FeishuClient, build_card_button_element
 from session_store import SessionStore, generate_summary, _write_custom_title
 from commands import parse_command, handle_command
 from claude_runner import run_claude
@@ -141,15 +142,10 @@ async def _show_command_menu(user_id: str, chat_id: str, is_group: bool, msg_id:
             columns.append({
                 "tag": "column",
                 "width": "auto",
-                "elements": [{
-                    "tag": "button",
-                    "text": {"tag": "plain_text", "content": btn["text"]},
-                    "type": "default",
-                    "size": "small",
-                    "name": f"menu_{btn['value']['cmd'].replace('/', '').replace(' ', '_')}",
-                    "value": value,
-                    "behaviors": [{"type": "callback", "value": value}],
-                }],
+                "elements": [build_card_button_element(
+                    {"text": btn["text"], "value": value},
+                    f"menu_{btn['value']['cmd'].replace('/', '').replace(' ', '_')}",
+                )],
             })
         elements.append({"tag": "column_set", "flex_mode": "flow", "columns": columns})
     try:
@@ -191,10 +187,70 @@ def extract_chat_info(event: P2ImMessageReceiveV1) -> tuple[str, str, bool]:
     return user_id, chat_id, is_group
 
 
+async def _capture_reply_attachment(user_id: str, chat_id: str, msg) -> bool:
+    """如果当前文本消息是在回复附件，则回溯原消息并下载附件。"""
+    parent_id = getattr(msg, "parent_id", "") or getattr(msg, "root_id", "")
+    if not parent_id:
+        return False
+
+    try:
+        parent = await feishu.get_message(parent_id)
+    except Exception as exc:
+        print(f"[warn] 获取被回复消息失败: {exc}", flush=True)
+        return False
+
+    if not parent:
+        return False
+
+    parent_type = getattr(parent, "msg_type", "")
+    body = getattr(parent, "body", None)
+    body_content = getattr(body, "content", "") or "{}"
+    try:
+        content_dict = json.loads(body_content)
+    except Exception:
+        content_dict = {}
+
+    try:
+        if parent_type == "image":
+            image_key = content_dict.get("image_key", "")
+            if not image_key:
+                return False
+            img_path = await feishu.download_image(parent_id, image_key)
+            await store.set_recent_file(user_id, chat_id, img_path)
+            print(f"[附件] 已从被回复消息下载图片: {img_path}", flush=True)
+            return True
+
+        if parent_type == "file":
+            file_key = content_dict.get("file_key", "")
+            file_name = content_dict.get("file_name", "unknown_file")
+            if not file_key:
+                return False
+            file_path = await feishu.download_file(parent_id, file_key, file_name)
+            await store.set_recent_file(user_id, chat_id, file_path)
+            print(f"[附件] 已从被回复消息下载文件: {file_path}", flush=True)
+            return True
+    except Exception as exc:
+        print(f"[warn] 下载被回复附件失败: {exc}", flush=True)
+        raise
+
+    return False
+
+
 async def handle_message_async(event: P2ImMessageReceiveV1):
     """异步处理一条飞书消息"""
     msg = event.event.message
-    print(f"[收到消息] type={msg.message_type} chat={msg.chat_type}", flush=True)
+    # 详细日志：打印原始 message.content 与 mentions，便于排查回复中文档时未包含 file_key 的情况
+    try:
+        raw_content = getattr(msg, 'content', '')
+    except Exception:
+        raw_content = ''
+    mentions = getattr(msg, 'mentions', None) or []
+    print(f"[收到消息] type={getattr(msg,'message_type', '')} chat={getattr(msg,'chat_type','')}", flush=True)
+    print(f"[收到消息-raw] content={raw_content}", flush=True)
+    try:
+        print(f"[收到消息-mentions] {[(getattr(m,'key',''), getattr(m,'open_id','')) for m in mentions]}", flush=True)
+    except Exception:
+        pass
 
     # Extract chat info (supports both private and group chats)
     user_id, chat_id, is_group = extract_chat_info(event)
@@ -227,11 +283,13 @@ async def handle_message_async(event: P2ImMessageReceiveV1):
             await _show_command_menu(user_id, chat_id, is_group, msg.message_id)
             return
 
-    # 群聊只响应 @机器人 的消息
+    # 群聊默认只响应 @机器人的消息；但对图片/文件允许不 @ 直接处理
     if is_group:
         mentions = getattr(msg, 'mentions', None) or []
         if not mentions:
-            return  # 没有 @mention，忽略
+            # 如果是图片或文件（用户上传附件），允许继续处理，否则忽略没有 @ 的普通文本
+            if getattr(msg, 'message_type', '') not in ("image", "file"):
+                return  # 没有 @mention 且非附件，忽略
 
     # 自动打断：新消息到达时，停止该用户的活跃任务（模拟终端 Escape）
     active = _active_runs.get_run(user_id)
@@ -452,14 +510,62 @@ async def _process_message(user_id: str, chat_id: str, is_group: bool, msg):
     print(f"[处理消息] user={user_id[:8]}... chat={chat_id[:8]}... is_group={is_group}", flush=True)
     text = ""
     img_path = None
+    attachment_ready = False
 
     if msg.message_type == "text":
         try:
             text = json.loads(msg.content).get("text", "").strip()
         except Exception:
             return
-        if not text:
+
+        try:
+            if await _capture_reply_attachment(user_id, chat_id, msg):
+                attachment_ready = True
+        except Exception as e:
+            if is_group:
+                try:
+                    await feishu.reply_card(msg.message_id, content=f"❌ 下载被回复附件失败：{e}", loading=False)
+                except Exception:
+                    pass
+            else:
+                await feishu.send_text_to_user(user_id, f"❌ 下载被回复附件失败：{e}")
             return
+
+        if not text:
+            # 可能是回复了一条文件/图片（文本消息中只包含 @mention 与文件占位），尝试从消息 content 中提取文件/图片信息
+            try:
+                content_dict = json.loads(msg.content)
+            except Exception:
+                return
+
+            # 优先检测 image_key / file_key
+            file_key = content_dict.get("file_key") or content_dict.get("image_key")
+            file_name = content_dict.get("file_name") or content_dict.get("image_name") or "unknown_file"
+            if file_key:
+                # 将处理委托给文件/图片逻辑
+                try:
+                    if "image_key" in content_dict:
+                        img_path = await feishu.download_image(msg.message_id, file_key)
+                        await store.set_recent_file(user_id, chat_id, img_path)
+                        attachment_ready = True
+                        text = f"[用户发送了一张图片，路径：{img_path}，请读取并分析这张图片，直接回复用中文]"
+                    else:
+                        file_path = await feishu.download_file(msg.message_id, file_key, file_name)
+                        await store.set_recent_file(user_id, chat_id, file_path)
+                        attachment_ready = True
+                        text = f"[用户发送了一个文件，文件名为：{file_name}，文件保存在路径：{file_path}，请根据上下文内容和要求处理此文件]"
+                except Exception as e:
+                    print(f"[error] 从文本消息提取附件并下载失败: {e}", flush=True)
+                    if is_group:
+                        try:
+                            await feishu.reply_card(msg.message_id, content=f"❌ 下载附件失败：{e}", loading=False)
+                        except Exception:
+                            pass
+                    else:
+                        await feishu.send_text_to_user(user_id, f"❌ 下载附件失败：{e}")
+                    return
+            else:
+                return
 
         # 群聊：去掉 @mention 占位符
         if is_group:
@@ -468,8 +574,11 @@ async def _process_message(user_id: str, chat_id: str, is_group: bool, msg):
                 key = getattr(mention, 'key', '')
                 if key:
                     text = text.replace(key, '').strip()
-            if not text:
+            if not text and not attachment_ready:
                 return
+
+        if attachment_ready and not text:
+            text = "请处理这个附件"
 
         print(f"[文本] {text[:50]}", flush=True)
 
@@ -480,6 +589,7 @@ async def _process_message(user_id: str, chat_id: str, is_group: bool, msg):
                 return
             img_path = await feishu.download_image(msg.message_id, image_key)
             await store.set_recent_file(user_id, chat_id, img_path)
+            attachment_ready = True
             text = f"[用户发送了一张图片，路径：{img_path}，请读取并分析这张图片，直接回复用中文]"
         except Exception as e:
             print(f"[error] 下载图片失败: {e}")
@@ -500,6 +610,7 @@ async def _process_message(user_id: str, chat_id: str, is_group: bool, msg):
                 return
             file_path = await feishu.download_file(msg.message_id, file_key, file_name)
             await store.set_recent_file(user_id, chat_id, file_path)
+            attachment_ready = True
             # 告诉机器人或者处理程序有新文件了
             text = f"[用户发送了一个文件，文件名为：{file_name}，文件保存在路径：{file_path}，请根据上下文内容和要求处理此文件]"
         except Exception as e:
@@ -516,6 +627,34 @@ async def _process_message(user_id: str, chat_id: str, is_group: bool, msg):
         return  # 不支持的消息类型
 
     # ── 斜杠命令 ──────────────────────────────────────────────
+    # 如果是附件（图片/文件），并且是在私聊或群聊带 mention 的场景，
+    # 自动将该附件作为 Harness 请求提交，避免用户再额外输入 /harness。
+    try:
+        if attachment_ready or msg.message_type in ("file", "image"):
+            mentions = getattr(msg, 'mentions', None) or []
+            should_auto_submit = (not is_group) or (is_group and len(mentions) > 0)
+            if should_auto_submit:
+                try:
+                    reply = await handle_command("harness", text, user_id, chat_id, store)
+                    if reply is not None:
+                        if is_group:
+                            await feishu.reply_card(msg.message_id, content=reply, loading=False)
+                        else:
+                            await feishu.send_card_to_user(user_id, content=reply, loading=False)
+                        return
+                except Exception as e:
+                    print(f"[error] 自动提交 Harness 请求失败: {e}", flush=True)
+                    if is_group:
+                        try:
+                            await feishu.reply_card(msg.message_id, content=f"❌ 自动提交 Harness 失败：{e}", loading=False)
+                        except Exception:
+                            pass
+                    else:
+                        await feishu.send_text_to_user(user_id, f"❌ 自动提交 Harness 失败：{e}")
+                    return
+    except Exception:
+        pass
+
     parsed = parse_command(text)
     if parsed:
         cmd, args = parsed
@@ -664,6 +803,61 @@ def on_card_action(data: P2CardActionTrigger) -> P2CardActionTriggerResponse:
         resp.toast = toast
         return resp
 
+    if action_type == "pipeline_feedback":
+        # 验证必须字段，避免异步任务抛出后用户看不到失败原因
+        task_id = (value.get("task_id") or "").strip()
+        if not task_id:
+            resp = P2CardActionTriggerResponse()
+            toast = CallBackToast()
+            toast.type = "error"
+            toast.content = "任务ID缺失，无法恢复流水线"
+            resp.toast = toast
+            return resp
+
+        asyncio.ensure_future(
+            _handle_pipeline_feedback_action(
+                user_id,
+                chat_id,
+                value,
+                getattr(event.action, "form_value", None),
+                clicked_msg_id,
+            )
+        )
+        resp = P2CardActionTriggerResponse()
+        toast = CallBackToast()
+        toast.type = "success"
+        toast.content = "已提交反馈并恢复流水线"
+        resp.toast = toast
+        return resp
+
+    if action_type == "pipeline_approval":
+        # 验证必须字段
+        task_id = (value.get("task_id") or "").strip()
+        approval_id = (value.get("approval_id") or "").strip()
+        if not task_id or not approval_id:
+            resp = P2CardActionTriggerResponse()
+            toast = CallBackToast()
+            toast.type = "error"
+            toast.content = "任务ID或审批ID缺失，无法提交审批"
+            resp.toast = toast
+            return resp
+
+        asyncio.ensure_future(
+            _handle_pipeline_approval_action(
+                user_id,
+                chat_id,
+                value,
+                getattr(event.action, "form_value", None),
+                clicked_msg_id,
+            )
+        )
+        resp = P2CardActionTriggerResponse()
+        toast = CallBackToast()
+        toast.type = "success"
+        toast.content = "已提交审批结果"
+        resp.toast = toast
+        return resp
+
     # 命令菜单按钮 → 当作用户发了一条命令消息
     if action_type == "run_cmd":
         cmd_text = value.get("cmd", "")
@@ -777,6 +971,161 @@ async def _handle_set_mode(user_id: str, chat_id: str, mode: str, card_msg_id: s
             pass
 
 
+async def _post_harness_json(path: str, payload: dict) -> dict:
+    url = f"{config.HARNESS_API_BASE_URL}{path}"
+
+    def _request():
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    return await asyncio.to_thread(_request)
+
+
+def _merge_feedback(base_feedback: str, extra_input: str) -> str:
+    parts = []
+    if (base_feedback or "").strip():
+        parts.append(base_feedback.strip())
+    if (extra_input or "").strip():
+        parts.append(f"补充说明：{extra_input.strip()}")
+    return "\n".join(parts).strip()
+
+
+def _format_actor_label(actor_id: str) -> str:
+    actor = (actor_id or "").strip()
+    return actor or "unknown"
+
+
+def _build_result_card_elements(title: str, task_id: str, stage: str, prompt_title: str, prompt_content: str, actor_id: str, decision: str, note: str = "") -> list[dict]:
+    elements = [
+        {"tag": "markdown", "content": title},
+        {
+            "tag": "markdown",
+            "content": (
+                f"**Task ID**: `{task_id}`\n"
+                f"**Stage**: `{stage or 'unknown'}`\n"
+                f"**处理人**: `{_format_actor_label(actor_id)}`"
+            ),
+        },
+    ]
+
+    if (prompt_title or "").strip() or (prompt_content or "").strip():
+        prompt_lines = ["**待确认项**"]
+        if (prompt_title or "").strip():
+            prompt_lines.append(f"- 标题: {prompt_title.strip()}")
+        if (prompt_content or "").strip():
+            prompt_lines.extend(["", prompt_content.strip()])
+        elements.append({"tag": "markdown", "content": "\n".join(prompt_lines)})
+
+    elements.append({"tag": "markdown", "content": f"**用户选择结果**\n{decision.strip() or '未提供'}"})
+
+    if (note or "").strip():
+        elements.append({"tag": "markdown", "content": f"**补充说明**\n{note.strip()}"})
+
+    # 使用 markdown 替代不被支持的 note 标签（Card V2 禁止 note）
+    elements.append({"tag": "markdown", "content": "**操作区状态**：已处理，原按钮不再可点击"})
+    return elements
+
+
+async def _handle_pipeline_feedback_action(user_id: str, chat_id: str, value: dict, form_value: dict | None, card_msg_id: str):
+    task_id = (value.get("task_id") or "").strip()
+    stage = (value.get("stage") or "").strip()
+    prompt_title = (value.get("prompt_title") or "").strip()
+    prompt_content = (value.get("prompt_content") or "").strip()
+    feedback = _merge_feedback(value.get("feedback", ""), (form_value or {}).get("supplemental_input", ""))
+    if not task_id:
+        raise ValueError("missing task_id")
+
+    try:
+        result = await _post_harness_json(
+            f"/api/tasks/{task_id}/resume",
+            {
+                "prioritize": value.get("prioritize", True) is not False,
+                "feedback": feedback,
+                "actor": user_id,
+                "source": "feishu-card",
+            },
+        )
+    except Exception as e:
+        print(f"[error] resume task failed: {e}", flush=True)
+        if card_msg_id:
+            err_elements = [
+                {"tag": "markdown", "content": "❌ 恢复流水线失败"},
+                {"tag": "markdown", "content": f"**Task ID**: `{task_id}`\n**错误**: {str(e)}"},
+            ]
+            try:
+                await feishu.update_card_elements(card_msg_id, err_elements)
+            except Exception:
+                pass
+        return
+
+    if card_msg_id:
+        elements = _build_result_card_elements(
+            "✅ 已提交人工反馈并恢复流水线",
+            task_id,
+            stage or result.get("current_stage", "unknown"),
+            prompt_title,
+            prompt_content,
+            user_id,
+            feedback,
+        )
+        await feishu.update_card_elements(card_msg_id, elements)
+
+
+async def _handle_pipeline_approval_action(user_id: str, chat_id: str, value: dict, form_value: dict | None, card_msg_id: str):
+    task_id = (value.get("task_id") or "").strip()
+    approval_id = (value.get("approval_id") or "").strip()
+    resolution = (value.get("resolution") or "").strip()
+    stage = (value.get("stage") or "").strip()
+    prompt_title = (value.get("prompt_title") or "").strip()
+    prompt_content = (value.get("prompt_content") or "").strip()
+    note = (form_value or {}).get("supplemental_input", "").strip()
+    if not task_id or not approval_id:
+        raise ValueError("missing task_id or approval_id")
+
+    try:
+        await _post_harness_json(
+            f"/api/approvals/{task_id}/{approval_id}/resolve",
+            {
+                "resolution": resolution,
+                "note": note,
+                "actor": user_id,
+                "source": "feishu-card",
+            },
+        )
+    except Exception as e:
+        print(f"[error] resolve approval failed: {e}", flush=True)
+        if card_msg_id:
+            err_elements = [
+                {"tag": "markdown", "content": "❌ 提交审批失败"},
+                {"tag": "markdown", "content": f"**Task ID**: `{task_id}`\n**审批ID**: `{approval_id}`\n**错误**: {str(e)}"},
+            ]
+            try:
+                await feishu.update_card_elements(card_msg_id, err_elements)
+            except Exception:
+                pass
+        return
+
+    if card_msg_id:
+        resolution_label = "批准继续" if resolution == "approved" else "拒绝继续"
+        elements = _build_result_card_elements(
+            f"✅ 已处理审批：{resolution_label}",
+            task_id,
+            stage or "unknown",
+            prompt_title,
+            prompt_content,
+            user_id,
+            resolution_label,
+            note,
+        )
+        await feishu.update_card_elements(card_msg_id, elements)
+
+
 async def _handle_button_reply(user_id: str, chat_id: str, text: str, clicked_msg_id: str):
     """按钮点击 → 走正常的 lock + CLI 流程"""
     is_group = (chat_id != user_id)
@@ -876,6 +1225,20 @@ class _CardCallbackHandler(BaseHTTPRequestHandler):
                     _ws_loop,
                 )
             self._respond(200, {"toast": {"type": "info", "content": cmd_text}})
+        elif action_type == "pipeline_feedback":
+            if _ws_loop:
+                asyncio.run_coroutine_threadsafe(
+                    _handle_pipeline_feedback_action(user_id, chat_id, value, action.get("form_value") or {}, clicked_msg_id),
+                    _ws_loop,
+                )
+            self._respond(200, {"toast": {"type": "success", "content": "已提交反馈并恢复流水线"}})
+        elif action_type == "pipeline_approval":
+            if _ws_loop:
+                asyncio.run_coroutine_threadsafe(
+                    _handle_pipeline_approval_action(user_id, chat_id, value, action.get("form_value") or {}, clicked_msg_id),
+                    _ws_loop,
+                )
+            self._respond(200, {"toast": {"type": "success", "content": "已提交审批结果"}})
         elif action_type == "resume_session":
             sid = value.get("sid", "")
             if sid and _ws_loop:

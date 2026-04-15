@@ -1,0 +1,9 @@
+description: single-stage design template for approval callback smoke test
+id: tpl-20260414-7b23ec
+is_builtin: false
+is_default: false
+name: approval-smoke-1776135934
+stages:
+- agent: cockpit-middleware-architect
+  id: design
+  name: Design Approval Smoke

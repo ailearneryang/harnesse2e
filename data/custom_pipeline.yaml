@@ -35,8 +35,8 @@ stages:
     targetStageId: ''
     maxRetries: 3
 - id: testing
-  name: QA Testing
-  agent: qa-engineer
+  name: Unit Testing
+  agent: unite-test
   fallback:
     enabled: false
     targetStageId: ''

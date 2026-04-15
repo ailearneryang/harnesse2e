@@ -11,6 +11,19 @@ from bot_config import CLI_BACKEND, DEFAULT_CWD, DEFAULT_MODEL, PERMISSION_MODE,
 TRANSCRIPTS_DIR = os.path.join(SESSIONS_DIR, "transcripts")
 
 
+def _normalize_model_for_backend(model: str) -> str:
+    value = (model or "").strip()
+    if not value:
+        return DEFAULT_MODEL
+
+    lower = value.lower()
+    if CLI_BACKEND == "copilot" and lower.startswith(("claude-", "anthropic/claude-")):
+        return DEFAULT_MODEL
+    if CLI_BACKEND == "claude" and lower.startswith(("gpt-", "openai/", "o1", "o3", "o4")):
+        return DEFAULT_MODEL
+    return value
+
+
 def _ensure_transcripts_dir() -> None:
     os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
 
@@ -314,6 +327,10 @@ class SessionStore:
             if key not in current:
                 current[key] = value
                 changed = True
+        normalized_model = _normalize_model_for_backend(current.get("model", DEFAULT_MODEL))
+        if current.get("model") != normalized_model:
+            current["model"] = normalized_model
+            changed = True
         return changed
 
     async def set_recent_file(self, user_id: str, chat_id: str, file_path: str):
@@ -545,7 +562,7 @@ class SessionStore:
     async def set_model(self, user_id: str, chat_id: str, model: str):
         """Set model for a specific chat"""
         chat_data = await self._ensure_chat_data(user_id, chat_id)
-        chat_data["current"]["model"] = model
+        chat_data["current"]["model"] = _normalize_model_for_backend(model)
         await self._save_async()
 
     async def set_cwd(self, user_id: str, chat_id: str, cwd: str, workspace_name: Optional[str] = None):

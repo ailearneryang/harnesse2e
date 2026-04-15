@@ -1,0 +1,9 @@
+description: single-stage delivery template for fast approval smoke test
+id: tpl-20260414-ce128b
+is_builtin: false
+is_default: false
+name: delivery-approval-smoke-1776136136
+stages:
+- agent: delivery-manager
+  id: delivery
+  name: Delivery Approval Smoke

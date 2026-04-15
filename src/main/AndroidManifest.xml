@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    B60VS-F03 越野信息算法服务 AndroidManifest
+
+    需求追溯:
+    - [NFR-003] 上电自启动 (BOOT_COMPLETED + directBootAware)
+    - [NFR-004] 文件系统读写权限
+    - [NFR-005] 白名单保护 (persistent="true")
+    - [IF-001] GPS 权限 (ACCESS_FINE_LOCATION)
+    - [IF-002] 传感器权限
+    - [IF-003/004] CAN 中间件权限
+
+    architecture.md §4.3, §9.1, §11.1, §11.3
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.baic.offroad">
+
+    <!-- GPS 数据获取权限 [IF-001] -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- 传感器访问权限 [IF-002] -->
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+
+    <!-- 文件系统读写权限 [NFR-004] -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <!-- 前台服务权限 [NFR-005] -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- 开机自启动 [NFR-003] -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- CAN 中间件访问(厂商自定义权限) [IF-003, IF-004] -->
+    <uses-permission android:name="com.baic.permission.CAN_ACCESS" />
+
+    <!-- 唤醒锁(守护拉起用) [NFR-006] -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:label="越野算法"
+        android:persistent="true"
+        android:directBootAware="true"
+        android:allowBackup="false"
+        android:supportsRtl="false">
+
+        <!--
+            越野算法主服务
+            - process=":offroad" 独立进程 [architecture.md §4.3]
+            - persistent="true" via application tag [NFR-005]
+            - exported="true" 供外部 UI 绑定
+        -->
+        <service
+            android:name=".service.OffroadAlgorithmService"
+            android:process=":offroad"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="location">
+            <intent-filter>
+                <action android:name="com.baic.offroad.ALGORITHM_SERVICE" />
+            </intent-filter>
+        </service>
+
+        <!--
+            开机自启动广播接收器 [NFR-003]
+            architecture.md §11.1: 通过 BOOT_COMPLETED 广播启动
+        -->
+        <receiver
+            android:name=".lifecycle.BootReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

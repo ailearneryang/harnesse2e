@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+from typing import Optional
 
 # Add feishu-claude-code to sys.path so we can import its modules
 harness_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,8 +24,8 @@ def _load_notifier_context():
         print(f"Warning: Could not load feishu modules or config: {exc}")
         return None, None, None, None, None
 
-    if not FEISHU_APP_ID or not FEISHU_APP_SECRET or not ADMIN_OPEN_ID:
-        print("Feishu notifier is disabled due to missing config (FEISHU_APP_ID, FEISHU_APP_SECRET, ADMIN_OPEN_ID).")
+    if not FEISHU_APP_ID or not FEISHU_APP_SECRET:
+        print("Feishu notifier is disabled due to missing config (FEISHU_APP_ID, FEISHU_APP_SECRET).")
         return None, None, None, None, None
 
     client = lark.Client.builder().app_id(FEISHU_APP_ID).app_secret(FEISHU_APP_SECRET).build()
@@ -49,13 +50,19 @@ def _run_async_send(send_coro):
     else:
         loop.run_until_complete(send_coro())
 
-def notify_stage_completed(title: str, content: str, stage: str, task_id: str, artifact_paths: list = None):
+def _resolve_recipient(source_metadata: Optional[dict], admin_open_id: Optional[str]) -> Optional[str]:
+    metadata = source_metadata or {}
+    return metadata.get("chat_id") or admin_open_id
+
+
+def notify_stage_completed(title: str, content: str, stage: str, task_id: str, artifact_paths: list = None, source_metadata: Optional[dict] = None):
     """
     Called by the engine when a task stage completes successfully.
     Sends an informational rich text card to the admin user via Feishu.
     """
     _app_id, _app_secret, admin_open_id, _client, fc = _load_notifier_context()
-    if not fc or not admin_open_id:
+    recipient = _resolve_recipient(source_metadata, admin_open_id)
+    if not fc or not recipient:
         return
 
     extra_info = ""
@@ -90,20 +97,21 @@ def notify_stage_completed(title: str, content: str, stage: str, task_id: str, a
 
     async def _send():
         try:
-            await fc.send_card_to_user(open_id=admin_open_id, content=msg, loading=False)
-            print(f"Successfully sent feishu completion notification to {admin_open_id}")
+            await fc.send_card_to_user(open_id=recipient, content=msg, loading=False)
+            print(f"Successfully sent feishu completion notification to {recipient}")
         except Exception as e:
             print(f"Failed to send Feishu completion notification: {e}")
 
     _run_async_send(_send)
 
-def notify_user_for_feedback(title: str, content: str, stage: str, task_id: str, options: list = None):
+def notify_user_for_feedback(title: str, content: str, stage: str, task_id: str, options: list = None, source_metadata: Optional[dict] = None):
     """
     Called by the engine when a task fails and needs human intervention.
     Sends a rich text card to the admin user via Feishu.
     """
     _app_id, _app_secret, admin_open_id, _client, fc = _load_notifier_context()
-    if not fc or not admin_open_id:
+    recipient = _resolve_recipient(source_metadata, admin_open_id)
+    if not fc or not recipient:
         return
 
     msg = (f"**🚨 ⚠️ 流水线处于挂起状态 (Human Needed)**\n\n"
@@ -120,22 +128,62 @@ def notify_user_for_feedback(title: str, content: str, stage: str, task_id: str,
         for opt in options:
             buttons.append({
                 "text": str(opt),
-                "value": {"action": "run_cmd", "cmd": f"/reply {str(opt)}"}
+                "value": {
+                    "action": "pipeline_feedback",
+                    "task_id": task_id,
+                    "stage": stage,
+                    "prompt_title": title,
+                    "prompt_content": content,
+                    "feedback": str(opt),
+                    "prioritize": True,
+                    "cid": recipient,
+                }
             })
     else:
         buttons = [
-            {"text": "✅ 没问题，直接放行", "value": {"action": "run_cmd", "cmd": "/reply 授权通过，无额外修改意见"}},
-            {"text": "🔧 尝试使用 debug 模式修复", "value": {"action": "run_cmd", "cmd": "/reply 请查阅日志并尝试自动修复"}},
-            {"text": "🛑 拒绝挂起", "value": {"action": "run_cmd", "cmd": "/reply 拒绝挂起"}}
+            {"text": "✅ 没问题，直接放行", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "授权通过，无额外修改意见", "prioritize": True, "cid": recipient}},
+            {"text": "🔧 尝试使用 debug 模式修复", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "请查阅日志并尝试自动修复", "prioritize": True, "cid": recipient}},
+            {"text": "🛑 终止并等待人工处理", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "人工决定暂不继续自动执行，请停止并等待进一步处理", "prioritize": False, "cid": recipient}}
         ]
 
     async def _send():
         try:
-            msg_id = await fc.send_card_to_user(open_id=admin_open_id, content=msg, loading=False)
+            msg_id = await fc.send_card_to_user(open_id=recipient, content=msg, loading=False)
             if msg_id:
                 await fc.update_card_with_buttons(msg_id, msg, buttons, use_input=True)
-            print(f"Successfully sent feishu notification with options to {admin_open_id}")
+            print(f"Successfully sent feishu notification with options to {recipient}")
         except Exception as e:
             print(f"Failed to send Feishu notification: {e}")
+
+    _run_async_send(_send)
+
+
+def notify_approval_required(title: str, content: str, stage: str, task_id: str, approval_id: str, source_metadata: Optional[dict] = None):
+    _app_id, _app_secret, admin_open_id, _client, fc = _load_notifier_context()
+    recipient = _resolve_recipient(source_metadata, admin_open_id)
+    if not fc or not recipient:
+        return
+
+    msg = (f"**🛂 流水线等待审批 (Approval Required)**\n\n"
+           f"**Task ID**: {task_id}\n"
+           f"**Stage**: {stage}\n\n"
+           f"**审批摘要**: {title}\n\n"
+           f"{content}\n\n"
+           f"---\n"
+           f"💡 *操作指南*：请选择批准或拒绝，您也可以填写补充说明。")
+
+    buttons = [
+        {"text": "✅ 批准继续", "value": {"action": "pipeline_approval", "task_id": task_id, "approval_id": approval_id, "stage": stage, "prompt_title": title, "prompt_content": content, "resolution": "approved", "cid": recipient}},
+        {"text": "🛑 拒绝继续", "value": {"action": "pipeline_approval", "task_id": task_id, "approval_id": approval_id, "stage": stage, "prompt_title": title, "prompt_content": content, "resolution": "rejected", "cid": recipient}},
+    ]
+
+    async def _send():
+        try:
+            msg_id = await fc.send_card_to_user(open_id=recipient, content=msg, loading=False)
+            if msg_id:
+                await fc.update_card_with_buttons(msg_id, msg, buttons, use_input=True)
+            print(f"Successfully sent feishu approval request to {recipient}")
+        except Exception as e:
+            print(f"Failed to send Feishu approval notification: {e}")
 
     _run_async_send(_send)

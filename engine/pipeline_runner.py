@@ -23,7 +23,7 @@ except ImportError:
     yaml = None
 
 try:
-    from flask import Flask, Response, jsonify, request, send_from_directory
+    from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 except ImportError as exc:
     raise RuntimeError("Flask is required to run the harness dashboard") from exc
 
@@ -143,6 +143,8 @@ REQUEST_UPLOAD_TEXT_EXTENSIONS = {
     ".html", ".htm", ".ini", ".cfg", ".conf", ".toml",
     ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs", ".sh", ".sql",
 }
+ARTIFACT_PREVIEW_MAX_BYTES = 50000
+ARTIFACT_DIRECTORY_MAX_FILES = 200
 
 
 class PipelineRunner:
@@ -473,6 +475,43 @@ class PipelineRunner:
         with open(self.runtime_file, "r", encoding="utf-8") as handle:
             return json.load(handle)
 
+    def _remap_task_run_paths(self, value, legacy_run_dir: Optional[str], canonical_run_dir: str):
+        if not legacy_run_dir:
+            return value, False
+
+        legacy_root = os.path.normpath(legacy_run_dir)
+        canonical_root = os.path.normpath(canonical_run_dir)
+
+        if isinstance(value, str):
+            normalized = os.path.normpath(value)
+            if normalized == legacy_root:
+                return canonical_root, True
+            legacy_prefix = legacy_root + os.sep
+            if normalized.startswith(legacy_prefix):
+                suffix = normalized[len(legacy_prefix):]
+                return os.path.normpath(os.path.join(canonical_root, suffix)), True
+            return value, False
+
+        if isinstance(value, list):
+            changed = False
+            rewritten = []
+            for item in value:
+                updated_item, item_changed = self._remap_task_run_paths(item, legacy_root, canonical_root)
+                rewritten.append(updated_item)
+                changed = changed or item_changed
+            return rewritten, changed
+
+        if isinstance(value, dict):
+            changed = False
+            rewritten = {}
+            for key, item in value.items():
+                updated_item, item_changed = self._remap_task_run_paths(item, legacy_root, canonical_root)
+                rewritten[key] = updated_item
+                changed = changed or item_changed
+            return rewritten, changed
+
+        return value, False
+
     def _ensure_runtime_shape(self) -> None:
         runtime_changed = False
         self.runtime.setdefault("tasks", [])
@@ -490,7 +529,18 @@ class PipelineRunner:
             task.setdefault("yield_reason", "")
             task.setdefault("yield_to_front", False)
             task.setdefault("yield_target_status", "queued")
-            task.setdefault("run_dir", self._ensure_run_layout(task["id"], self._task_pipeline_order(task)))
+            canonical_run_dir = self._ensure_run_layout(task["id"], self._task_pipeline_order(task))
+            legacy_run_dir = task.get("run_dir")
+            task.setdefault("run_dir", canonical_run_dir)
+            if task.get("run_dir") != canonical_run_dir:
+                task["run_dir"] = canonical_run_dir
+                runtime_changed = True
+            if legacy_run_dir and os.path.normpath(legacy_run_dir) != os.path.normpath(canonical_run_dir):
+                for key in ("artifacts", "attachments", "stages", "context"):
+                    updated_value, changed = self._remap_task_run_paths(task.get(key), legacy_run_dir, canonical_run_dir)
+                    if changed:
+                        task[key] = updated_value
+                        runtime_changed = True
             runtime_changed = self._migrate_legacy_task_agents(task) or runtime_changed
             stage_defaults = self._empty_stage_map(self._task_stage_definitions(task))
             existing = task.setdefault("stages", {})
@@ -565,6 +615,12 @@ class PipelineRunner:
         return list(self.pipeline_order)
 
     def _stage_primary_artifact_paths(self, run_dir: str, stage: str) -> List[str]:
+        if stage == "development":
+            return [
+                os.path.join(run_dir, "development", "development.md"),
+                os.path.join(run_dir, "development", "src"),
+                os.path.join(run_dir, "development", "tests"),
+            ]
         return [os.path.join(run_dir, stage, name) for name in PRIMARY_STAGE_ARTIFACTS.get(stage, ())]
 
     def _repair_stage_artifact_layout(self, task: Dict, stage: str) -> None:
@@ -587,14 +643,30 @@ class PipelineRunner:
         self._repair_stage_artifact_layout(task, stage)
 
         run_dir = task.get("run_dir")
+        task_dir = os.path.join(self.tasks_dir, task["id"])
         collected: List[str] = []
         seen = set()
+        seen_names: Dict[str, str] = {}
+
+        def is_under(path: str, parent: Optional[str]) -> bool:
+            if not path or not parent:
+                return False
+            try:
+                return os.path.commonpath([os.path.abspath(path), os.path.abspath(parent)]) == os.path.abspath(parent)
+            except ValueError:
+                return False
 
         def add_path(path: Optional[str]) -> None:
             if not path or path in seen:
                 return
             if os.path.isfile(path) or os.path.isdir(path):
+                basename = os.path.basename(path.rstrip(os.sep))
+                existing_path = seen_names.get(basename)
+                if existing_path and os.path.isfile(path) and os.path.isfile(existing_path):
+                    if is_under(existing_path, run_dir) and is_under(path, task_dir):
+                        return
                 seen.add(path)
+                seen_names[basename] = path
                 collected.append(path)
 
         if run_dir:
@@ -604,7 +676,59 @@ class PipelineRunner:
         for path in task.get("artifacts", {}).get(stage, []):
             add_path(path)
 
+        stage_state = (task.get("stages", {}) or {}).get(stage, {}) or {}
+        for path in stage_state.get("artifact_paths", []) or []:
+            add_path(path)
+
         return collected
+
+    def _read_artifact_preview(self, path: str) -> str:
+        if not os.path.isfile(path):
+            return ""
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                return fh.read(ARTIFACT_PREVIEW_MAX_BYTES)
+        except Exception:
+            return "(unable to read)"
+
+    def _expand_artifact_items(self, path: str) -> List[Dict[str, str]]:
+        if os.path.isfile(path):
+            return [{
+                "path": path,
+                "name": os.path.basename(path),
+                "display_name": os.path.basename(path),
+                "content": self._read_artifact_preview(path),
+            }]
+
+        if not os.path.isdir(path):
+            return []
+
+        items: List[Dict[str, str]] = []
+        root_label = os.path.basename(path.rstrip(os.sep)) or path
+        for root, dirnames, filenames in os.walk(path):
+            dirnames.sort()
+            filenames.sort()
+            for filename in filenames:
+                file_path = os.path.join(root, filename)
+                relative_path = os.path.relpath(file_path, path)
+                items.append({
+                    "path": file_path,
+                    "name": filename,
+                    "display_name": f"{root_label}/{relative_path}",
+                    "content": self._read_artifact_preview(file_path),
+                })
+                if len(items) >= ARTIFACT_DIRECTORY_MAX_FILES:
+                    return items
+
+        if items:
+            return items
+
+        return [{
+            "path": path,
+            "name": root_label,
+            "display_name": f"{root_label}/",
+            "content": "(empty directory)",
+        }]
 
     def _persist_runtime(self) -> None:
         self.runtime["updated_at"] = datetime.now().isoformat()
@@ -931,6 +1055,12 @@ class PipelineRunner:
                 approval["status"] = resolution
                 approval["resolved_at"] = datetime.now().isoformat()
                 approval["note"] = note
+                stage_name = approval.get("stage")
+                if stage_name:
+                    stage_context = task.setdefault("context", {}).setdefault(stage_name, {})
+                    if note:
+                        stage_context["human_feedback"] = note
+                    stage_context["human_feedback_updated_at"] = datetime.now().isoformat()
                 task["updated_at"] = datetime.now().isoformat()
                 self._emit("approval_resolved", f"Approval {resolution} for {task['title']}", source="human", task_id=task_id, stage=approval.get("stage"), data={"approval_id": approval_id, "note": note, "resolution": resolution})
                 if resolution == "approved":
@@ -1175,6 +1305,8 @@ class PipelineRunner:
             if self._requires_manual_gate(task, stage):
                 approval = self._create_approval(task, stage, "Risky request requires human confirmation before continuing")
                 approved = self._wait_for_approval(task, approval)
+                if approved is None:
+                    return
                 if not approved:
                     self._fail_task(task, f"Approval rejected at {stage}")
                     return
@@ -1226,7 +1358,7 @@ class PipelineRunner:
             level="warning",
         )
 
-    def resume_task(self, task_id: str, prioritize: bool = False) -> Dict:
+    def resume_task(self, task_id: str, prioritize: bool = False, feedback: str = "", actor: str = "", source: str = "") -> Dict:
         with self.lock:
             task = self._require_task(task_id)
             if task["status"] not in {"waiting_human", "queued", "paused"}:
@@ -1248,6 +1380,16 @@ class PipelineRunner:
                     stage_state["status"] = "pending"
                     stage_state["started_at"] = None
                     stage_state["ended_at"] = None
+                stage_context = task.setdefault("context", {}).setdefault(stage, {})
+                cleaned_feedback = (feedback or "").strip()
+                if cleaned_feedback:
+                    stage_context["human_feedback"] = cleaned_feedback
+                if cleaned_feedback or actor or source:
+                    stage_context["human_feedback_updated_at"] = datetime.now().isoformat()
+                if actor:
+                    stage_context["human_feedback_actor"] = actor
+                if source:
+                    stage_context["human_feedback_source"] = source
 
             task["status"] = "queued"
             task["updated_at"] = datetime.now().isoformat()
@@ -1369,7 +1511,8 @@ class PipelineRunner:
                     content=summary or "顺利完成",
                     stage=stage,
                     task_id=task["id"],
-                    artifact_paths=artifact_paths
+                    artifact_paths=artifact_paths,
+                    source_metadata=task.get("source_metadata"),
                 )
                 
                 self._emit("stage_completed", f"{STAGE_TITLES.get(stage, stage)} passed", source="pipeline", task_id=task["id"], stage=stage, data={"verdict": verdict})
@@ -1382,7 +1525,7 @@ class PipelineRunner:
             self._emit("stage_failed", f"{STAGE_TITLES.get(stage, stage)} failed on attempt {attempt}/{max_retries}", source="pipeline", task_id=task["id"], stage=stage, level="error", data={"summary": summary, "verdict": verdict})
 
             if verdict == "NEED_HUMAN":
-                feishu_notifier.notify_user_for_feedback("Manual action required", summary or f"Verification needed at {stage}.", stage, task["id"], options)
+                feishu_notifier.notify_user_for_feedback("Manual action required", summary or f"Verification needed at {stage}.", stage, task["id"], options, source_metadata=task.get("source_metadata"))
                 self._set_task_waiting_human(task, stage, summary or f"Manual action required at {stage}")
                 return False
 
@@ -1399,7 +1542,7 @@ class PipelineRunner:
                     # Continue to next iteration - retry_info will be passed to prompt
 
         # Exhausted retries -> Pause and ask for human intervention
-        feishu_notifier.notify_user_for_feedback(f"Stage {stage} exhausted max retries ({max_retries})", previous_summary or "Unknown error", stage, task["id"])
+        feishu_notifier.notify_user_for_feedback(f"Stage {stage} exhausted max retries ({max_retries})", previous_summary or "Unknown error", stage, task["id"], source_metadata=task.get("source_metadata"))
         self._set_task_waiting_human(task, stage, previous_summary or f"Stage {stage} exhausted retries and needs human intervention")
         return False
 
@@ -1472,6 +1615,7 @@ class PipelineRunner:
             json.dumps(result, indent=2, ensure_ascii=False),
         ]
         self._save_text(artifact_path, "\n".join(report))
+        task.setdefault("artifacts", {})[stage] = [artifact_path]
         stage_state["artifact_paths"] = [artifact_path]
         stage_state["summary"] = result.get("message") or result.get("status") or "Delivery prepared"
         stage_state["verdict"] = "PASS" if result.get("success") or result.get("status") in {"disabled", "unavailable"} else "FAIL"
@@ -1481,6 +1625,14 @@ class PipelineRunner:
         self._persist_runtime()
         self._write_run_metadata(task)
         self._set_agent_status("delivery-manager", "idle", None, stage, stage_state["summary"])
+        feishu_notifier.notify_stage_completed(
+            title=f"✓ 阶段 {STAGE_TITLES.get(stage, stage)} 通过",
+            content=stage_state["summary"] or "顺利完成",
+            stage=stage,
+            task_id=task["id"],
+            artifact_paths=[artifact_path],
+            source_metadata=task.get("source_metadata"),
+        )
         self._emit("stage_completed", "Delivery stage finished", source="pipeline", task_id=task["id"], stage=stage, data=result)
         return stage_state["verdict"] == "PASS"
 
@@ -1493,6 +1645,7 @@ class PipelineRunner:
         result = self.build_verifier.run(task["id"], self.target_repo)
         report_path = os.path.join(task["run_dir"], "reports", "build_verification.json")
         self._save_json(report_path, result)
+        task.setdefault("artifacts", {})[stage] = [report_path]
         stage_state["artifact_paths"] = [report_path]
         stage_state["summary"] = result.get("message", "Build verification completed")
         stage_state["verdict"] = "PASS" if result.get("success") else "FAIL"
@@ -1502,6 +1655,14 @@ class PipelineRunner:
         self._persist_runtime()
         self._write_run_metadata(task)
         self._set_agent_status("build-verifier", "idle", None, stage, stage_state["summary"])
+        feishu_notifier.notify_stage_completed(
+            title=f"✓ 阶段 {STAGE_TITLES.get(stage, stage)} 通过" if result.get("success") else f"✗ 阶段 {STAGE_TITLES.get(stage, stage)} 失败",
+            content=stage_state["summary"] or "Build verification completed",
+            stage=stage,
+            task_id=task["id"],
+            artifact_paths=[report_path],
+            source_metadata=task.get("source_metadata"),
+        )
         self._emit("stage_completed", "Build verification stage finished", source="pipeline", task_id=task["id"], stage=stage, data=result, level="success" if result.get("success") else "error")
         return bool(result.get("success"))
 
@@ -1521,12 +1682,34 @@ class PipelineRunner:
         self._sync_task_state_artifacts(task, reason)
         self._emit("approval_required", reason, source="system", task_id=task["id"], stage=stage, level="warning", data={"approval_id": approval["id"]})
         self.engine.add_alert("warning", stage, reason, action_required=True)
+        feishu_notifier.notify_approval_required(
+            title="Human approval required",
+            content=reason,
+            stage=stage,
+            task_id=task["id"],
+            approval_id=approval["id"],
+            source_metadata=task.get("source_metadata"),
+        )
         return approval
 
-    def _wait_for_approval(self, task: Dict, approval: Dict) -> bool:
+    def _wait_for_approval(self, task: Dict, approval: Dict) -> Optional[bool]:
         while self.running:
             with self.lock:
-                current = self._require_task(task["id"])
+                current = next((item for item in self.runtime["tasks"] if item["id"] == task["id"]), None)
+                if current is None:
+                    if self.runtime.get("current_task_id") == task["id"]:
+                        self.runtime["current_task_id"] = None
+                        self._persist_runtime()
+                    self._emit(
+                        "task_deleted",
+                        f"Task {task['id']} deleted while waiting for approval",
+                        source="system",
+                        task_id=task["id"],
+                        stage=approval.get("stage"),
+                        level="warning",
+                        data={"approval_id": approval.get("id")},
+                    )
+                    return None
                 for candidate in current.get("approvals", []):
                     if candidate["id"] == approval["id"]:
                         if candidate["status"] == "approved":
@@ -1606,6 +1789,8 @@ class PipelineRunner:
             task = self._require_task(task_id)
             if task["status"] == "running":
                 raise ValueError(f"Cannot delete a running task")
+            if self.runtime.get("current_task_id") == task_id:
+                self.runtime["current_task_id"] = None
             self.runtime["tasks"] = [t for t in self.runtime["tasks"] if t["id"] != task_id]
             self._persist_runtime()
         self._emit("task_deleted", f"Task {task_id} deleted", source="system", task_id=task_id)
@@ -1716,7 +1901,7 @@ class PipelineRunner:
 
     def _notify_task_update(self, task: Dict, text: str) -> None:
         chat_id = task.get("source_metadata", {}).get("chat_id")
-        if task["source"] == "feishu" and chat_id:
+        if task["source"] in {"feishu", "feishu-bot"} and chat_id:
             self.feishu.send_text(chat_id, text)
 
     def _stage_max_retries(self, stage: str) -> int:
@@ -2021,7 +2206,7 @@ class PipelineRunner:
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
             self._save_text(copy_path, content)
-            artifact_paths.extend([path, copy_path])
+            artifact_paths.append(path)
         elif stage in DESIGN_STAGE_IDS:
             architecture = os.path.join(run_dir, stage, "architecture.md")
             api = os.path.join(run_dir, stage, "api_design.md")
@@ -2039,12 +2224,11 @@ class PipelineRunner:
             path = os.path.join(run_dir, stage, f"{stage}.md")
             self._save_text(path, self._wrap_output(task, stage, output_text))
             artifact_paths.append(path)
-            self._snapshot_repo_tree("src", os.path.join(run_dir, "src", "workspace_snapshot"))
-            self._snapshot_repo_tree("tests", os.path.join(run_dir, "tests", "workspace_snapshot"))
             for scan_dir in ["src", "tests"]:
-                abs_dir = os.path.join(self.harness_dir, scan_dir)
-                if os.path.isdir(abs_dir):
-                    artifact_paths.append(abs_dir)
+                snapshot_dir = os.path.join(run_dir, stage, scan_dir)
+                self._snapshot_repo_tree(scan_dir, snapshot_dir)
+                if os.path.isdir(snapshot_dir):
+                    artifact_paths.append(snapshot_dir)
         else:
             path = os.path.join(run_dir, stage, f"{stage}.md")
             self._save_text(path, self._wrap_output(task, stage, output_text))
@@ -2241,10 +2425,15 @@ def create_api_app(runner: PipelineRunner) -> Flask:
     app = Flask(__name__, static_folder=None)
     app.config["MAX_CONTENT_LENGTH"] = REQUEST_UPLOAD_MAX_TOTAL_BYTES + (2 * 1024 * 1024)
     template_dir = os.path.abspath(os.path.join(runner.harness_dir, "dashboard", "templates"))
+    assets_dir = os.path.abspath(os.path.join(runner.harness_dir, "dashboard", "assets"))
 
     @app.route("/")
     def index():
         return send_from_directory(template_dir, "index.html")
+
+    @app.route("/assets/<path:asset_path>")
+    def dashboard_assets(asset_path: str):
+        return send_from_directory(assets_dir, asset_path)
 
     @app.route("/api/runtime")
     def api_runtime():
@@ -2276,7 +2465,13 @@ def create_api_app(runner: PipelineRunner) -> Flask:
     def api_resume_task(task_id: str):
         payload = request.get_json(force=True, silent=True) or {}
         try:
-            task = runner.resume_task(task_id, prioritize=bool(payload.get("prioritize")))
+            task = runner.resume_task(
+                task_id,
+                prioritize=bool(payload.get("prioritize")),
+                feedback=(payload.get("feedback") or "").strip(),
+                actor=(payload.get("actor") or "").strip(),
+                source=(payload.get("source") or "").strip(),
+            )
             return jsonify(task)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
@@ -2320,18 +2515,45 @@ def create_api_app(runner: PipelineRunner) -> Flask:
             if not paths:
                 continue
             items = []
+            seen_paths = set()
             for p in paths:
-                name = os.path.basename(p)
-                content = ""
-                if os.path.isfile(p):
-                    try:
-                        with open(p, "r", encoding="utf-8", errors="replace") as fh:
-                            content = fh.read(50000)  # cap at 50KB
-                    except Exception:
-                        content = "(unable to read)"
-                items.append({"path": p, "name": name, "content": content})
+                for item in runner._expand_artifact_items(p):
+                    item_path = item.get("path")
+                    if not item_path or item_path in seen_paths:
+                        continue
+                    seen_paths.add(item_path)
+                    items.append(item)
             result[stage] = items
         return jsonify(result)
+
+    @app.route("/api/tasks/<task_id>/artifacts/download")
+    def api_task_artifact_download(task_id: str):
+        task = runner._require_task(task_id)
+        requested_path = os.path.abspath((request.args.get("path") or "").strip())
+        if not requested_path:
+            return jsonify({"error": "path is required"}), 400
+
+        allowed_paths = set()
+        seen_stages = []
+        seen_stage_ids = set()
+        for stage in runner._task_pipeline_order(task) + list(task.get("artifacts", {}).keys()):
+            if stage and stage not in seen_stage_ids:
+                seen_stages.append(stage)
+                seen_stage_ids.add(stage)
+
+        for stage in seen_stages:
+            for artifact_path in runner._collect_task_artifact_paths(task, stage):
+                for item in runner._expand_artifact_items(artifact_path):
+                    item_path = item.get("path")
+                    if item_path:
+                        allowed_paths.add(os.path.abspath(item_path))
+
+        if requested_path not in allowed_paths:
+            return jsonify({"error": "artifact path is not available for this task"}), 404
+        if not os.path.isfile(requested_path):
+            return jsonify({"error": "artifact file does not exist"}), 404
+
+        return send_file(requested_path, as_attachment=True, download_name=os.path.basename(requested_path))
 
     @app.route("/api/requests", methods=["POST"])
     def api_submit_request():

@@ -69,6 +69,10 @@ class TaskContextManager:
         if memory_context:
             sections.extend(["", memory_context.strip()])
 
+        current_stage_context = self._render_current_stage_feedback(task, stage)
+        if current_stage_context:
+            sections.extend(["", current_stage_context])
+
         dependency_sections = self._build_dependency_sections(task, stage, runtime_context)
         if dependency_sections:
             sections.extend([""] + dependency_sections)
@@ -188,6 +192,18 @@ class TaskContextManager:
 
         if len(details) <= 2:
             return ""
+        return "\n".join(details)
+
+    def _render_current_stage_feedback(self, task: Dict, stage: str) -> str:
+        task_context = (task.get("context") or {}).get(stage, {})
+        feedback = self._truncate(task_context.get("human_feedback", ""), self.max_summary_chars)
+        if not feedback:
+            return ""
+
+        details = ["## Human Feedback", feedback]
+        updated_at = task_context.get("human_feedback_updated_at")
+        if updated_at:
+            details.append(f"Updated At: {updated_at}")
         return "\n".join(details)
 
     def _build_prompt_state_digest(self, task: Dict) -> str:

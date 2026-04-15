@@ -14,7 +14,7 @@ import inspect
 from datetime import datetime
 from typing import Optional, Tuple
 
-from bot_config import CLI_BACKEND, CLI_BIN, DEFAULT_CWD
+from bot_config import CLI_BACKEND, CLI_BIN, DEFAULT_CWD, HARNESS_API_BASE_URL
 from session_store import SessionStore, scan_cli_sessions, generate_summary, _get_api_token, _write_custom_title
 
 PLUGINS_DIR = os.path.expanduser("~/.claude/plugins")
@@ -661,11 +661,16 @@ async def handle_command(
             title = (args.split('\n')[0][:20] + "...") if args else "Feishu Request"
             
             req = urllib.request.Request(
-                "http://localhost:8080/api/requests",
+                f"{HARNESS_API_BASE_URL}/api/requests",
                 data=json.dumps({
                     "title": title,
                     "text": args, 
-                    "source": "feishu-bot"
+                    "source": "feishu-bot",
+                    "metadata": {
+                        "chat_id": chat_id,
+                        "sender_open_id": user_id,
+                        "entrypoint": "feishu-bot",
+                    },
                 }).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )

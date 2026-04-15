@@ -1,0 +1,24 @@
+description: ''
+id: tpl-20260414-154e64
+is_builtin: false
+is_default: false
+name: 我的流程-6
+stages:
+- agent: planner
+  id: intake
+  name: Request Intake
+- agent: software-requirement-orchestrator
+  id: software-requirement-orchestrator
+  name: Software Requirement Orchestrator
+- agent: cockpit-middleware-architect
+  id: cockpit-middleware-architect
+  name: Cockpit Middleware Architect
+- agent: developer
+  id: development
+  name: Implementation
+- agent: code-reviewer
+  id: code_review
+  name: Code Review
+- agent: unite-test
+  id: testing
+  name: Unit Testing

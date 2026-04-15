@@ -3,9 +3,10 @@ import shutil
 
 from dotenv import load_dotenv
 
-load_dotenv()
-
+# Ensure we load the .env file that sits next to this module so
+# repo-local settings (like DEFAULT_MODEL / CLI_BACKEND) are applied.
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(PROJECT_DIR, ".env"))
 LEGACY_SESSIONS_DIR = os.path.expanduser("~/.feishu-claude")
 
 
@@ -46,6 +47,7 @@ DEFAULT_MODEL = os.getenv(
 DEFAULT_CWD = _resolve_default_cwd()
 PERMISSION_MODE = os.getenv("PERMISSION_MODE", "bypassPermissions")
 CALLBACK_PUBLIC_URL = os.getenv("CALLBACK_PUBLIC_URL", "").rstrip("/")
+HARNESS_API_BASE_URL = os.getenv("HARNESS_API_BASE_URL", "http://localhost:8080").rstrip("/")
 
 SESSIONS_DIR = _resolve_sessions_dir()
 

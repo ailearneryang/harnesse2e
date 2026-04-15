@@ -164,6 +164,7 @@ python main.py
 | `DEFAULT_MODEL` | 否 | `claude-sonnet-4-6` | 默认使用的 Claude 模型 |
 | `DEFAULT_CWD` | 否 | `~` | Claude CLI 的默认工作目录 |
 | `PERMISSION_MODE` | 否 | `bypassPermissions` | 工具权限模式 |
+| `HARNESS_API_BASE_URL` | 否 | `http://localhost:8080` | Harness API 地址，供飞书卡片审批/恢复动作回调 |
 | `STREAM_CHUNK_SIZE` | 否 | `20` | 流式推送的字符积累阈值 |
 | `CLAUDE_CLI_PATH` | 否 | 自动查找 | Claude CLI 可执行文件路径 |
 
