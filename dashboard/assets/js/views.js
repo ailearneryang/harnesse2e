@@ -44,6 +44,10 @@ const LESSON_TYPE_META = {
     artifact_visibility_gap: { label: '产物缺失', title: '历史任务产物可见性缺口' },
     ui_pipeline_drift: { label: '界面漂移', title: '任务快照与页面阶段定义不一致' },
     budget_hard_stop: { label: '预算中断', title: '预算硬停导致流程提前终止' },
+    external_contract_tbd: { label: '接口待定', title: '外部接口未闭合时不要过早固化协议' },
+    degrade_state_mismatch: { label: '降级一致性', title: '降级状态必须在 UI、CAN 与诊断口径一致' },
+    zeroing_permission_boundary: { label: '清零边界', title: '清零授权与算法执行必须拆开' },
+    single_os_scope_assumption: { label: '范围假设', title: '单 OS 假设需要显式写清演进边界' },
     unknown: { label: '未分类', title: '待补充的经验记录' },
 };
 
