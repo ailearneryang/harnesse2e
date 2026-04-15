@@ -37,7 +37,7 @@ MODE_ALIASES = {
 MODEL_ALIASES = {
     "best": "gpt-5.4",
     "fast": "gpt-5.4-mini",
-    "mini": "gpt-5-mini",
+    "mini": "gpt-5.4-mini",
     "opus": "claude-opus-4-6",
     "sonnet": "claude-sonnet-4-6",
     "haiku": "claude-haiku-4-5-20251001",
@@ -74,6 +74,41 @@ HELP_TEXT = """\
 """
 
 
+def _strip_requirement_prefix(text: str, prefixes: tuple[str, ...]) -> Optional[str]:
+    stripped = text.strip()
+    for prefix in prefixes:
+        if not stripped.startswith(prefix):
+            continue
+        remainder = stripped[len(prefix):].strip()
+        while remainder[:1] in {":", "：", "-", "-"}:
+            remainder = remainder[1:].strip()
+        return remainder
+    return None
+
+
+def _parse_explicit_harness_request(text: str) -> Optional[str]:
+    stripped = text.strip()
+    if not stripped:
+        return None
+
+    direct = _strip_requirement_prefix(stripped, ("新建需求", "新需求", "提需求", "需求"))
+    if direct is not None:
+        return direct
+
+    lower = stripped.lower()
+    if not lower.startswith("harness"):
+        return None
+
+    remainder = stripped[len("harness"):].strip()
+    while remainder[:1] in {":", "：", "-", "-"}:
+        remainder = remainder[1:].strip()
+
+    nested = _strip_requirement_prefix(remainder, ("新建需求", "新需求", "提需求", "需求"))
+    if nested is not None:
+        return nested
+    return remainder
+
+
 def parse_command(text: str) -> Optional[Tuple[str, str]]:
     """
     尝试解析斜杠命令，或者将普通的包含特定关键词的话转换为命令。
@@ -90,7 +125,11 @@ def parse_command(text: str) -> Optional[Tuple[str, str]]:
         cmd = parts[0].lower()
         args = parts[1].strip() if len(parts) > 1 else ""
         return cmd, args
-        
+
+    harness_request = _parse_explicit_harness_request(text)
+    if harness_request is not None:
+        return "harness", harness_request
+
     # 自然语言快捷方式处理
     for starter in magic_starters:
         if text.startswith(starter):

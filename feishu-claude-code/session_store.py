@@ -10,6 +10,17 @@ from bot_config import CLI_BACKEND, DEFAULT_CWD, DEFAULT_MODEL, PERMISSION_MODE,
 
 TRANSCRIPTS_DIR = os.path.join(SESSIONS_DIR, "transcripts")
 
+COPILOT_MODEL_ALIASES = {
+    "best": "gpt-5.4",
+    "gpt-5.4": "gpt-5.4",
+    "fast": "gpt-5.4-mini",
+    "mini": "gpt-5.4-mini",
+    "gpt-5.4-mini": "gpt-5.4-mini",
+    "gpt-5-mini": "gpt-5.4-mini",
+    # Historical typo persisted in older sessions.
+    "gpt-5-min": "gpt-5.4",
+}
+
 
 def _normalize_model_for_backend(model: str) -> str:
     value = (model or "").strip()
@@ -19,6 +30,11 @@ def _normalize_model_for_backend(model: str) -> str:
     lower = value.lower()
     if CLI_BACKEND == "copilot" and lower.startswith(("claude-", "anthropic/claude-")):
         return DEFAULT_MODEL
+    if CLI_BACKEND == "copilot":
+        if lower in COPILOT_MODEL_ALIASES:
+            return COPILOT_MODEL_ALIASES[lower]
+        if lower.startswith(("gpt-", "openai/", "o1", "o3", "o4")):
+            return lower
     if CLI_BACKEND == "claude" and lower.startswith(("gpt-", "openai/", "o1", "o3", "o4")):
         return DEFAULT_MODEL
     return value
