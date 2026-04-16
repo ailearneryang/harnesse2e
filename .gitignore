@@ -40,6 +40,11 @@ data/transcripts/
 
 # Per-run generated workspaces and outputs
 runs/
+design/
+docs/
+src/
+geomag/
+software-requirement-orchestrator/
 
 # Generated task specs moved through the pipeline
 specs/pending/
