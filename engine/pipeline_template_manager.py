@@ -200,30 +200,33 @@ class PipelineTemplateManager:
 
                 for template in BUILTIN_TEMPLATES:
                     existing = conn.execute(
-                        "SELECT id, usage_count FROM pipeline_templates WHERE id = ?",
+                        "SELECT id, name, description, stages, usage_count FROM pipeline_templates WHERE id = ?",
                         (template["id"],),
                     ).fetchone()
                     
                     stages_json = json.dumps(template["stages"], ensure_ascii=False)
                     
                     if existing:
-                        # Update builtin template but preserve usage_count
+                        # Preserve any user edits to builtin templates across restarts.
                         conn.execute(
                             """
                             UPDATE pipeline_templates SET
-                                name = ?, description = ?, stages = ?,
-                                is_default = ?, is_builtin = 1, updated_at = ?
+                                is_default = ?, is_builtin = 1
                             WHERE id = ?
                             """,
                             (
-                                template["name"],
-                                template.get("description", ""),
-                                stages_json,
                                 1 if template["id"] == preferred_default_id else 0,
-                                now,
                                 template["id"],
                             ),
                         )
+                        synced_template = {
+                            "id": template["id"],
+                            "name": existing["name"] or template["name"],
+                            "description": existing["description"] if existing["description"] is not None else template.get("description", ""),
+                            "stages": json.loads(existing["stages"]) if existing["stages"] else template["stages"],
+                            "is_default": template["id"] == preferred_default_id,
+                            "is_builtin": True,
+                        }
                     else:
                         conn.execute(
                             """
@@ -241,8 +244,8 @@ class PipelineTemplateManager:
                                 now,
                             ),
                         )
-                    synced_template = dict(template)
-                    synced_template["is_default"] = template["id"] == preferred_default_id
+                        synced_template = dict(template)
+                        synced_template["is_default"] = template["id"] == preferred_default_id
                     self._sync_to_file(synced_template)
 
                 self._normalize_default_template(conn, preferred_default_id)
@@ -480,12 +483,6 @@ class PipelineTemplateManager:
 
         now = datetime.now().isoformat()
         allowed_fields = {"name", "description", "stages"}
-        
-        # For builtin templates, only allow name and description changes
-        if existing["is_builtin"]:
-            if "stages" in updates:
-                raise ValueError("Cannot modify builtin template stages, only name and description")
-            allowed_fields = {"name", "description"}
 
         update_parts = []
         params = []

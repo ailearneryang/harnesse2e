@@ -165,6 +165,10 @@ function renderStageSkillSummary(events, activeAgent) {
 function openPage(pageId, addTab = true) {
     if (!PAGES[pageId]) return;
 
+    if (pageId === 'pipeline' && !pipelinePageVisited && !pipelinePagePendingEntrySource) {
+        pipelinePagePendingEntrySource = 'nav';
+    }
+
     openTabs = [{ id: pageId, label: PAGES[pageId].label, icon: PAGES[pageId].icon }];
     activeTabId = pageId;
     document.getElementById('app')?.classList.remove('sidebar-open');
@@ -174,6 +178,11 @@ function openPage(pageId, addTab = true) {
 
     enableNextPageTransition();
     renderApp();
+}
+
+function openPipelinePageFromRequest() {
+    pipelinePagePendingEntrySource = 'request';
+    openPage('pipeline');
 }
 
 function closeTab(tabId, event) {
