@@ -78,16 +78,36 @@ function getSelectedTemplateDefinition() {
 /* ── Pipeline Template State ── */
 let pipelineTemplates = [];
 let selectedTemplateId = null;
+let pipelinePageSelectedTemplateId = null;
+let pipelinePageVisited = false;
+let pipelinePagePendingEntrySource = null;
 let templateManagerVisible = false;
+
+function getDefaultPipelineTemplateId() {
+    return pipelineTemplates.find(t => t.is_default)?.id || pipelineTemplates[0]?.id || null;
+}
 
 async function fetchPipelineTemplates() {
     try {
+        const previousRequestTemplateId = selectedTemplateId;
+        const previousPipelinePageTemplateId = pipelinePageSelectedTemplateId;
         const r = await fetch('/api/pipeline-templates?include_stages=true');
         const data = await r.json();
         pipelineTemplates = data.templates || [];
-        selectedTemplateId = data.default_id || null;
+        const defaultTemplateId = data.default_id || getDefaultPipelineTemplateId();
+        selectedTemplateId = previousRequestTemplateId && pipelineTemplates.some(t => t.id === previousRequestTemplateId)
+            ? previousRequestTemplateId
+            : defaultTemplateId;
+        if (pipelinePageVisited) {
+            pipelinePageSelectedTemplateId = previousPipelinePageTemplateId && pipelineTemplates.some(t => t.id === previousPipelinePageTemplateId)
+                ? previousPipelinePageTemplateId
+                : defaultTemplateId;
+        }
         updateTemplateSelector();
         updateTemplatePreview();
+        if (typeof updatePipelinePageTemplateSelector === 'function') {
+            updatePipelinePageTemplateSelector();
+        }
     } catch (e) {
         console.error('Failed to fetch templates:', e);
     }

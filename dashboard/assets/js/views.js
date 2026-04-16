@@ -128,7 +128,7 @@ function renderRequestPage(activeTask, tasks, stats, budget, settings) {
                             <select id="req-template" onchange="onTemplateSelect(this.value)">
                                 <option value="">加载中...</option>
                             </select>
-                            <button class="btn ghost" onclick="openPage('pipeline')">管理模版</button>
+                            <button class="btn ghost" onclick="openPipelinePageFromRequest()">管理模版</button>
                         </div>
                     </div>
                 </div>
@@ -578,13 +578,21 @@ function renderPipelinePage() {
                 <div>
                     <h1 class="page-title">🛠 Pipeline 编排</h1>
                     <div class="page-subtitle">可视化编排 · 点击节点配置回退规则 · <span id="pipe-mode-tag" style="color:var(--text-muted)"></span></div>
+                    <div class="pipe-template-toolbar">
+                        <label class="pipe-template-label" for="pipe-template-select">当前 Pipeline</label>
+                        <select id="pipe-template-select" class="pipe-template-select" onchange="onPipelinePageTemplateSelect(this.value)">
+                            <option value="">加载中...</option>
+                        </select>
+                        <span id="pipe-template-current-meta" class="pipe-template-current-meta"></span>
+                    </div>
                 </div>
             </div>
-            <div class="page-header-actions">
+            <div class="page-header-actions pipe-page-actions">
                 <button class="btn ghost sm" onclick="resetPipelineEditor()">撤销编辑</button>
                 <button class="btn ghost sm" onclick="restoreDefaultPipeline()" id="pipe-restore-btn" style="display:none">恢复默认</button>
                 <button class="btn ghost sm" onclick="saveAsTemplate()">另存为模板</button>
                 <button class="btn primary sm" onclick="savePipeline()">保存配置</button>
+                <button class="btn primary sm" onclick="setEditorPipelineAsDefault()" id="pipe-set-default-btn">设为默认 Pipeline</button>
             </div>
         </div>
 
