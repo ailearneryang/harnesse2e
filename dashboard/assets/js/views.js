@@ -528,7 +528,7 @@ function renderOutputsPage(tasks) {
                             <div class="studio-panel-title">产物详情</div>
                             <div class="studio-panel-desc">点击左侧任务后，在这里展开文档内容预览并支持下载。</div>
                         </div>
-                        ${selectedTask ? `<div class="outputs-detail-actions"><button class="btn ghost sm" onclick="loadArtifacts('${esc(selectedTask.id)}')">刷新产物</button></div>` : ''}
+                        ${selectedTask ? `<div class="outputs-detail-actions"><button class="btn ghost sm" onclick="loadArtifacts('${esc(selectedTask.id)}')">刷新产物</button><button class="btn primary sm" onclick="downloadTaskArtifactArchive('${esc(selectedTask.id)}')">下载压缩包</button></div>` : ''}
                     </div>
                     <div class="outputs-selected-meta">
                         ${selectedTask ? `
@@ -820,6 +820,21 @@ function downloadArtifact(taskId, filePath, fileName) {
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = fileName || '';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+}
+
+function downloadTaskArtifactArchive(taskId) {
+    if (!taskId) {
+        showToast('请先选择一个任务', true);
+        return;
+    }
+    const url = `/api/tasks/${encodeURIComponent(taskId)}/artifacts/archive`;
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${taskId}.zip`;
     anchor.style.display = 'none';
     document.body.appendChild(anchor);
     anchor.click();

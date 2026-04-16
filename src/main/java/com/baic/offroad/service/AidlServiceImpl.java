@@ -1,5 +1,6 @@
 package com.baic.offroad.service;
 
+import android.content.Context;
 import android.os.IBinder;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
@@ -19,6 +20,7 @@ import com.baic.offroad.util.OffroadLog;
  */
 public class AidlServiceImpl extends IOffroadService.Stub {
 
+    private final Context context;
     private final AlgorithmScheduler scheduler;
 
     /**
@@ -28,7 +30,8 @@ public class AidlServiceImpl extends IOffroadService.Stub {
     private final RemoteCallbackList<IOffroadCallback> callbacks
             = new RemoteCallbackList<>();
 
-    public AidlServiceImpl(AlgorithmScheduler scheduler) {
+    public AidlServiceImpl(Context context, AlgorithmScheduler scheduler) {
+        this.context = context;
         this.scheduler = scheduler;
     }
 
@@ -38,6 +41,7 @@ public class AidlServiceImpl extends IOffroadService.Stub {
      */
     @Override
     public OffroadDataBundle getOffroadData() {
+        enforceAccessPermission();
         return scheduler.getCurrentData();
     }
 
@@ -51,6 +55,7 @@ public class AidlServiceImpl extends IOffroadService.Stub {
      */
     @Override
     public void registerCallback(IOffroadCallback callback) {
+        enforceAccessPermission();
         if (callback == null) return;
 
         // [H2 fix] 使用 RemoteCallbackList 内部计数替代手动 callbackCount
@@ -74,6 +79,7 @@ public class AidlServiceImpl extends IOffroadService.Stub {
      */
     @Override
     public void unregisterCallback(IOffroadCallback callback) {
+        enforceAccessPermission();
         if (callback == null) return;
 
         boolean unregistered = callbacks.unregister(callback);
@@ -107,5 +113,11 @@ public class AidlServiceImpl extends IOffroadService.Stub {
      */
     public int getCallbackCount() {
         return callbacks.getRegisteredCallbackCount();
+    }
+
+    private void enforceAccessPermission() {
+        context.enforceCallingOrSelfPermission(
+                OffroadLog.PERMISSION_ACCESS_OFFROAD_SERVICE,
+                "Requires " + OffroadLog.PERMISSION_ACCESS_OFFROAD_SERVICE);
     }
 }

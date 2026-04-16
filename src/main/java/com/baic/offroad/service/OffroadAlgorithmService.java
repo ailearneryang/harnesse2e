@@ -1,6 +1,7 @@
 package com.baic.offroad.service;
 
 import android.app.Service;
+import android.content.pm.PackageManager;
 import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
@@ -89,14 +90,14 @@ public class OffroadAlgorithmService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
-        // 鉴权检查: 仅允许指定包名绑定 (api_design.md §1.3)
-        String callingPackage = getCallingPackage(intent);
-        if (!isAuthorizedCaller(callingPackage)) {
-            Log.w(TAG, "Unauthorized bind attempt from: " + callingPackage);
+        if (checkCallingOrSelfPermission(OffroadLog.PERMISSION_ACCESS_OFFROAD_SERVICE)
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Unauthorized bind attempt: missing "
+                    + OffroadLog.PERMISSION_ACCESS_OFFROAD_SERVICE);
             return null;
         }
 
-        Log.i(TAG, "onBind from: " + callingPackage);
+        Log.i(TAG, "onBind authorized");
         return aidlService != null ? (IBinder) aidlService : null;
     }
 
@@ -145,7 +146,7 @@ public class OffroadAlgorithmService extends Service {
                 compassMemoryStore, calibrationStore, installConfig);
 
         // 9. 初始化 AIDL 服务
-        aidlService = new AidlServiceImpl(scheduler);
+        aidlService = new AidlServiceImpl(this, scheduler);
 
         // 注册清零指令监听 [IF-005]
         canSignalAdapter.setCalibrationCommandListener(() -> {
@@ -204,26 +205,4 @@ public class OffroadAlgorithmService extends Service {
         Log.i(TAG, "Algorithm stopped, stats: " + scheduler.getStats());
     }
 
-    /**
-     * 获取调用方包名。
-     */
-    private String getCallingPackage(Intent intent) {
-        if (intent != null && intent.getPackage() != null) {
-            return intent.getPackage();
-        }
-        // 实际场景通过 Binder.getCallingUid() 获取
-        return "unknown";
-    }
-
-    /**
-     * 检查调用方是否有权绑定。
-     * 仅允许 com.baic.hmi.* 和 com.baic.cluster.* 绑定。
-     * 需求追溯: api_design.md §1.3
-     */
-    private boolean isAuthorizedCaller(String packageName) {
-        if (packageName == null) return true; // 开发阶段放行
-        return packageName.startsWith("com.baic.hmi.")
-                || packageName.startsWith("com.baic.cluster.")
-                || packageName.equals("unknown"); // 开发阶段放行
-    }
 }

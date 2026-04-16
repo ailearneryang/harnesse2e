@@ -9,9 +9,11 @@ import re
 import shutil
 import signal
 import sys
+import tempfile
 import threading
 import time
 import uuid
+import zipfile
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -681,6 +683,44 @@ class PipelineRunner:
             add_path(path)
 
         return collected
+
+    def _task_archive_name(self, task: Dict) -> str:
+        task_id = (task.get("id") or "task").strip() or "task"
+        title = (task.get("title") or "").strip()
+        slug = re.sub(r"[^A-Za-z0-9._-]+", "-", title).strip("-._")
+        if slug:
+            return f"{task_id}-{slug[:60]}.zip"
+        return f"{task_id}.zip"
+
+    def _build_task_artifact_archive(self, task: Dict) -> str:
+        run_dir = os.path.abspath(task.get("run_dir") or "")
+        if not run_dir or not os.path.isdir(run_dir):
+            raise FileNotFoundError(f"Run directory does not exist for task {task.get('id')}")
+
+        archive_handle = tempfile.NamedTemporaryFile(
+            prefix=f"{task.get('id', 'task')}-",
+            suffix=".zip",
+            delete=False,
+        )
+        archive_path = archive_handle.name
+        archive_handle.close()
+
+        archive_root = task.get("id") or os.path.basename(run_dir.rstrip(os.sep)) or "task"
+        try:
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for root, dirnames, filenames in os.walk(run_dir):
+                    dirnames.sort()
+                    filenames.sort()
+                    for filename in filenames:
+                        file_path = os.path.join(root, filename)
+                        relative_path = os.path.relpath(file_path, run_dir)
+                        archive.write(file_path, arcname=os.path.join(archive_root, relative_path))
+        except Exception:
+            if os.path.exists(archive_path):
+                os.remove(archive_path)
+            raise
+
+        return archive_path
 
     def _read_artifact_preview(self, path: str) -> str:
         if not os.path.isfile(path):
@@ -1358,6 +1398,27 @@ class PipelineRunner:
             level="warning",
         )
 
+    def _set_stage_prompt_context(self, task_id: str, stage: str, prompt_title: str, prompt_content: str, prefix: str = "human_prompt") -> None:
+        with self.lock:
+            task = self._require_task(task_id)
+            stage_context = task.setdefault("context", {}).setdefault(stage, {})
+            stage_context[f"{prefix}_title"] = (prompt_title or "").strip()
+            stage_context[f"{prefix}_content"] = (prompt_content or "").strip()
+            task["updated_at"] = datetime.now().isoformat()
+            self._persist_runtime()
+
+    def _extract_human_prompt_content(self, output_text: str, fallback_summary: str) -> str:
+        cleaned = (output_text or "").strip()
+        if not cleaned:
+            return (fallback_summary or "").strip()
+
+        cleaned = re.sub(r"<summary>\s*.*?\s*</summary>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r"<options>\s*.*?\s*</options>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r"VERDICT:\s*(PASS|FAIL|NEED_HUMAN)\b", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"(?mi)^(Changes|Requests|Tokens)\b.*$", "", cleaned)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+        return cleaned[:4000] or (fallback_summary or "").strip()
+
     def resume_task(self, task_id: str, prioritize: bool = False, feedback: str = "", actor: str = "", source: str = "") -> Dict:
         with self.lock:
             task = self._require_task(task_id)
@@ -1525,7 +1586,9 @@ class PipelineRunner:
             self._emit("stage_failed", f"{STAGE_TITLES.get(stage, stage)} failed on attempt {attempt}/{max_retries}", source="pipeline", task_id=task["id"], stage=stage, level="error", data={"summary": summary, "verdict": verdict})
 
             if verdict == "NEED_HUMAN":
-                feishu_notifier.notify_user_for_feedback("Manual action required", summary or f"Verification needed at {stage}.", stage, task["id"], options, source_metadata=task.get("source_metadata"))
+                human_prompt = self._extract_human_prompt_content(result.output_text, summary or f"Verification needed at {stage}.")
+                self._set_stage_prompt_context(task["id"], stage, "Manual action required", human_prompt, prefix="human_prompt")
+                feishu_notifier.notify_user_for_feedback("Manual action required", human_prompt, stage, task["id"], options, source_metadata=task.get("source_metadata"))
                 self._set_task_waiting_human(task, stage, summary or f"Manual action required at {stage}")
                 return False
 
@@ -1542,7 +1605,9 @@ class PipelineRunner:
                     # Continue to next iteration - retry_info will be passed to prompt
 
         # Exhausted retries -> Pause and ask for human intervention
-        feishu_notifier.notify_user_for_feedback(f"Stage {stage} exhausted max retries ({max_retries})", previous_summary or "Unknown error", stage, task["id"], source_metadata=task.get("source_metadata"))
+        retry_prompt = previous_summary or "Unknown error"
+        self._set_stage_prompt_context(task["id"], stage, f"Stage {stage} exhausted max retries ({max_retries})", retry_prompt, prefix="human_prompt")
+        feishu_notifier.notify_user_for_feedback(f"Stage {stage} exhausted max retries ({max_retries})", retry_prompt, stage, task["id"], source_metadata=task.get("source_metadata"))
         self._set_task_waiting_human(task, stage, previous_summary or f"Stage {stage} exhausted retries and needs human intervention")
         return False
 
@@ -1679,6 +1744,7 @@ class PipelineRunner:
             task["status"] = "waiting_human"
             task["updated_at"] = datetime.now().isoformat()
             self._persist_runtime()
+        self._set_stage_prompt_context(task["id"], stage, "Human approval required", reason, prefix="approval_prompt")
         self._sync_task_state_artifacts(task, reason)
         self._emit("approval_required", reason, source="system", task_id=task["id"], stage=stage, level="warning", data={"approval_id": approval["id"]})
         self.engine.add_alert("warning", stage, reason, action_required=True)
@@ -2627,6 +2693,30 @@ def create_api_app(runner: PipelineRunner) -> Flask:
             return jsonify({"error": "artifact file does not exist"}), 404
 
         return send_file(requested_path, as_attachment=True, download_name=os.path.basename(requested_path))
+
+    @app.route("/api/tasks/<task_id>/artifacts/archive")
+    def api_task_artifact_archive(task_id: str):
+        task = runner._require_task(task_id)
+        try:
+            archive_path = runner._build_task_artifact_archive(task)
+        except FileNotFoundError as exc:
+            return jsonify({"error": str(exc)}), 404
+
+        response = send_file(
+            archive_path,
+            as_attachment=True,
+            download_name=runner._task_archive_name(task),
+            mimetype="application/zip",
+        )
+
+        @response.call_on_close
+        def _cleanup_archive() -> None:
+            try:
+                os.remove(archive_path)
+            except OSError:
+                pass
+
+        return response
 
     @app.route("/api/requests", methods=["POST"])
     def api_submit_request():

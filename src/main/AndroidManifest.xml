@@ -15,16 +15,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.baic.offroad">
 
+    <permission
+        android:name="com.baic.permission.ACCESS_OFFROAD_SERVICE"
+        android:protectionLevel="signature" />
+
     <!-- GPS 数据获取权限 [IF-001] -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- 传感器访问权限 [IF-002] -->
     <uses-permission android:name="android.permission.BODY_SENSORS" />
-
-    <!-- 文件系统读写权限 [NFR-004] -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <!-- 前台服务权限 [NFR-005] -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -56,6 +56,7 @@
             android:process=":offroad"
             android:enabled="true"
             android:exported="true"
+            android:permission="com.baic.permission.ACCESS_OFFROAD_SERVICE"
             android:foregroundServiceType="location">
             <intent-filter>
                 <action android:name="com.baic.offroad.ALGORITHM_SERVICE" />

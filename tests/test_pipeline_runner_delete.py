@@ -3,6 +3,7 @@ import sys
 import threading
 import tempfile
 import unittest
+import zipfile
 from unittest import mock
 
 
@@ -20,7 +21,13 @@ class DeleteWaitingHumanTaskTests(unittest.TestCase):
         runner.lock = threading.RLock()
         runner.running = True
         runner.runtime = {"tasks": [], "current_task_id": None}
+        runner.tasks_dir = os.path.join(ROOT, "data", "tasks")
+        runner.runs_dir = os.path.join(ROOT, "runs")
+        runner.memory_store = mock.Mock()
+        runner.memory_store.delete_task_records = mock.Mock(return_value={"summaries": 0, "lessons": 0, "project_memories": 0, "agent_memories": 0})
         runner._persist_runtime = mock.Mock()
+        runner._task_run_dir = mock.Mock(return_value=os.path.join(runner.runs_dir, "task-1"))
+        runner._refresh_latest_run_link = mock.Mock()
         runner._emit = mock.Mock()
         runner._require_task = pipeline_runner.PipelineRunner._require_task.__get__(runner, pipeline_runner.PipelineRunner)
         return runner
@@ -28,7 +35,7 @@ class DeleteWaitingHumanTaskTests(unittest.TestCase):
     def test_delete_waiting_human_task_clears_current_task_id(self):
         runner = self._make_runner()
         runner.runtime["tasks"] = [
-            {"id": "task-1", "status": "waiting_human", "title": "approval smoke"},
+            {"id": "task-1", "status": "waiting_human", "title": "approval smoke", "run_dir": os.path.join(runner.runs_dir, "task-1")},
         ]
         runner.runtime["current_task_id"] = "task-1"
 
@@ -168,6 +175,88 @@ class RuntimeStateMigrationTests(unittest.TestCase):
             self.assertEqual(task["context"]["intake"]["artifact_paths"], [os.path.join(expected_run_dir, "intake", "intake.md")])
             self.assertEqual(task["stages"]["intake"]["artifact_paths"], [os.path.join(expected_run_dir, "intake", "intake.md")])
             runner._persist_runtime.assert_called_once()
+
+
+class HumanPromptPersistenceTests(unittest.TestCase):
+    def test_extract_human_prompt_content_preserves_details_and_strips_control_tags(self):
+        runner = pipeline_runner.PipelineRunner.__new__(pipeline_runner.PipelineRunner)
+
+        output_text = """需要人工确认以下事项：\n- 补充接口说明\n- 确认验收阈值\n<options>[\"继续\", \"暂停\"]</options>\nVERDICT: NEED_HUMAN\n<summary>分析了 1 个文档，识别 2 个待确认项。</summary>"""
+
+        content = pipeline_runner.PipelineRunner._extract_human_prompt_content(
+            runner,
+            output_text,
+            "分析了 1 个文档，识别 2 个待确认项。",
+        )
+
+        self.assertIn("需要人工确认以下事项", content)
+        self.assertIn("- 补充接口说明", content)
+        self.assertNotIn("<options>", content)
+        self.assertNotIn("VERDICT:", content)
+        self.assertNotIn("<summary>", content)
+
+    def test_set_stage_prompt_context_persists_prompt_for_later_card_updates(self):
+        runner = pipeline_runner.PipelineRunner.__new__(pipeline_runner.PipelineRunner)
+        runner.lock = threading.RLock()
+        runner.runtime = {
+            "tasks": [
+                {
+                    "id": "task-1",
+                    "status": "waiting_human",
+                    "title": "need human",
+                    "context": {"testing": {}},
+                }
+            ],
+            "current_task_id": None,
+        }
+        runner._persist_runtime = mock.Mock()
+        runner._require_task = pipeline_runner.PipelineRunner._require_task.__get__(runner, pipeline_runner.PipelineRunner)
+
+        pipeline_runner.PipelineRunner._set_stage_prompt_context(
+            runner,
+            "task-1",
+            "testing",
+            "Manual action required",
+            "- 补充接口说明\n- 确认验收阈值",
+        )
+
+        stage_context = runner.runtime["tasks"][0]["context"]["testing"]
+        self.assertEqual(stage_context["human_prompt_title"], "Manual action required")
+        self.assertIn("补充接口说明", stage_context["human_prompt_content"])
+        runner._persist_runtime.assert_called_once()
+
+
+class TaskArtifactArchiveTests(unittest.TestCase):
+    def test_build_task_artifact_archive_includes_run_directory_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner = pipeline_runner.PipelineRunner.__new__(pipeline_runner.PipelineRunner)
+            run_dir = os.path.join(temp_dir, "runs", "task-archive")
+            os.makedirs(os.path.join(run_dir, "testing"), exist_ok=True)
+            os.makedirs(os.path.join(run_dir, "transcripts"), exist_ok=True)
+
+            report_path = os.path.join(run_dir, "testing", "test_report.md")
+            transcript_path = os.path.join(run_dir, "transcripts", "testing.json")
+            with open(report_path, "w", encoding="utf-8") as handle:
+                handle.write("report")
+            with open(transcript_path, "w", encoding="utf-8") as handle:
+                handle.write('{"status":"ok"}')
+
+            task = {
+                "id": "task-archive",
+                "title": "Archive Smoke",
+                "run_dir": run_dir,
+            }
+
+            archive_path = pipeline_runner.PipelineRunner._build_task_artifact_archive(runner, task)
+            try:
+                self.assertTrue(os.path.isfile(archive_path))
+                with zipfile.ZipFile(archive_path, "r") as archive:
+                    names = set(archive.namelist())
+                self.assertIn("task-archive/testing/test_report.md", names)
+                self.assertIn("task-archive/transcripts/testing.json", names)
+            finally:
+                if os.path.exists(archive_path):
+                    os.remove(archive_path)
 
 
 if __name__ == "__main__":

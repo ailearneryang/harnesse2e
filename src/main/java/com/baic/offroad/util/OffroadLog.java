@@ -28,8 +28,12 @@ public final class OffroadLog {
     /** 清零标定数据 SharedPreferences 文件名 */
     public static final String SP_CALIBRATION = "offroad_calibration";
 
+    /** AIDL 服务绑定权限 */
+    public static final String PERMISSION_ACCESS_OFFROAD_SERVICE =
+            "com.baic.permission.ACCESS_OFFROAD_SERVICE";
+
     /** 安装配置文件路径 */
-    public static final String CONFIG_FILE_PATH = "/data/local/offroad/config.json";
+    public static final String CONFIG_FILE_PATH = "/data/vendor/offroad/config.json";
 
     /** 算法默认更新频率(Hz) [TBD-010 默认值] */
     public static final int DEFAULT_UPDATE_RATE_HZ = 20;

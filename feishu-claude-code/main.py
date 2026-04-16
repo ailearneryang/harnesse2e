@@ -1001,6 +1001,18 @@ def _format_actor_label(actor_id: str) -> str:
     return actor or "unknown"
 
 
+def _resolve_stage_prompt_from_task(task_payload: dict, stage: str, fallback_title: str, fallback_content: str, prefix: str = "human_prompt") -> tuple[str, str]:
+    task = task_payload if isinstance(task_payload, dict) else {}
+    effective_stage = (stage or task.get("current_stage") or "").strip()
+    stage_context = {}
+    if effective_stage:
+        stage_context = ((task.get("context") or {}).get(effective_stage) or {})
+
+    prompt_title = (stage_context.get(f"{prefix}_title") or fallback_title or "").strip()
+    prompt_content = (stage_context.get(f"{prefix}_content") or fallback_content or "").strip()
+    return prompt_title, prompt_content
+
+
 def _build_result_card_elements(title: str, task_id: str, stage: str, prompt_title: str, prompt_content: str, actor_id: str, decision: str, note: str = "") -> list[dict]:
     elements = [
         {"tag": "markdown", "content": title},
@@ -1065,6 +1077,7 @@ async def _handle_pipeline_feedback_action(user_id: str, chat_id: str, value: di
         return
 
     if card_msg_id:
+        prompt_title, prompt_content = _resolve_stage_prompt_from_task(result, stage, prompt_title, prompt_content, prefix="human_prompt")
         elements = _build_result_card_elements(
             "✅ 已提交人工反馈并恢复流水线",
             task_id,

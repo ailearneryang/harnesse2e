@@ -16,7 +16,7 @@ import java.io.IOException;
 
 /**
  * 安装姿态配置文件存储。
- * 读取 /data/local/offroad/config.json。
+ * 读取 /data/vendor/offroad/config.json。
  *
  * 需求追溯: architecture.md §6.4 ConfigStore
  * 数据模型: data_model.md §2.4
