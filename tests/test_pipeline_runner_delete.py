@@ -226,6 +226,25 @@ class HumanPromptPersistenceTests(unittest.TestCase):
         runner._persist_runtime.assert_called_once()
 
 
+class UniteTestCompatibilityTests(unittest.TestCase):
+    def test_qa_engineer_alias_maps_to_unite_test(self):
+        runner = pipeline_runner.PipelineRunner.__new__(pipeline_runner.PipelineRunner)
+
+        self.assertEqual(
+            pipeline_runner.PipelineRunner._canonical_agent_id(runner, "qa-engineer"),
+            "unite-test",
+        )
+
+    def test_testing_stage_defaults_to_unite_test(self):
+        runner = pipeline_runner.PipelineRunner.__new__(pipeline_runner.PipelineRunner)
+        runner.pipeline_config = {"stages": []}
+
+        self.assertEqual(
+            pipeline_runner.PipelineRunner._stage_agent_id(runner, "testing"),
+            "unite-test",
+        )
+
+
 class TaskArtifactArchiveTests(unittest.TestCase):
     def test_build_task_artifact_archive_includes_run_directory_files(self):
         with tempfile.TemporaryDirectory() as temp_dir:

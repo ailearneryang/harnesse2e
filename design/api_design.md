@@ -1,254 +1,130 @@
-# Minimal Permission Management API Design
+# 越野信息集成 API 设计
 
-Generated at: 2026-04-14
+Generated at: 2026-04-17
+
+| 属性 | 内容 |
+| --- | --- |
+| 关联需求 | `runs/task-20260417104007-cd19df/software-requirement-orchestrator/requirements_spec.md` |
+| 关联架构 | `design/architecture.md` |
+| 平台 | ICC Android 单进程系统服务 |
 
 ## 1. 设计原则
 
-1. 复用现有审批与控制接口，优先做鉴权增强，不新增不必要的端点。
-2. 所有写接口必须带身份上下文，默认拒绝匿名写入。
-3. 错误语义固定为 `401/403/404/409`，方便前端与 Feishu 回调统一处理。
+1. 输入接入、算法调用、结果发布和诊断查询分层解耦，未冻结协议项只出现在适配层或映射层（CON-005、CON-006）。
+2. UI、CAN 和诊断只能消费 `UnifiedResultView`，不得各自触发独立算法计算（FUN-022）。
+3. 清零相关接口必须显式返回接受/拒绝与原因码，并形成审计日志（FUN-023~FUN-025、SEC-001）。
+4. 所有错误都使用明确状态码传播，不做成功形态兜底或静默重试（REL-001、REL-002）。
 
----
+## 2. 接口总览
 
-## 2. 身份上下文约定
-
-### 2.1 请求头
-
-| Header | 必填 | 说明 |
-| --- | --- | --- |
-| `X-User-Id` | 写接口是 | 调用人唯一标识 |
-| `X-User-Name` | 否 | 展示名 |
-| `X-User-Roles` | 写接口是 | 逗号分隔，如 `approver,operator` |
-| `X-Request-Id` | 否 | 链路追踪 ID |
-
-### 2.2 Feishu 回调补齐
-
-Feishu 卡片回调进入后，服务端先将 Feishu 用户信息转换为上述 `ActorContext`，再进入权限判断。
-
----
-
-## 3. API 总览
-
-| 方法 | 路径 | 权限 | 说明 |
+| 接口域 | 调用方向 | 主要能力 | 通信方式 |
 | --- | --- | --- | --- |
-| `POST` | `/api/requests` | `task:create` | 提交任务 |
-| `GET` | `/api/approvals` | `approval:list` | 查看待审批项 |
-| `POST` | `/api/approvals/{taskId}/{approvalId}/resolve` | `approval:resolve` | 批准/拒绝审批 |
-| `POST` | `/api/control/{action}` | `pipeline:control` | 控制流水线 |
-| `GET` | `/api/state` | `task:read` | 查看完整状态，最小方案建议仅 approver/operator 可看全量 |
+| Input Adapter API | Android/车身系统 -> Offroad Service | IMU、GPS、车速、气压、清零事件上送 | Callback / Binder |
+| Orchestration API | UI/工厂工具 -> Offroad Service | 状态查询、清零请求、配置刷新 | Binder / 系统服务 |
+| Publish API | Offroad Service -> UI/CAN/诊断 | 统一结果快照发布 | 进程内回调 / 车机发布接口 |
+| JNI Engine API | Offroad Service -> Native Engine | 计算、重置、快照恢复 | JNI |
+| Diagnostic API | 诊断工具 -> Offroad Service | 运行状态、故障、审计查询 | Binder / 调试接口 |
 
----
+## 3. 输入适配接口
 
-## 4. 详细接口定义
+### 3.1 输入事件模型
 
-### 4.1 POST /api/requests
+| 事件 | 来源 | 关键字段 | 说明 |
+| --- | --- | --- | --- |
+| `onImuSample` | `SensorManager` | `timestampNs`、`accel[3]`、`gyro[3]`、`quality` | 驱动姿态与指南针计算 |
+| `onLocationSample` | `LocationManager` | `timestampMs`、`altitudeM`、`bearingDeg`、`isValid` | 驱动海拔融合和指南针可用性判定 |
+| `onVehicleSpeed` | CarService/VHAL | `timestampMs`、`speedKph`、`isValid` | 触发移动/静止切换与记忆值保存 |
+| `onBarometerSample` | CarService/VHAL | `timestampMs`、`pressureHpa`、`isValid` | 驱动气压显示和海拔主输入 |
+| `onZeroRequest` | CarService/VHAL / 工厂工具 | `requestId`、`source`、`commandValue` | 进入清零守卫流程 |
 
-提交新任务。
+### 3.2 输入归一化约束
 
-**Authorization**
+- 所有输入进入核心服务前统一转换为 `InputSnapshot` 子结构，并补齐 `source_state`、`last_update_ts`、`quality_flag`。
+- 非法数值、时间戳倒退或来源未授权时立即标记为 `INVALID_INPUT`，不得直接送入算法引擎。
+- 输入时效阈值和异常值编码使用配置项表达，在 `CFG-005` 冻结前保持占位。
 
-- `requester` / `approver` / `operator` 可调用。
-- 匿名允许仅限内部联调关闭鉴权时；默认部署关闭匿名写入。
+## 4. 编排与控制接口
 
-**Request**
+### 4.1 Offroad Service 对外接口
 
-```json
-{
-  "title": "approval smoke test",
-  "text": "请设计一个最小的权限管理方案。这是人工审批链路联调，请在继续前等待人工审批。"
-}
-```
+| 方法 | 入参 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `getCurrentResult()` | 无 | `UnifiedResultView` | 查询当前统一结果快照 |
+| `requestCalibration(request)` | `CalibrationRequest` | `CalibrationResponse` | 发起清零请求 |
+| `reloadConfig(versionHint)` | `string?` | `ConfigReloadResult` | 重新加载车型/协议配置 |
+| `getHealthSnapshot()` | 无 | `HealthSnapshot` | 查询输入健康度与运行状态 |
+| `getAuditRecords(filter)` | `AuditQuery` | `AuditRecord[]` | 查询清零和恢复审计记录 |
 
-**Response 200**
-
-```json
-{
-  "id": "task-20260414110545-158a12",
-  "status": "queued"
-}
-```
-
-### 4.2 GET /api/approvals
-
-查询当前所有待审批项。
-
-**Authorization**
-
-- `approver` / `operator`
-
-**Response 200**
-
-```json
-[
-  {
-    "id": "approval-8fa1d3c2",
-    "task_id": "task-20260414110545-158a12",
-    "task_title": "approval smoke test",
-    "stage": "design",
-    "reason": "Risky request requires human confirmation before continuing",
-    "status": "pending",
-    "required_role": "approver",
-    "created_at": "2026-04-14T11:05:46Z"
-  }
-]
-```
-
-**Response 403**
+### 4.2 清零请求/响应
 
 ```json
 {
-  "error": "forbidden",
-  "message": "approval:list requires approver or operator"
-}
-```
-
-### 4.3 POST /api/approvals/{taskId}/{approvalId}/resolve
-
-批准或拒绝某个待审批项。
-
-**Authorization**
-
-- `approver` / `operator`
-- 只有满足 `approval.required_role` 的角色才能执行
-
-**Request**
-
-```json
-{
-  "resolution": "approved",
-  "note": "联调批准，继续执行"
-}
-```
-
-**Response 200**
-
-```json
-{
-  "id": "approval-8fa1d3c2",
-  "task_id": "task-20260414110545-158a12",
-  "stage": "design",
-  "status": "approved",
-  "required_role": "approver",
-  "resolved_at": "2026-04-14T11:06:05Z",
-  "resolved_by": {
-    "actor_id": "feishu:ou_xxx",
-    "display_name": "审批人A",
-    "roles": ["approver"]
-  },
-  "resolution_channel": "feishu",
-  "note": "联调批准，继续执行"
-}
-```
-
-**Response 401**
-
-```json
-{
-  "error": "unauthorized",
-  "message": "missing actor context"
-}
-```
-
-**Response 403**
-
-```json
-{
-  "error": "forbidden",
-  "message": "approval:resolve requires role approver"
-}
-```
-
-**Response 409**
-
-```json
-{
-  "error": "approval_already_resolved",
-  "message": "approval approval-8fa1d3c2 has already been approved"
-}
-```
-
-### 4.4 POST /api/control/{action}
-
-控制流水线运行状态。
-
-**Path 参数**
-
-- `action in {pause, resume, stop}`
-
-**Authorization**
-
-- `operator`
-
-**Request**
-
-```json
-{
-  "note": "暂停等待外部系统恢复"
-}
-```
-
-**Response 200**
-
-```json
-{
-  "ok": true,
-  "action": "pause"
-}
-```
-
-### 4.5 GET /api/state
-
-查看运行时状态。
-
-**Authorization**
-
-- `operator`：可查看全量。
-- `approver`：可查看全量或脱敏全量。
-- `requester`：仅返回本人任务摘要（最小方案可后置实现）。
-
----
-
-## 5. 统一错误模型
-
-```json
-{
-  "error": "forbidden",
-  "message": "approval:resolve requires role approver",
-  "request_id": "req-1d2f",
-  "details": {
-    "actor_id": "user:alice",
-    "required_role": "approver"
+  "requestId": "cal-20260417-0001",
+  "source": "after_sales_tool",
+  "commandValue": 1,
+  "vehicleState": {
+    "speedKph": 0.0,
+    "isLevelGround": true
   }
 }
 ```
 
-| 状态码 | 场景 |
+```json
+{
+  "accepted": true,
+  "resultCode": "ACCEPTED",
+  "message": "calibration queued",
+  "auditId": "audit-cal-20260417-0001"
+}
+```
+
+### 4.3 结果与健康度对象
+
+| 对象 | 关键字段 | 说明 |
+| --- | --- | --- |
+| `UnifiedResultView` | `publishSeq`、12 个输出信号、`stateFlags`、`updatedAt` | UI/CAN/诊断共享快照 |
+| `HealthSnapshot` | `serviceState`、`inputAges`、`restartCount`、`configVersion` | 运行状态与输入健康度 |
+| `ConfigReloadResult` | `success`、`configVersion`、`reason` | 配置重载结果 |
+
+## 5. 发布接口
+
+### 5.1 UI/CAN/诊断统一发布约定
+
+| 发布目标 | 接口语义 | 必要约束 |
+| --- | --- | --- |
+| UI | 发布最新 `UnifiedResultView` | 只展示有效或允许的降级结果；无效项隐藏或置灰 |
+| CAN `0x4F0` | 将 `UnifiedResultView` 映射为协议输出 | 位定义、周期、异常值编码配置化 |
+| 诊断 | 发布故障事件和状态快照 | 保留故障原因、输入健康度、配置版本 |
+
+- `publishSeq` 单调递增，用于判定 UI 与 CAN 是否消费同一批结果。
+- 任一输出失败不得回写修改结果内容，只能记录独立发布错误并保留原始快照。
+
+## 6. JNI Engine 接口
+
+### 6.1 Native 方法建议
+
+| 方法 | 入参 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `nativeInit(configSnapshot)` | `ConfigSnapshot` | `EngineHandle` | 初始化算法引擎 |
+| `nativeProcess(snapshot, state)` | `InputSnapshot`、`PersistedState` | `EngineResult` | 执行一次计算 |
+| `nativeRequestCalibration(request, state)` | `CalibrationRequest`、`PersistedState` | `CalibrationDecision` | 判断并执行清零 |
+| `nativeRestoreState(persistedState)` | `PersistedState` | `RestoreResult` | 恢复上次成功状态 |
+| `nativeRelease(handle)` | `EngineHandle` | `void` | 释放引擎资源 |
+
+### 6.2 JNI 错误码
+
+| 错误码 | 说明 |
 | --- | --- |
-| `401` | 未提供身份或身份解析失败 |
-| `403` | 身份存在但权限不足 |
-| `404` | 任务或审批单不存在 |
-| `409` | 审批已被处理、状态冲突 |
+| `OK` | 处理成功 |
+| `INVALID_INPUT` | 输入值非法、缺字段或时序错误 |
+| `DEGRADED` | 输出已降级但服务仍可用 |
+| `STATE_ERROR` | 内部状态损坏或快照恢复失败 |
+| `CAL_REJECTED` | 清零条件/授权不满足 |
 
----
+## 7. 版本与兼容性
 
-## 6. 审计字段要求
+- 对外接口保持语义稳定，未冻结字段统一通过 `configVersion` 和映射表管理。
+- `UnifiedResultView`、`PersistedState`、`ConfigSnapshot` 都需要显式 `schemaVersion` 字段。
+- 新版本若增加字段，默认只能向后兼容追加，禁止复用旧字段语义。
 
-以下字段必须进入日志、事件或审批结果：
-
-| 字段 | 说明 |
-| --- | --- |
-| `request_id` | 链路追踪 |
-| `actor_id` | 操作人 |
-| `actor_roles` | 操作角色 |
-| `action` | 资源动作 |
-| `resource_id` | 任务/审批单 ID |
-| `decision` | allow/deny |
-| `reason` | 拒绝原因或审批意见 |
-
----
-
-## 7. 向后兼容策略
-
-1. 先为接口增加可选身份解析与审计，不立即中断历史读接口。
-2. 对写接口采用“有身份则校验、无身份则按开关拒绝”的灰度方式。
-3. 待 Feishu 与 Dashboard 均能稳定传递身份后，关闭匿名写入口。
+*文档结束*

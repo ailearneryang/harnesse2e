@@ -65,7 +65,7 @@ DEFAULT_AGENTS = [
     {"id": "code-reviewer", "name": "Code Reviewer", "model": "gpt-5.4", "role": "independently review code quality and logic"},
     {"id": "security-reviewer", "name": "Security Reviewer", "model": "gpt-5.4", "role": "independently review security and compliance risks"},
     {"id": "safety-reviewer", "name": "Safety Reviewer", "model": "gpt-5.4", "role": "review ISO 26262, AUTOSAR, and vehicle safety compliance impacts"},
-    {"id": "qa-engineer", "name": "QA Engineer", "model": "gpt-5-mini", "role": "execute validation, tests, and acceptance checks"},
+    {"id": "unite-test", "name": "Unite Test", "model": "gpt-5-mini", "role": "execute validation, tests, and acceptance checks"},
     {"id": "debugger", "name": "Debugger", "model": "gpt-5-mini", "role": "apply narrow fixes after failed review or QA"},
     {"id": "build-verifier", "name": "Build Verifier", "model": "system", "role": "trigger downstream build, static analysis, SBOM, and signing checks"},
     {"id": "delivery-manager", "name": "Delivery Manager", "model": "system", "role": "submit changes to Gerrit and notify Feishu"},
@@ -82,7 +82,7 @@ STAGE_DEFAULT_AGENTS = {
     "code_review": "code-reviewer",
     "security_review": "security-reviewer",
     "safety_review": "safety-reviewer",
-    "testing": "qa-engineer",
+    "testing": "unite-test",
     "delivery": "delivery-manager",
     "build_verification": "build-verifier",
     "debugger": "debugger",
@@ -91,6 +91,7 @@ STAGE_DEFAULT_AGENTS = {
 LEGACY_AGENT_ALIASES = {
     "requirements-analyst": "software-requirement-orchestrator",
     "system-architect": "cockpit-middleware-architect",
+    "qa-engineer": "unite-test",
 }
 
 REQUIREMENT_STAGE_IDS = {"requirements", "software-requirement-orchestrator"}
@@ -119,7 +120,7 @@ STAGE_TITLES = {
     "code_review": "Code Review",
     "security_review": "Security Review",
     "safety_review": "Safety Review",
-    "testing": "QA Testing",
+    "testing": "Unit Testing",
     "delivery": "Gerrit Delivery",
     "build_verification": "Build Verification",
     "debugger": "Targeted Debugging",

@@ -27,8 +27,8 @@ stages:
   name: Safety Review
   agent: safety-reviewer
 - id: testing
-  name: QA Testing
-  agent: qa-engineer
+  name: Unit Testing
+  agent: unite-test
 - id: delivery
   name: Gerrit Delivery
   agent: delivery-manager

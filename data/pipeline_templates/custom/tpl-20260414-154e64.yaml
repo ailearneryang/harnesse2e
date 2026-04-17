@@ -1,24 +1,48 @@
 description: ''
 id: tpl-20260414-154e64
 is_builtin: false
-is_default: false
+is_default: true
 name: 我的流程-6
 stages:
 - agent: planner
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: intake
   name: Request Intake
 - agent: software-requirement-orchestrator
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: software-requirement-orchestrator
   name: Software Requirement Orchestrator
 - agent: cockpit-middleware-architect
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: cockpit-middleware-architect
   name: Cockpit Middleware Architect
 - agent: developer
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: development
   name: Implementation
 - agent: code-reviewer
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: code_review
   name: Code Review
 - agent: unite-test
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: testing
   name: Unit Testing

@@ -1,205 +1,163 @@
-# Minimal Permission Management Data Model
+# 越野信息集成数据模型设计
 
-Generated at: 2026-04-14
+Generated at: 2026-04-17
 
-## 1. 设计目标
+| 属性 | 内容 |
+| --- | --- |
+| 关联需求 | `runs/task-20260417104007-cd19df/software-requirement-orchestrator/requirements_spec.md` |
+| 关联架构 | `design/architecture.md` |
+| 平台 | ICC Android 单进程系统服务 |
 
-最小方案尽量复用现有 `task.approvals[]` 结构，不额外引入独立权限数据库。核心思路是：
+## 1. 建模目标
 
-1. 用轻量 `ActorContext` 表达身份。
-2. 在审批记录上补齐最少审计字段。
-3. 把角色配置保持为文件配置或运行时配置，避免引入复杂表结构。
+1. 用统一数据模型承接 5 类输入、6 类计算能力和 12 个输出信号，避免 UI/CAN/诊断各自产生私有模型（FUN-019~FUN-022）。
+2. 把清零、记忆值、恢复快照和配置版本独立建模，保证重启和异常恢复可追踪（DAT-001、DAT-002、FUN-028）。
+3. 明确每个结果的有效、无效、降级三态及其来源，支撑安全输出和诊断定位（FUN-027、SAF-001、DIA-001）。
 
----
-
-## 2. 实体概览
+## 2. 模型总览
 
 ```mermaid
 erDiagram
-    Task ||--o{ ApprovalRecord : contains
-    ApprovalRecord }o--|| ActorContext : resolved_by
-    PermissionBinding }o--o{ ActorContext : grants
-    AuditEvent }o--|| ActorContext : actor
+    InputSnapshot ||--|| UnifiedResultView : feeds
+    ConfigSnapshot ||--|| UnifiedResultView : constrains
+    PersistedState ||--|| UnifiedResultView : restores
+    CalibrationState ||--|| PersistedState : stored_as
+    CompassMemory ||--|| PersistedState : stored_as
+    HealthSnapshot ||--|| UnifiedResultView : annotates
+    AuditRecord }o--|| CalibrationState : traces
 ```
 
----
+## 3. 核心运行时模型
 
-## 3. 实体定义
-
-### 3.1 ActorContext
-
-运行时身份对象，不要求持久化为独立主表。
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `actor_id` | string | 是 | 唯一身份，如 `feishu:ou_xxx`、`web:alice`、`system:pipeline-runner` |
-| `display_name` | string | 否 | 展示名 |
-| `roles` | string[] | 是 | `requester` / `approver` / `operator` / `system` |
-| `source` | string | 是 | `feishu` / `web` / `system` |
-| `request_id` | string | 否 | 当前请求链路 ID |
-
-**示例**
-
-```json
-{
-  "actor_id": "feishu:ou_xxx",
-  "display_name": "审批人A",
-  "roles": ["approver"],
-  "source": "feishu",
-  "request_id": "req-8f22"
-}
-```
-
-### 3.2 ApprovalRecord
-
-在现有 `task.approvals[]` 基础上扩展。
-
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `id` | string | 是 | - | 审批单 ID |
-| `stage` | string | 是 | - | 触发阶段，如 `design` |
-| `reason` | string | 是 | - | 触发原因 |
-| `status` | enum | 是 | `pending` | `pending/approved/rejected` |
-| `created_at` | datetime | 是 | now | 创建时间 |
-| `required_role` | string | 是 | `approver` | 最小需要的角色 |
-| `resolved_at` | datetime | 否 | null | 审批处理时间 |
-| `resolved_by` | object | 否 | null | 处理人快照 |
-| `resolved_roles` | string[] | 否 | [] | 处理时角色快照 |
-| `resolution_channel` | string | 否 | null | `feishu/web/api` |
-| `note` | string | 否 | "" | 审批备注 |
-
-**建议 JSON 结构**
-
-```json
-{
-  "id": "approval-8fa1d3c2",
-  "stage": "design",
-  "reason": "Risky request requires human confirmation before continuing",
-  "status": "approved",
-  "created_at": "2026-04-14T11:05:46Z",
-  "required_role": "approver",
-  "resolved_at": "2026-04-14T11:06:05Z",
-  "resolved_by": {
-    "actor_id": "feishu:ou_xxx",
-    "display_name": "审批人A"
-  },
-  "resolved_roles": ["approver"],
-  "resolution_channel": "feishu",
-  "note": "联调批准，继续执行"
-}
-```
-
-### 3.3 PermissionBinding
-
-最小角色绑定配置，可来自 `settings` 或独立 YAML/JSON 文件。
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `actor_id` | string | 是 | 用户唯一标识 |
-| `roles` | string[] | 是 | 角色列表 |
-| `expires_at` | datetime | 否 | 临时授权过期时间 |
-| `updated_at` | datetime | 是 | 更新时间 |
-| `updated_by` | string | 是 | 更新人 |
-
-**示例**
-
-```json
-[
-  {
-    "actor_id": "feishu:ou_admin_1",
-    "roles": ["approver", "operator"],
-    "updated_at": "2026-04-14T00:00:00Z",
-    "updated_by": "system:bootstrap"
-  }
-]
-```
-
-### 3.4 AuditEvent
-
-记录权限决策与审批动作。
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `id` | string | 是 | 事件 ID |
-| `event_type` | string | 是 | `permission_denied` / `approval_resolve_attempt` 等 |
-| `actor_id` | string | 是 | 操作人 |
-| `actor_roles` | string[] | 是 | 操作角色 |
-| `resource_type` | string | 是 | `approval` / `pipeline` |
-| `resource_id` | string | 是 | 资源 ID |
-| `action` | string | 是 | `list` / `resolve` / `control` |
-| `decision` | string | 是 | `allow` / `deny` |
-| `reason` | string | 否 | 拒绝原因或审批备注 |
-| `created_at` | datetime | 是 | 事件时间 |
-| `request_id` | string | 否 | 链路 ID |
-
----
-
-## 4. Task 扩展字段
-
-为支持“本人可读”与审计，建议在任务顶层补充以下字段：
+### 3.1 InputSnapshot
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `created_by` | string | 任务创建人 `actor_id` |
-| `created_by_name` | string | 创建人展示名 |
-| `source_metadata.chat_id` | string | 来源 chat |
-| `source_metadata.sender` | object/string | 原始发起人 |
+| `imuSample` | `ImuSample?` | 最新 IMU 数据 |
+| `locationSample` | `LocationSample?` | 最新定位数据 |
+| `speedSample` | `SpeedSample?` | 最新车速数据 |
+| `barometerSample` | `BarometerSample?` | 最新气压数据 |
+| `receivedAtMs` | `long` | 快照生成时间 |
+| `qualityFlags` | `map<string,string>` | 各输入源健康度 |
 
-**示例**
+### 3.2 UnifiedResultView
 
-```json
-{
-  "id": "task-20260414110545-158a12",
-  "title": "approval smoke test",
-  "created_by": "feishu:ou_requester_1",
-  "created_by_name": "请求人A",
-  "status": "waiting_human",
-  "approvals": []
-}
-```
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `publishSeq` | `long` | 单调递增发布序列 |
+| `tilting` | `SignalResult<float>` | 倾斜角与有效性 |
+| `pitch` | `SignalResult<float>` | 俯仰角与有效性 |
+| `pressure` | `SignalResult<float>` | 大气压力与有效性 |
+| `altitude` | `SignalResult<float>` | 海拔与有效性 |
+| `compassDirection` | `SignalResult<string>` | 指南针方向与有效性 |
+| `compassAngle` | `SignalResult<float>` | 指南针角度与有效性 |
+| `overallState` | `enum` | `READY_INVALID/ACTIVE_VALID/ACTIVE_DEGRADED/FAULT_RECOVERING` |
+| `updatedAtMs` | `long` | 最近更新时间 |
 
----
+### 3.3 SignalResult<T>
 
-## 5. 状态约束
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `value` | `T?` | 结果值 |
+| `validity` | `enum` | `VALID/INVALID/DEGRADED` |
+| `reasonCode` | `string` | 无效或降级原因 |
+| `sourceMode` | `string` | 结果来源，如 `live`、`memory`、`baro_only` |
 
-### 5.1 ApprovalRecord 状态机
+### 3.4 HealthSnapshot
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `serviceState` | `string` | 当前服务状态 |
+| `inputAgesMs` | `map<string,long>` | 各输入源距当前的时延 |
+| `restartCount` | `int` | 最近重启次数 |
+| `configVersion` | `string` | 当前配置版本 |
+| `lastFaultCode` | `string?` | 最近一次故障码 |
+
+## 4. 清零、记忆值与持久化模型
+
+### 4.1 CalibrationState
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `zeroOffsetRoll` | `float` | 倾斜角清零偏移 |
+| `zeroOffsetPitch` | `float` | 俯仰角清零偏移 |
+| `authState` | `enum` | `AUTHORIZED/REJECTED/PENDING` |
+| `lastRequestId` | `string` | 最近一次清零请求 ID |
+| `lastAppliedAtMs` | `long?` | 最近成功应用时间 |
+
+### 4.2 CompassMemory
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `direction` | `string` | 记忆方向 |
+| `angleDeg` | `float` | 记忆角度 |
+| `capturedAtMs` | `long` | 存储时间 |
+| `captureReason` | `string` | 如 `move_to_stop`、`boot_restore` |
+
+### 4.3 PersistedState
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `schemaVersion` | `string` | 持久化模型版本 |
+| `calibrationState` | `CalibrationState` | 清零基准 |
+| `compassMemory` | `CompassMemory` | 指南针记忆值 |
+| `configVersion` | `string` | 生效配置版本 |
+| `persistedAtMs` | `long` | 快照写入时间 |
+
+### 4.4 ConfigSnapshot
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `vehiclePoseProfile` | `string` | 车型姿态配置编号 |
+| `imuPoseProfile` | `string` | IMU 安装姿态配置编号 |
+| `featureMode` | `string` | 集成方式/启停状态 |
+| `timingConfig` | `map<string,string>` | 输入超时、节拍等配置 |
+| `protocolMappingVersion` | `string` | 协议映射版本 |
+
+## 5. 审计与诊断模型
+
+### 5.1 AuditRecord
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `auditId` | `string` | 审计记录 ID |
+| `requestId` | `string` | 清零或恢复请求 ID |
+| `actor` | `string` | 操作来源 |
+| `stage` | `string` | `authorize/check/execute/persist/publish` |
+| `resultCode` | `string` | 结果码 |
+| `createdAtMs` | `long` | 事件时间 |
+| `detail` | `map<string,string>` | 扩展字段 |
+
+### 5.2 DiagnosticEvent
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `eventId` | `string` | 事件 ID |
+| `eventType` | `string` | `input_fault`、`persist_fail`、`restart` 等 |
+| `severity` | `string` | `INFO/WARN/ERROR` |
+| `faultCode` | `string?` | 诊断码 |
+| `snapshotRef` | `string?` | 关联状态快照 |
+
+## 6. 状态机
 
 ```mermaid
 stateDiagram-v2
-    [*] --> pending
-    pending --> approved
-    pending --> rejected
-    approved --> [*]
-    rejected --> [*]
+    [*] --> BOOTSTRAP
+    BOOTSTRAP --> READY_INVALID: config/state loaded
+    READY_INVALID --> ACTIVE_VALID: required inputs ready
+    READY_INVALID --> ACTIVE_DEGRADED: partial inputs ready
+    ACTIVE_VALID --> ACTIVE_DEGRADED: input degraded
+    ACTIVE_DEGRADED --> ACTIVE_VALID: input recovered
+    ACTIVE_VALID --> FAULT_RECOVERING: process crash / state fault
+    ACTIVE_DEGRADED --> FAULT_RECOVERING: process crash / state fault
+    FAULT_RECOVERING --> READY_INVALID: restore complete
 ```
 
-### 5.2 约束规则
+## 7. 一致性规则
 
-1. `pending` 状态的审批单只允许被成功处理一次。
-2. `required_role` 不能为空，默认 `approver`。
-3. `resolved_by`、`resolved_at` 必须成对出现。
-4. `status != pending` 后禁止再次更新为其他终态。
+1. `UnifiedResultView` 是唯一对外发布对象，任何消费者都不得持久化私有业务状态覆盖它。
+2. `PersistedState` 写入必须原子化；写失败时继续保留上一次成功版本，不更新生效指针。
+3. 清零请求以 `lastRequestId` 做幂等键，重复请求只能产生一条成功结果。
+4. UI 与 CAN 只能消费同一 `publishSeq` 批次结果；若任一侧发布失败，只记录发布错误，不重算结果。
 
----
-
-## 6. 存储策略
-
-### 6.1 P0
-
-- `ApprovalRecord` 继续存于 `runtime_state.json` / task artifact。
-- `PermissionBinding` 存于配置文件。
-- `AuditEvent` 复用现有 event bus / transcript / report 落盘。
-
-### 6.2 P1
-
-- 若审批规模增大，再把 `PermissionBinding`、`AuditEvent` 独立到 SQLite。
-
----
-
-## 7. 最小迁移策略
-
-1. 为历史审批记录补默认值：
-   - `required_role = "approver"`
-   - `resolved_roles = []`
-2. 若旧记录无 `resolved_by`，保持 `null`，不做回填推断。
-3. 读取逻辑必须兼容新旧结构共存。
+*文档结束*

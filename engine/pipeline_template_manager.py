@@ -33,7 +33,7 @@ BUILTIN_TEMPLATES = [
             {"id": "code_review", "name": "Code Review", "agent": "code-reviewer"},
             {"id": "security_review", "name": "Security Review", "agent": "security-reviewer"},
             {"id": "safety_review", "name": "Safety Review", "agent": "safety-reviewer"},
-            {"id": "testing", "name": "QA Testing", "agent": "qa-engineer"},
+            {"id": "testing", "name": "Unit Testing", "agent": "unite-test"},
             {"id": "delivery", "name": "Gerrit Delivery", "agent": "delivery-manager"},
             {"id": "build_verification", "name": "Build Verification", "agent": "build-verifier"},
         ],
@@ -48,7 +48,7 @@ BUILTIN_TEMPLATES = [
             {"id": "intake", "name": "Request Intake", "agent": "planner"},
             {"id": "development", "name": "Implementation", "agent": "developer"},
             {"id": "code_review", "name": "Code Review", "agent": "code-reviewer"},
-            {"id": "testing", "name": "QA Testing", "agent": "qa-engineer"},
+            {"id": "testing", "name": "Unit Testing", "agent": "unite-test"},
         ],
     },
     {
@@ -79,7 +79,7 @@ BUILTIN_TEMPLATES = [
             {"id": "code_review", "name": "Code Review", "agent": "code-reviewer"},
             {"id": "security_review", "name": "Security Review", "agent": "security-reviewer"},
             {"id": "safety_review", "name": "Safety Review", "agent": "safety-reviewer"},
-            {"id": "testing", "name": "QA Testing", "agent": "qa-engineer"},
+            {"id": "testing", "name": "Unit Testing", "agent": "unite-test"},
         ],
     },
 ]
@@ -96,7 +96,7 @@ AVAILABLE_STAGES = {
     "code_review": {"name": "Code Review", "default_agent": "code-reviewer"},
     "security_review": {"name": "Security Review", "default_agent": "security-reviewer"},
     "safety_review": {"name": "Safety Review", "default_agent": "safety-reviewer"},
-    "testing": {"name": "QA Testing", "default_agent": "qa-engineer"},
+    "testing": {"name": "Unit Testing", "default_agent": "unite-test"},
     "delivery": {"name": "Gerrit Delivery", "default_agent": "delivery-manager"},
     "build_verification": {"name": "Build Verification", "default_agent": "build-verifier"},
 }
@@ -132,6 +132,32 @@ class PipelineTemplateManager:
             reverse=True,
         )
         return ordered[0]["id"] if ordered else "default"
+
+    def _normalize_builtin_stages(self, stages: List[Dict[str, Any]], fallback_stages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Migrate legacy builtin stage values while preserving user edits unrelated to known renames."""
+        normalized: List[Dict[str, Any]] = []
+        fallback_by_id = {
+            stage.get("id"): stage
+            for stage in fallback_stages
+            if isinstance(stage, dict) and stage.get("id")
+        }
+
+        for stage in stages or []:
+            if not isinstance(stage, dict):
+                continue
+            stage_copy = dict(stage)
+            stage_id = stage_copy.get("id")
+            builtin_stage = fallback_by_id.get(stage_id, {})
+
+            if stage_id == "testing":
+                if stage_copy.get("agent") == "qa-engineer":
+                    stage_copy["agent"] = "unite-test"
+                if stage_copy.get("name") == "QA Testing":
+                    stage_copy["name"] = builtin_stage.get("name", "Unit Testing")
+
+            normalized.append(stage_copy)
+
+        return normalized or list(fallback_stages)
 
     def _normalize_default_template(self, conn, preferred_default_id: str) -> None:
         """Ensure exactly one template is marked default."""
@@ -208,13 +234,16 @@ class PipelineTemplateManager:
                     
                     if existing:
                         # Preserve any user edits to builtin templates across restarts.
+                        persisted_stages = json.loads(existing["stages"]) if existing["stages"] else template["stages"]
+                        normalized_stages = self._normalize_builtin_stages(persisted_stages, template["stages"])
                         conn.execute(
                             """
                             UPDATE pipeline_templates SET
-                                is_default = ?, is_builtin = 1
+                                stages = ?, is_default = ?, is_builtin = 1
                             WHERE id = ?
                             """,
                             (
+                                json.dumps(normalized_stages, ensure_ascii=False),
                                 1 if template["id"] == preferred_default_id else 0,
                                 template["id"],
                             ),
@@ -223,7 +252,7 @@ class PipelineTemplateManager:
                             "id": template["id"],
                             "name": existing["name"] or template["name"],
                             "description": existing["description"] if existing["description"] is not None else template.get("description", ""),
-                            "stages": json.loads(existing["stages"]) if existing["stages"] else template["stages"],
+                            "stages": normalized_stages,
                             "is_default": template["id"] == preferred_default_id,
                             "is_builtin": True,
                         }

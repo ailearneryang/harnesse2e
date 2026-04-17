@@ -10,5 +10,13 @@ public class FilterFusionTest {
         double[] out = FilterFusion.defaultFusion(mag, null, null);
         assertNotNull(out);
         assertEquals(3, out.length);
+        assertArrayEquals(new double[]{1.0, 0.0, 0.0}, out, 1e-9);
+    }
+
+    @Test
+    public void defaultFusionRejectsInvalidPlaceholderAccVector() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> FilterFusion.defaultFusion(new double[]{10.0, 0.0, 0.0}, new double[]{1.0}, null));
+        assertTrue(error.getMessage().contains("acc"));
     }
 }

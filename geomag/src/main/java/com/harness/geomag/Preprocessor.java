@@ -2,10 +2,18 @@ package com.harness.geomag;
 
 public class Preprocessor {
     public static double[] preprocess(double[] vec) {
-        if (vec == null || vec.length < 3) return new double[]{0.0,0.0,0.0};
-        // simple normalization placeholder
-        double norm = Math.sqrt(vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2]);
-        if (norm == 0) return new double[]{0.0,0.0,0.0};
-        return new double[]{vec[0]/norm, vec[1]/norm, vec[2]/norm};
+        double[] normalized = VectorValidator.requireVector("vec", vec);
+        double norm = Math.sqrt(
+                normalized[0] * normalized[0]
+                        + normalized[1] * normalized[1]
+                        + normalized[2] * normalized[2]);
+        if (norm == 0.0d) {
+            throw new IllegalArgumentException("vec must not be a zero vector");
+        }
+        return new double[]{
+                normalized[0] / norm,
+                normalized[1] / norm,
+                normalized[2] / norm
+        };
     }
 }
