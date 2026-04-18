@@ -1,414 +1,478 @@
-# Harness Control Plane - 完整介绍文档
+# Harness Control Plane
 
-## 一、概述
+## 概述
 
-**Harness Control Plane** 是一套可运行的长时任务编排框架，围绕 `Feishu -> Claude Code CLI -> Review -> QA -> Gerrit` 主链构建，目标是让用户能在 `localhost` 实时看到 harness 的整个执行过程，并且在关键节点人工接管。
+Harness Control Plane 是一个面向长运行任务的本地编排服务，围绕下面这条主链工作：
 
-它的核心理念是：**让多个 Agent 像工厂流水线一样自动协作，但保持全链路可观测、可暂停、可恢复、可人工介入。**
+`Web / Feishu -> GitHub Copilot CLI shim -> 多阶段评审流水线 -> Gerrit / Build Verification`
 
----
+当前实现重点解决三件事：
 
-## 零、当前实现状态
+1. 让需求可以从 Web UI 或飞书进入队列。
+2. 让任务按 pipeline stages 自动推进，并在需要时暂停等待人工处理。
+3. 让每个任务的运行过程、产物、事件、审批和历史都能在本地持久化。
 
-当前仓库已经落地了一个可运行 MVP：
-
-1. Web 请求入口：`POST /api/requests`
-2. 飞书 webhook 入口：`POST /api/feishu/webhook`
-3. Claude Code CLI 适配层：优先真实调用，未配置时自动降级到 simulation mode
-4. 多阶段 pipeline：`intake -> planning -> requirements -> design -> development -> code_review -> security_review -> testing -> delivery`
-5. 实时 UI：`GET /`，通过 SSE 订阅 `/api/stream`
-6. 人工介入：审批列表与批准/拒绝接口
-7. Gerrit 交付：将当前 repo 的 `HEAD` 推送到 `refs/for/<branch>%topic=<task_id>`
-8. 状态持久化：任务、审批、事件、transcript、产物摘要均落盘
+当前默认 agent 接线已经从旧版 Claude 兼容模式迁移到 GitHub Copilot CLI shim：`engine/copilot_shim.py` 会接收 Claude 风格参数，再转发给本机 `copilot` 命令执行。
 
 ---
 
-## 零点一、启动方式
+## 当前实现状态
 
-安装依赖：
+仓库里的当前可运行实现包括：
+
+- Flask Web 服务与实时 Dashboard。
+- 请求入口：`POST /api/requests`。
+- 飞书 webhook 入口：`POST /api/feishu/webhook`。
+- SSE 实时事件流：`GET /api/stream`。
+- 任务控制：暂停、恢复、重试、删除、让出执行权。
+- 流水线模板系统，支持内置模板和自定义模板。
+- 任务级运行目录：每个 task 都有独立的 `runs/<task_id>/`。
+- 任务历史 / lesson learned / project memory 接口。
+- Gerrit 投递适配层。
+- Build verification 与 HIL 适配接口占位。
+
+默认 pipeline 顺序来自 `pipeline.yaml`：
+
+1. `intake`
+2. `planning`
+3. `software-requirement-orchestrator`
+4. `cockpit-middleware-architect`
+5. `development`
+6. `code_review`
+7. `security_review`
+8. `safety_review`
+9. `testing`
+10. `delivery`
+11. `build_verification`
+
+---
+
+## 快速启动
+
+### 方式一：推荐，直接用启动脚本
 
 ```bash
-pip install -r requirements/runtime.txt
+./start.sh
 ```
 
-启动服务：
+默认监听端口 `8080`，也可以显式传入：
 
 ```bash
-python engine/pipeline_runner.py --harness-dir . --web-port 8080
+./start.sh 8080
 ```
 
-浏览器访问：
+`start.sh` 会做这些事：
+
+- 创建根目录 `.venv`。
+- 创建 `feishu-claude-code/.venv`。
+- 清理残留的 `engine/copilot_shim.py` 进程。
+- 如果飞书开关开启，则同时拉起飞书 bot。
+- 启动主服务：`engine/pipeline_runner.py --harness-dir <repo> --web-port <port>`。
+
+注意：脚本只会在 `requirements/runtime.txt` 存在时安装根服务依赖；当前仓库没有这个文件，因此请确保当前 Python 环境已经具备运行所需依赖，至少要能导入 `flask` 和 `yaml`。
+
+### 方式二：手动启动
+
+```bash
+python3 engine/pipeline_runner.py --harness-dir . --web-port 8080
+```
+
+启动后访问：
 
 ```text
 http://localhost:8080
 ```
 
-如果你还没有配置 Claude Code CLI，可先使用默认的 simulation mode；如果要切到真实 CLI，把 `data/integration_settings.json` 或 `settings.example.json` 中的 `claude.simulate` 改成 `false`，并配置 `target_repo`。
+---
+
+## 运行前准备
+
+### 1. GitHub Copilot CLI
+
+当前默认命令是：
+
+```text
+python3 engine/copilot_shim.py
+```
+
+shim 的行为是：
+
+- 优先使用环境变量 `COPILOT_CLI_PATH`。
+- 否则从 `PATH` 查找 `copilot`。
+- 再否则尝试常见路径 `/opt/homebrew/bin/copilot` 和 `/usr/local/bin/copilot`。
+
+如果找不到 `copilot`，任务执行会失败。
+
+### 2. 配置文件
+
+运行时配置文件是：
+
+`data/integration_settings.json`
+
+仓库里还提供了一个示例：
+
+`settings.example.json`
+
+当前实现会在启动时把默认值和现有配置合并后写回 `data/integration_settings.json`。
+
+关键配置项：
+
+```json
+{
+    "target_repo": ".",
+    "budget_limit": 5000000,
+    "copilot": {
+        "command": "python3 engine/copilot_shim.py",
+        "output_format": "stream-json",
+        "simulate": false,
+        "max_turns": 30,
+        "hard_timeout_seconds": 3600,
+        "idle_timeout_seconds": 3600
+    },
+    "feishu": {
+        "enabled": true
+    },
+    "gerrit": {
+        "enabled": false,
+        "remote": "origin",
+        "branch": "master",
+        "topic_prefix": "harness"
+    },
+    "build_verification": {
+        "enabled": false
+    }
+}
+```
+
+说明：
+
+- `target_repo` 支持相对路径或绝对路径；相对路径会相对 `harness_dir` 解析。
+- `copilot` 与 `claude` 配置会被归一化处理；当前运行实际上走 `copilot` 配置。
+- `simulate=true` 时会走适配器里的模拟模式，不调用真实 CLI。
 
 ---
 
-## 二、整体架构
+## 任务提交方式
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    AutoDev Harness 架构                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  输入层: specs/pending/ (文件监听触发)               │    │
-│  └────────────────────┬────────────────────────────────┘    │
-│                       ▼                                      │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  执行层: 四阶段流水线                                │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐│    │
-│  │  │ 需求分析 │→│ 系统设计 │→│ 代码开发 │→│质量测试 ││    │
-│  │  │ Agent    │ │ Agent    │ │ Agent    │ │ Agent  ││    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └────────┘│    │
-│  │       ↑              ↑            ↑          │       │    │
-│  │       └──────────────┴────────────┴──────────┘       │    │
-│  │                  反馈回流循环                         │    │
-│  └────────────────────┬────────────────────────────────┘    │
-│                       ▼                                      │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  质控层: 独立评审 + 一致性检测                       │    │
-│  │  ┌────────────┐ ┌──────────────┐ ┌───────────────┐ │    │
-│  │  │ 产物评审   │ │ 一致性检测   │ │ 变更影响分析  │ │    │
-│  │  │ Agent      │ │ Checker      │ │ Analyzer      │ │    │
-│  │  └────────────┘ └──────────────┘ └───────────────┘ │    │
-│  └────────────────────┬────────────────────────────────┘    │
-│                       ▼                                      │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  保障层                                             │    │
-│  │  上下文蒸馏 │ 产物版本控制 │ 预算控制 │ 人工介入协议 │    │
-│  └────────────────────┬────────────────────────────────┘    │
-│                       ▼                                      │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  可观测层: Web Dashboard + 状态持久化               │    │
-│  │  ┌──────────────────────────────────────────────┐   │    │
-│  │  │  实时进度 │ 质量评分 │ 成本统计 │ 告警推送  │   │    │
-│  │  └──────────────────────────────────────────────┘   │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  存储层: pipeline_state.json + artifacts + versions │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
+### 1. Web UI
 
----
+浏览器打开首页后，可直接通过 Dashboard 提交任务、查看事件、审批和下载产物。
 
-## 三、目录结构详解
-
-```
-harness/
-├── pipeline.yaml                 # 流水线配置（阶段定义、状态转移、人工介入规则）
-├── budget.yaml                   # 预算与资源控制
-├── review_protocol.yaml          # 产物评审协议（各阶段评审标准）
-│
-├── specs/                        # 功能规范输入
-│   ├── pending/                  # 待处理（放入新规范到这里）
-│   │   └── demo_user_login.md    # 示例：用户登录功能规范
-│   └── processed/                # 已处理
-│
-├── requirements/                 # 需求阶段产物
-│   └── requirements_spec.md      # 需求规格说明书
-│
-├── design/                       # 设计阶段产物
-│   ├── architecture.md           # 系统架构设计
-│   ├── api_design.md             # API 接口设计
-│   ├── data_model.md             # 数据模型设计
-│   ├── mockups/                  # UI 原型图
-│   └── diagrams/                 # 架构图
-│
-├── src/                          # 开发阶段产物（源码）
-│
-├── tests/                        # 测试阶段产物
-│   ├── cases/                    # 测试用例
-│   └── reports/                  # 测试报告
-│       └── test_report.md
-│
-├── agents/                       # Agent 角色定义
-│   ├── agents.yaml               # 角色 Prompt 模板与能力定义
-│   └── identities.yaml           # Claude Code CLI System Prompt 模板
-│
-├── engine/                       # 核心引擎
-│   ├── state_machine.py          # 状态机（状态转移、重试、告警、持久化）
-│   ├── pipeline_runner.py        # 流水线运行器（三层循环、Web API）
-│   ├── reviewers/                # 质控组件
-│   │   ├── consistency_checker.py    # 跨阶段一致性检测
-│   │   └── change_impact_analyzer.py # 变更影响分析
-│   └── distillers/               # 上下文管理
-│       └── context_distiller.py      # 上下文蒸馏器
-│
-├── dashboard/                    # Web Dashboard
-│   └── templates/
-│       └── index.html            # 可视化监控页面
-│
-├── data/                         # 运行时数据
-│   ├── pipeline_state.json       # 状态快照（断点续跑）
-│   ├── review_results/           # 评审结果
-│   ├── consistency/              # 一致性检查报告
-│   ├── changes/                  # 变更记录
-│   ├── distilled/                # 蒸馏后的上下文
-│   └── versions/                 # 产物版本历史
-│
-└── docs/                         # 文档
-    └── README.md                 # 本文件
-```
-
----
-
-## 四、五大核心设计详解
-
-### 4.1 三层循环嵌套机制
-
-```
-主循环 (Feature Loop)
-├── while True:
-│   ├── 检测 specs/pending/ 是否有新规范
-│   ├── 有 → 处理完整流水线
-│   ├── 无 → sleep(poll_interval) 继续轮询
-│   │
-│   ├── 阶段重试循环 (Stage Retry Loop)
-│   │   ├── for attempt in range(max_retries):
-│   │   │   ├── 执行阶段
-│   │   │   ├── 评审产物
-│   │   │   ├── 通过 → break
-│   │   │   └── 不通过 → 重试
-│   │   └── 超过次数 → 退回或暂停
-│   │
-│   └── 反馈回流循环 (Feedback Loop)
-│       ├── 测试通过 → DONE → IDLE
-│       ├── 有 Bug → 退回 DEVELOPMENT
-│       ├── 需求问题 → 退回 REQUIREMENTS
-│       └── 设计不一致 → 退回 DESIGN
-```
-
-### 4.2 独立产物评审协议
-
-每个阶段完成后，由**独立的 review-agent**（不是产出者本身）评审：
-
-```
-评审维度（需求阶段为例）：
-├── 功能完整性 (25%) - 所有功能点是否识别
-├── 验收标准   (25%) - 是否有 Given/When/Then
-├── 无歧义性   (20%) - 是否有模糊描述词
-├── 非功能需求 (15%) - 是否量化
-└── 优先级分类 (15%) - 是否 P0~P3 分级
-```
-
-每条标准独立打分 → 加权总分 → ≥80 分通过，否则退回重做。
-
-### 4.3 上下文蒸馏机制
-
-长流水线上下文爆炸问题的解决方案：
-
-```
-需求文档 (5000字) → [蒸馏器] → 结构化摘要 (1500字)
-    ├── 关键决策列表
-    ├── 接口契约摘要
-    ├── 数据实体列表
-    └── 未解决问题
-
-设计文档 (8000字) → [蒸馏器] → 结构化摘要 (2000字)
-    ├── API 路径列表
-    ├── 数据模型 ER 摘要
-    └── 技术选型决策
-```
-
-跨阶段交接时，传递的是**蒸馏后的摘要包**，而非原始文档。
-
-### 4.4 跨阶段一致性检测
-
-自动检查三条一致性链路：
-
-```
-1. 需求↔设计：
-   - 设计中的每个功能模块是否追溯到需求编号
-   - 设计中是否有超出需求范围的功能
-
-2. 设计↔代码：
-   - API 路径是否与设计文档一致
-   - 数据模型字段是否对齐
-
-3. 需求↔测试：
-   - 每个需求功能点是否有对应测试用例
-   - 测试用例的 AC 与需求 AC 是否一致
-```
-
-产出追溯矩阵（Traceability Matrix）：
-
-| 需求编号 | 设计文档 | 代码模块 | 测试用例 | 覆盖度 |
-|---------|---------|---------|---------|--------|
-| F001    | ✅      | ✅      | ✅      | full   |
-| F002    | ✅      | ✅      | ❌      | partial|
-| F003    | ❌      | ❌      | ❌      | none   |
-
-### 4.5 预算与成本控制
-
-```yaml
-预算维度：
-├── Token 限制: 每个 Feature 500K tokens
-├── 时间限制: 每个 Feature 120 分钟
-├── 重试限制: 单阶段 3 次，总计 10 次
-├── 告警阈值: 80% 使用量发出警告
-└── 硬限制: 95% 使用量强制暂停
-```
-
----
-
-## 五、Agent 角色定义
-
-### 5.1 五个 Agent 角色
-
-| Agent | 职责 | 输入 | 输出 |
-|-------|------|------|------|
-| **requirements-analyst** | 需求分析 | 功能规范 | requirements_spec.md |
-| **system-architect** | 系统设计 | 需求规格 | architecture.md + api_design.md + data_model.md |
-| **developer** | 代码开发 | 设计文档 | src/ 源码 |
-| **unite-test** | 质量测试 | 源码+需求 | 测试用例 + 测试报告 |
-| **review-agent** | 独立评审 | 阶段产物 | 评分 + 改进建议 |
-
-### 5.2 Claude Code CLI Agent 模式
-
-Agent 定义文件存放在 `.claude/agents/` 目录下：
-
-```
-.claude/agents/
-├── requirements-analyst.md
-├── system-architect.md
-├── developer.md
-├── unite-test.md
-├── code-reviewer.md
-├── security-reviewer.md
-└── debugger.md
-```
-
-Pipeline 通过 `claude --agent <agent_id>` 调用对应的 agent 定义。
-
----
-
-## 六、Web Dashboard
-
-### 访问方式
-启动流水线后，浏览器打开 `http://localhost:8080`
-
-### 监控面板
-```
-┌─────────────────────────────────────────────┐
-│  Pipeline Overview                          │
-│  📋需求 → 🏗️设计 → 💻开发 → 🧪测试 → ✅完成  │
-│  [状态动画显示当前阶段]                       │
-├──────────────────┬──────────────────────────┤
-│  Token Budget    │  Activity Feed           │
-│  [环形图+百分比]  │  [实时滚动日志]           │
-│                  │                          │
-├──────────────────┤  🤖 design-agent...      │
-│  Review Scores   │  ✅ 需求评审通过...       │
-│  需求 ██████ 92  │  📝 需求分析完成...       │
-│  设计 █████░░ -- │                          │
-│  开发 ░░░░░░ -- │                          │
-│  测试 ░░░░░░ -- │                          │
-├──────────────────┼──────────────────────────┤
-│  Alerts          │  追溯矩阵 / 一致性        │
-│  ⚠️ 3处模糊描述  │  F001 ✅✅✅ full         │
-│                  │  F002 ✅✅❌ partial       │
-└──────────────────┴──────────────────────────┘
-```
-
-### API 端点
-```
-GET  /api/status     - 流水线状态摘要
-GET  /api/state      - 完整状态机数据
-GET  /api/budget     - 预算状态
-GET  /api/alerts     - 告警列表
-GET  /api/activities - 活动日志
-GET  /api/reviews    - 评审历史
-POST /api/control/pause   - 暂停流水线
-POST /api/control/resume  - 恢复流水线
-POST /api/control/stop    - 停止流水线
-```
-
----
-
-## 七、快速启动指南
-
-### 方式一：使用启动脚本（推荐）
+### 2. JSON 请求
 
 ```bash
-# 一键启动（自动配置虚拟环境、安装依赖、启动服务）
-./start.sh
-
-# 指定端口
-./start.sh 9000
+curl -X POST http://localhost:8080/api/requests \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "title": "更新 README",
+        "text": "请根据当前代码实现更新 docs/README.md",
+        "source": "web",
+        "prioritize_running": false,
+        "pipeline_template_id": "default"
+    }'
 ```
 
-浏览器访问 `http://localhost:8080` 即可使用 Web Dashboard。
-
-### 方式二：命令行运行
+### 3. 带附件的 multipart 请求
 
 ```bash
-# 安装依赖
-pip install flask
-
-# 启动流水线（持续模式）
-cd harness
-python engine/pipeline_runner.py --harness-dir . --web-port 8080
-
-# 单次运行（处理一个规范后退出）
-python engine/pipeline_runner.py --once
-
-# 不启动 Web Dashboard
-python engine/pipeline_runner.py --no-web
+curl -X POST http://localhost:8080/api/requests \
+    -F 'title=分析上传文档' \
+    -F 'text=请结合附件生成设计建议' \
+    -F 'files=@./requirements/ivi_app_store_requirements_spec.md' \
+    -F 'pipeline_template_id=design-only'
 ```
 
-### 方式三：独立使用各组件
+当前上传限制由服务端硬编码：
 
-```python
-# 只使用一致性检查器
-from engine.reviewers.consistency_checker import ConsistencyChecker
-checker = ConsistencyChecker("/path/to/harness")
-results = checker.run_all_checks()
+- 最多 10 个文件。
+- 单文件最大 10 MB。
+- 总大小最大 25 MB。
+- 支持文本、代码、Office、PDF 和常见图片类型。
 
-# 只使用变更影响分析
-from engine.reviewers.change_impact_analyzer import ChangeImpactAnalyzer
-analyzer = ChangeImpactAnalyzer("/path/to/harness")
-impact = analyzer.analyze_change("修改登录密码规则为至少12位")
+如果只上传文件、不填 `text`，系统会自动补一段默认请求文本，让 agent 从标题和附件内容推断诉求。
 
-# 只使用上下文蒸馏器
-from engine.distillers.context_distiller import ContextDistiller
-distiller = ContextDistiller("/path/to/harness")
-ctx = distiller.distill("requirements", long_content, "requirements_spec.md")
+### 4. 飞书 Webhook
+
+启用飞书后，Webhook 入口为：
+
+```text
+POST /api/feishu/webhook
 ```
+
+服务端会：
+
+- 校验签名与去重。
+- 从飞书 payload 提取 `title`、`text`、`chat_id`、`sender`。
+- 自动创建任务并入队。
+
+如果你需要飞书 bot 的长连接方案和本地部署方式，单独参考子项目 `feishu-claude-code/README.md`。
 
 ---
 
-## 八、配置定制
+## Pipeline 与模板系统
 
-### 修改评审标准
-编辑 `review_protocol.yaml`，调整各阶段的评审维度和权重。
+### 默认 stages
 
-### 修改预算限制
-编辑 `budget.yaml`，调整 Token 限制、时间限制、告警阈值。
+默认 stage 定义在 `pipeline.yaml` 中，每个 stage 都绑定了默认 agent：
 
-### 修改流水线行为
-编辑 `pipeline.yaml`，调整：
-- 阶段超时时间
-- 最大重试次数
-- 人工介入触发条件
-- 轮询间隔
+| Stage ID | 默认 Agent | 用途 |
+|---|---|---|
+| `intake` | `planner` | 请求接收与初步整理 |
+| `planning` | `planner` | Sprint contract / 执行计划 |
+| `software-requirement-orchestrator` | `software-requirement-orchestrator` | 需求规格编排 |
+| `cockpit-middleware-architect` | `cockpit-middleware-architect` | 架构与设计产物 |
+| `development` | `developer` | 实现修改 |
+| `code_review` | `code-reviewer` | 代码评审 |
+| `security_review` | `security-reviewer` | 安全评审 |
+| `safety_review` | `safety-reviewer` | 安全合规评审 |
+| `testing` | `unite-test` | 测试与验证 |
+| `delivery` | `delivery-manager` | Gerrit 投递 |
+| `build_verification` | `build-verifier` | 构建验证 |
 
-### 添加新阶段
-在 `pipeline.yaml` 的 `stages` 中添加新阶段定义，在 `agents/agents.yaml` 中定义对应 Agent。
+### 内置模板
+
+模板系统由 `engine/pipeline_template_manager.py` 管理，当前内置模板包括：
+
+- `default`：完整流程。
+- `quick-dev`：快速开发，适合小改动或 bug 修复。
+- `design-only`：只做需求与设计。
+- `cockpit-middleware`：车载中间件完整流程。
+
+任务创建时可以通过 `pipeline_template_id` 选择模板。模板快照会保存到任务本身，因此后续修改默认模板不会影响已创建任务。
+
+### 自定义 pipeline
+
+可通过 API 直接更新当前运行中的自定义 pipeline：
+
+- `GET /api/pipeline`
+- `POST /api/pipeline`
+- `POST /api/pipeline/reset`
+
+也可以通过模板 API 做模板级 CRUD：
+
+- `GET /api/pipeline-templates`
+- `GET /api/pipeline-templates/<template_id>`
+- `POST /api/pipeline-templates`
+- `PUT /api/pipeline-templates/<template_id>`
+- `DELETE /api/pipeline-templates/<template_id>`
+- `POST /api/pipeline-templates/<template_id>/set-default`
+- `GET /api/pipeline-templates/<template_id>/preview`
+- `GET /api/pipeline-templates/available-stages`
 
 ---
 
-## 九、设计哲学
+## 人工介入与任务控制
 
-1. **产物驱动**：每个阶段有明确的输入/输出文件，而非模糊的"信息传递"
-2. **独立评审**：产出者不评审自己的产物，由独立的 review-agent 负责质量把关
-3. **可追溯**：需求→设计→代码→测试全链路可追溯，任意变更可分析影响范围
-4. **渐进式自动化**：从 STATUS.md → Web Dashboard → 告警推送，按需叠加
-5. **安全降级**：预算耗尽、重试超限、检测到歧义时自动暂停，等人工介入
-6. **断点续跑**：所有状态持久化，进程中断后可从断点恢复
+当前实现支持两类人工介入：
+
+### 1. 显式审批
+
+当任务文本包含高风险关键词时，`design` 或 `delivery` 阶段可能触发人工审批。关键词包括：
+
+- `security`
+- `auth`
+- `payment`
+- `prod`
+- `生产`
+- `隐私`
+- `删除数据`
+- `权限`
+
+相关接口：
+
+- `GET /api/approvals`
+- `POST /api/approvals/<task_id>/<approval_id>/resolve`
+
+`resolution` 只能是：
+
+- `approved`
+- `rejected`
+
+### 2. 任务调度控制
+
+支持这些操作：
+
+- `POST /api/tasks/<task_id>/retry`
+- `POST /api/tasks/<task_id>/resume`
+- `POST /api/tasks/<task_id>/pause`
+- `POST /api/tasks/<task_id>/defer`
+- `DELETE /api/tasks/<task_id>`
+- `POST /api/control/pause`
+- `POST /api/control/resume`
+
+其中：
+
+- `retry` 会从第一个未通过 stage 继续，已通过 stage 保留。
+- `resume` 可带人工反馈重新排队。
+- `defer` 用于请求当前任务在安全边界主动让出执行权。
+- 运行中的任务不能直接删除。
+
+---
+
+## 运行时目录与持久化
+
+### 全局运行时数据
+
+主要位于 `data/`：
+
+- `integration_settings.json`：运行配置。
+- `runtime_state.json`：任务运行态快照。
+- `runtime_events.jsonl`：事件流持久化。
+- `pipeline_templates/`：模板 YAML 备份。
+- `reports/`：全局报告。
+- `transcripts/`：全局 transcript 数据。
+- `tasks/`：任务级持久化记录。
+- `harness_state.db`、`pipeline_state.db`：状态与模板存储。
+
+### 单任务运行目录
+
+每个任务都会创建：
+
+```text
+runs/<task_id>/
+```
+
+目录结构由运行器保证至少包含：
+
+- `src/`
+- `tests/`
+- `tests/reports/`
+- `reports/`
+- `transcripts/`
+- `uploads/`
+- `context/`
+- `deliverables/`
+- 每个已配置 stage 的同名目录
+
+同时会写入：
+
+- `meta.json`：任务元数据。
+- 对应 stage 产物，例如 `delivery/delivery.md`、`reports/build_verification.json`。
+
+系统还会维护：
+
+- `runs/latest` 符号链接。
+- 如果符号链接失败，则回退为 `runs/latest.txt`。
+
+运行器启动时会自动迁移旧的 `run_dir` 路径，把历史任务重映射到当前仓库下的 `runs/<task_id>`。
+
+---
+
+## 主要 API 一览
+
+### 基础状态
+
+- `GET /`：Dashboard 首页。
+- `GET /assets/<path>`：前端静态资源。
+- `GET /api/health`：健康检查。
+- `GET /api/runtime`：完整运行态快照。
+- `GET /api/events?since=<seq>`：增量事件查询。
+- `GET /api/stream`：SSE 实时订阅。
+
+### 任务查询与产物
+
+- `GET /api/tasks`
+- `GET /api/tasks/<task_id>`
+- `GET /api/tasks/<task_id>/artifacts`
+- `GET /api/tasks/<task_id>/artifacts/download?path=<abs_path>`
+- `GET /api/tasks/<task_id>/artifacts/archive`
+
+### 设置与 pipeline
+
+- `GET /api/settings`
+- `POST /api/settings`
+- `GET /api/pipeline`
+- `POST /api/pipeline`
+- `POST /api/pipeline/reset`
+
+### Memory API
+
+当前已经实现：
+
+- `GET /api/memory/history`
+- `GET /api/memory/statistics`
+- `GET /api/memory/lessons`
+- `GET /api/memory/project`
+- `POST /api/memory/import`
+
+这些接口读取 `engine/memory_store.py` 维护的任务历史、失败经验和项目级记忆。
+
+---
+
+## Gerrit / Build Verification / HIL
+
+### Gerrit
+
+`delivery` 阶段会调用 Gerrit 适配层提交变更。默认策略仍然是：
+
+```text
+refs/for/<branch>%topic=<task_id>
+```
+
+若 `gerrit.enabled=false`，交付阶段会生成报告，但不会实际推送。
+
+### Build Verification
+
+`build_verification` 阶段已经有适配器和报告落盘逻辑：
+
+- 结果写入 `runs/<task_id>/reports/build_verification.json`
+- 开关由 `build_verification.enabled` 控制
+
+当前这部分属于可接线状态，是否真的执行下游校验取决于配置和适配器实现。
+
+### HIL
+
+HIL 适配器已在运行器中注册，但目前更偏向预留能力，用于在 build verification 或上下文里暴露能力描述。
+
+---
+
+## 相关目录说明
+
+当前仓库里和主服务强相关的目录如下：
+
+- `engine/`：Flask API、调度器、适配器、状态与记忆系统。
+- `dashboard/`：前端页面模板和静态资源。
+- `data/`：运行时配置、数据库、事件和模板备份。
+- `runs/`：每个任务的独立执行目录。
+- `design/`：设计类产物样例。
+- `requirements/`：需求类产物样例。
+- `specs/pending/`：待处理规格输入。
+- `specs/processed/`：已处理规格。
+- `feishu-claude-code/`：飞书 bot 子项目。
+
+---
+
+## 已知注意事项
+
+1. 根服务依赖文件 `requirements/runtime.txt` 目前不存在，`start.sh` 不会自动安装主服务依赖。
+2. 主服务强依赖 Flask；如果环境里没有 `flask`，`engine/pipeline_runner.py` 会在启动时报错。
+3. `yaml` 模块不可用时，pipeline YAML 加载和模板 YAML 备份能力会降级。
+4. `copilot` CLI 不可执行时，若 `simulate=false`，真实任务运行会失败。
+5. `build_verification` 和 `hil` 已接入调度框架，但是否真正执行外部流程依赖后续适配实现和配置。
+
+---
+
+## 最小自检
+
+服务启动后，可以先做这三个检查：
+
+```bash
+curl http://localhost:8080/api/health
+curl http://localhost:8080/api/runtime
+curl http://localhost:8080/api/pipeline-templates
+```
+
+如果三者都返回 JSON，再提交一个最小任务：
+
+```bash
+curl -X POST http://localhost:8080/api/requests \
+    -H 'Content-Type: application/json' \
+    -d '{"title":"smoke test","text":"echo current pipeline status"}'
+```
+
+然后观察：
+
+- Dashboard 首页。
+- `GET /api/tasks`。
+- `GET /api/stream`。
+- 对应 `runs/<task_id>/` 目录是否产生 `meta.json` 和 stage 产物。
