@@ -30,7 +30,10 @@ class ActiveRunRegistry:
             return None
         active_run.proc = proc
         if active_run.stop_requested and getattr(proc, "returncode", None) is None:
-            proc.terminate()
+            try:
+                proc.kill()
+            except Exception:
+                pass
         return active_run
 
     def clear_run(self, user_id: str, active_run: Optional[ActiveRun] = None):

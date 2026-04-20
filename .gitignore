@@ -40,6 +40,7 @@ data/transcripts/
 
 # Per-run generated workspaces and outputs
 runs/
+output/
 
 # Generated task specs moved through the pipeline
 specs/pending/

@@ -19,6 +19,9 @@ class DeleteWaitingHumanTaskTests(unittest.TestCase):
     def _make_runner(self):
         runner = pipeline_runner.PipelineRunner.__new__(pipeline_runner.PipelineRunner)
         runner.lock = threading.RLock()
+        runner.tasks_dir = "/tmp/fake_tasks"
+        runner.runs_dir = "/tmp/fake_runs"
+        runner.memory_store = mock.Mock()
         runner.running = True
         runner.runtime = {"tasks": [], "current_task_id": None}
         runner.tasks_dir = os.path.join(ROOT, "data", "tasks")

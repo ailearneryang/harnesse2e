@@ -1872,6 +1872,8 @@ class PipelineRunner:
 
         deleted_paths = 0
         for path, root in ((run_dir, self.runs_dir), (task_dir, self.tasks_dir)):
+            if not path or not root:
+                continue
             normalized_path = os.path.normpath(path)
             normalized_root = os.path.normpath(root)
             if not os.path.exists(normalized_path):
@@ -1943,21 +1945,21 @@ class PipelineRunner:
             ("uploads/*.pdf", "01_原始需求"),
             ("uploads/*.md", "01_原始需求"),
             # Intake 阶段输出
-            ("intake/intake_summary.md", "02_需求分析.md"),
-            ("intake/sprint_plan.md", "03_Sprint计划.md"),
+            ("output/intake/intake_summary.md", "02_需求分析.md"),
+            ("output/intake/sprint_plan.md", "03_Sprint计划.md"),
             # 软件需求
-            ("requirements/requirements_spec.md", "04_软件需求规格.md"),
-            ("software-requirement-orchestrator/requirements_spec.md", "04_软件需求规格.md"),
+            ("output/requirements/requirements_spec.md", "04_软件需求规格.md"),
+            ("output/software-requirement-orchestrator/requirements_spec.md", "04_软件需求规格.md"),
             # 架构设计
-            ("design/architecture.md", "05_架构设计.md"),
-            ("cockpit-middleware-architect/architecture.md", "05_架构设计.md"),
-            ("design/api_design.md", "06_API设计.md"),
-            ("cockpit-middleware-architect/api_design.md", "06_API设计.md"),
-            ("design/data_model.md", "07_数据模型.md"),
-            ("cockpit-middleware-architect/data_model.md", "07_数据模型.md"),
+            ("output/design/architecture.md", "05_架构设计.md"),
+            ("output/cockpit-middleware-architect/architecture.md", "05_架构设计.md"),
+            ("output/design/api_design.md", "06_API设计.md"),
+            ("output/cockpit-middleware-architect/api_design.md", "06_API设计.md"),
+            ("output/design/data_model.md", "07_数据模型.md"),
+            ("output/cockpit-middleware-architect/data_model.md", "07_数据模型.md"),
             # 测试报告
-            ("tests/test_report.md", "08_测试报告.md"),
-            ("testing/test_report.md", "08_测试报告.md"),
+            ("output/tests/test_report.md", "08_测试报告.md"),
+            ("output/testing/test_report.md", "08_测试报告.md"),
             # 代码审查
             ("code_review/review_report.md", "09_代码审查报告.md"),
             # 安全审查
@@ -2098,6 +2100,12 @@ class PipelineRunner:
         if raw_type == "assistant":
             message_payload = payload.get("message") or {}
             content_blocks = message_payload.get("content") or []
+            
+            # 若消息仅为纯文本且包含大量代码等，我们尝试过滤掉
+            text_blocks = [b.get("text", "") for b in content_blocks if b.get("type") == "text"]
+            raw_text = "".join(text_blocks).strip()
+            
+            # 先拦截所有使用了工具（代码执行、命令运行等）的操作事件并替换成简洁的一句提示，不要输出巨长代码原文
             for block in content_blocks:
                 if not isinstance(block, dict) or block.get("type") != "tool_use":
                     continue
@@ -2153,15 +2161,54 @@ class PipelineRunner:
                         "level": "info",
                         "log_message": message,
                     }
+                    
+                # 如果是执行命令行或书写代码，防止大端刷屏，只反馈简洁动作
+                if tool_name in ("Bash", "Python", "Write", "Edit"):
+                    msg = f"● Execute {tool_name} (后台运行中...)"
+                    return {
+                        "event_type": "tool_execution",
+                        "message": msg,
+                        "data": {**base_data, "tool_name": tool_name},
+                        "level": "info",
+                        "log_message": msg,
+                    }
+                    
+                # 对其余未指定的工具，统一构造并过滤后返回
+                message = f"● Use Tool: {tool_name}"
+                return {
+                    "event_type": "tool_execution",
+                    "message": message,
+                    "data": {**base_data, "tool_name": tool_name},
+                    "level": "info",
+                    "log_message": message,
+                }
 
         text = (event.get("text") or "").strip()
-        if not text or raw_type in ("system", "user"):
+        if not text or raw_type in ("system", "user", "stdout_ignored"):
             return None
+
+        # 屏蔽模型发配的 <thought>...</thought> 思考过程标签
+        import re
+        text = re.sub(r'<thought>.*?</thought>', '', text, flags=re.DOTALL).strip()
+        text = re.sub(r'^Thinking Process:.*?(\n\s*\n|$)', '', text, flags=re.DOTALL).strip()
 
         message = event.get("message") or text
         if message in ("assistant", "system", "user", "result"):
             message = text
-        feed_message = message[:300] + ("…" if len(message) > 300 else "")
+        else:
+            message = re.sub(r'<thought>.*?</thought>', '', message, flags=re.DOTALL).strip()
+            message = re.sub(r'^Thinking Process:.*?(\n\s*\n|$)', '', message, flags=re.DOTALL).strip()
+
+        if not message or message == "result":
+            return None
+        
+        # 不要向外界输出一大段的纯代码或shell脚本：
+        if message.startswith("```") and message.endswith("```"):
+            message = "● [输出了一段代码/预置数据]"
+
+        # 去除连续空行
+        feed_message = re.sub(r'\n{3,}', '\n\n', message)
+        feed_message = feed_message[:300] + ("…" if len(feed_message) > 300 else "")
         return {
             "event_type": "agent_event",
             "message": feed_message,
@@ -2236,6 +2283,9 @@ class PipelineRunner:
             [
                 prompt_core.rstrip(),
                 "",
+                "## Global Output Constraint",
+                "👉 CRITICAL REQUIREMENT: You MUST place all generated source code, documentation, architecture designs, and requirement files strictly within the `output/` directory at the project root (e.g., `output/design/architecture.md`, `output/src/main/...`, `output/software-requirement-orchestrator/...`). Do NOT write to the root `design/`, `src/`, `docs/`, or `software-requirement-orchestrator/` directories.",
+                "",
                 "## Stage Instructions",
                 stage_instructions.get(stage, f"Complete the {stage} stage."),
                 "",
@@ -2247,8 +2297,10 @@ class PipelineRunner:
                 "",
                 "🚨 CRITICAL DECISION RULE (ALL STAGES):",
                 "If you find ANY critical issues, unclear requirements, risks or '待确认项' that strictly require a human's decision before proceeding, you MUST end your response with `VERDICT: NEED_HUMAN`.",
-                "Whenever you output `VERDICT: NEED_HUMAN`, you MUST also provide a `<options>` tag with a valid JSON array of strings representing the choices the human can make.",
-                """Example: <options>["1. 忽略警告继续", "2. 执行代码回退"]</options>"""
+                "Whenever you output `VERDICT: NEED_HUMAN`:",
+                "  1. Your `<summary>` tag MUST explicitly list the exact issues, high-risk items, or pending decisions you found. Do NOT just say 'found 6 issues'—list what they are so the human can read them directly in the notification!",
+                "  2. You MUST also provide a `<options>` tag with a valid JSON array of strings representing the choices the human can make based on these specific items.",
+                """Example: <options>["1. 忽略该字段继续", "2. 提供详细映射后再继续"]</options>"""
             ]
         )
 
@@ -2258,7 +2310,7 @@ class PipelineRunner:
         # 尝试提取 <summary> 标签内容
         summary_match = re.search(r'<summary>\s*(.*?)\s*</summary>', output_text, re.DOTALL)
         if summary_match:
-            summary = summary_match.group(1).strip()[:500]
+            summary = summary_match.group(1).strip()[:1000]
         else:
             lines = [line.strip() for line in output_text.splitlines() if line.strip()]
             summary = " ".join(lines[:4])[:500] if lines else f"{stage} completed"
@@ -2301,11 +2353,11 @@ class PipelineRunner:
         run_dir = task["run_dir"]
 
         if stage == "planning":
-            path = os.path.join(run_dir, "planning", "sprint_contract.md")
+            path = os.path.join(self.target_repo, "output", "planning", "sprint_contract.md")
             self._save_text(path, f"# Sprint Contract - {task['title']}\n\n{output_text}\n", preserve=True)
             artifact_paths.append(path)
         elif stage in REQUIREMENT_STAGE_IDS:
-            path = os.path.join(run_dir, stage, "requirements_spec.md")
+            path = os.path.join(self.target_repo, "output", stage, "requirements_spec.md")
             content = self._wrap_output(task, stage, output_text)
             self._save_text(path, content, preserve=True)
             copy_path = os.path.join(task_dir, "requirements_spec.md")
@@ -2314,30 +2366,30 @@ class PipelineRunner:
             self._save_text(copy_path, content)
             artifact_paths.append(path)
         elif stage in DESIGN_STAGE_IDS:
-            architecture = os.path.join(run_dir, stage, "architecture.md")
-            api = os.path.join(run_dir, stage, "api_design.md")
-            data_model = os.path.join(run_dir, stage, "data_model.md")
+            architecture = os.path.join(self.target_repo, "output", stage, "architecture.md")
+            api = os.path.join(self.target_repo, "output", stage, "api_design.md")
+            data_model = os.path.join(self.target_repo, "output", stage, "data_model.md")
             self._save_text(architecture, self._wrap_output(task, stage, output_text, heading="Architecture"), preserve=True)
             self._save_text(api, self._design_api_content(task, output_text), preserve=True)
             self._save_text(data_model, self._design_data_content(task, output_text), preserve=True)
             artifact_paths.extend([architecture, api, data_model])
         elif stage == "testing":
-            path = os.path.join(run_dir, stage, "test_report.md")
+            path = os.path.join(self.target_repo, "output", stage, "test_report.md")
             self._save_text(path, self._wrap_output(task, stage, output_text), preserve=True)
             self._snapshot_repo_tree("tests", os.path.join(run_dir, "tests", "workspace_snapshot"))
             artifact_paths.append(path)
         elif stage == "development":
-            path = os.path.join(run_dir, stage, f"{stage}.md")
-            self._save_text(path, self._wrap_output(task, stage, output_text))
+            path = os.path.join(self.target_repo, "output", stage, f"{stage}.md")
+            self._save_text(path, self._wrap_output(task, stage, output_text), preserve=True)
             artifact_paths.append(path)
-            for scan_dir in ["src", "tests"]:
-                snapshot_dir = os.path.join(run_dir, stage, scan_dir)
+            for scan_dir in ["output/src", "output/tests"]:
+                snapshot_dir = os.path.join(run_dir, stage, os.path.basename(scan_dir))
                 self._snapshot_repo_tree(scan_dir, snapshot_dir)
                 if os.path.isdir(snapshot_dir):
                     artifact_paths.append(snapshot_dir)
         else:
-            path = os.path.join(run_dir, stage, f"{stage}.md")
-            self._save_text(path, self._wrap_output(task, stage, output_text))
+            path = os.path.join(self.target_repo, "output", stage, f"{stage}.md")
+            self._save_text(path, self._wrap_output(task, stage, output_text), preserve=True)
             artifact_paths.append(path)
 
         task["artifacts"][stage] = artifact_paths

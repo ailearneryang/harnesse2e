@@ -426,10 +426,14 @@ class SessionStore:
     async def get_current(self, user_id: str, chat_id: str) -> Session:
         """Get current session config for a specific chat"""
         cur = await self.get_current_raw(user_id, chat_id)
+        cwd = cur.get("cwd", DEFAULT_CWD)
+        if not cwd or not os.path.exists(cwd):
+            cwd = DEFAULT_CWD
+            
         return Session(
             session_id=cur.get("session_id"),
             model=cur.get("model", DEFAULT_MODEL),
-            cwd=cur.get("cwd", DEFAULT_CWD),
+            cwd=cwd,
             permission_mode=cur.get("permission_mode", PERMISSION_MODE),
             workspace=cur.get("workspace", ""),
         )

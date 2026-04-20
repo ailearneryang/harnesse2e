@@ -10,7 +10,7 @@ import json
 import re
 import shutil
 import sys
-import os
+import os 
 import urllib.request
 import threading
 import time
@@ -171,7 +171,7 @@ def extract_chat_info(event: P2ImMessageReceiveV1) -> tuple[str, str, bool]:
     """
     sender = event.event.sender
     user_id = sender.sender_id.open_id
-    print(f"\n[提示] 收到消息！发送者的 OPEN_ID 是: {user_id}\n", flush=True)
+    # print(f"\n[提示] 收到消息！发送者的 OPEN_ID 是: {user_id}\n", flush=True)
 
     message = event.event.message
     chat_type = message.chat_type
@@ -254,8 +254,8 @@ async def handle_message_async(event: P2ImMessageReceiveV1):
 
     # Extract chat info (supports both private and group chats)
     user_id, chat_id, is_group = extract_chat_info(event)
-    print(f"\n>>>>>>>> [非常重要!!!] 你要找的 ADMIN_OPEN_ID 是: {user_id} <<<<<<<<\n", flush=True)
-    print(f"[Chat Info] user={user_id}... chat={chat_id}... is_group={is_group}", flush=True)
+    # print(f"\n>>>>>>>> [非常重要!!!] 你要找的 ADMIN_OPEN_ID 是: {user_id} <<<<<<<<\n", flush=True)
+    # print(f"[Chat Info] user={user_id}... chat={chat_id}... is_group={is_group}", flush=True)
 
     # /stop 和 / 在锁外处理（不需要排队等 CLI）
     if msg.message_type == "text":
@@ -998,22 +998,14 @@ def _merge_feedback(base_feedback: str, extra_input: str) -> str:
 
 def _format_actor_label(actor_id: str) -> str:
     actor = (actor_id or "").strip()
-    return actor or "unknown"
+    if not actor:
+        return "unknown"
+    if actor.startswith("ou_") or actor.startswith("oc_"):
+        return f"<at id=\"{actor}\"></at>"
+    return actor
 
 
-def _resolve_stage_prompt_from_task(task_payload: dict, stage: str, fallback_title: str, fallback_content: str, prefix: str = "human_prompt") -> tuple[str, str]:
-    task = task_payload if isinstance(task_payload, dict) else {}
-    effective_stage = (stage or task.get("current_stage") or "").strip()
-    stage_context = {}
-    if effective_stage:
-        stage_context = ((task.get("context") or {}).get(effective_stage) or {})
-
-    prompt_title = (stage_context.get(f"{prefix}_title") or fallback_title or "").strip()
-    prompt_content = (stage_context.get(f"{prefix}_content") or fallback_content or "").strip()
-    return prompt_title, prompt_content
-
-
-def _build_result_card_elements(title: str, task_id: str, stage: str, prompt_title: str, prompt_content: str, actor_id: str, decision: str, note: str = "") -> list[dict]:
+def _build_result_card_elements(title: str, task_id: str, stage: str, prompt_title: str, prompt_content: str, actor_id: str, decision: str, note: str = "", all_options: list = None, clicked_text: str = "") -> list[dict]:
     elements = [
         {"tag": "markdown", "content": title},
         {
@@ -1021,7 +1013,7 @@ def _build_result_card_elements(title: str, task_id: str, stage: str, prompt_tit
             "content": (
                 f"**Task ID**: `{task_id}`\n"
                 f"**Stage**: `{stage or 'unknown'}`\n"
-                f"**处理人**: `{_format_actor_label(actor_id)}`"
+                f"**处理人**: {_format_actor_label(actor_id)}"
             ),
         },
     ]
@@ -1031,16 +1023,27 @@ def _build_result_card_elements(title: str, task_id: str, stage: str, prompt_tit
         if (prompt_title or "").strip():
             prompt_lines.append(f"- 标题: {prompt_title.strip()}")
         if (prompt_content or "").strip():
-            prompt_lines.extend(["", prompt_content.strip()])
+            prompt_lines.extend(["", prompt_content.strip(), ""])
         elements.append({"tag": "markdown", "content": "\n".join(prompt_lines)})
+        
+    if all_options:
+        # 使用真实的置灰按钮组件呈现
+        for opt in all_options:
+            is_clicked = clicked_text and opt == clicked_text
+            button_label = opt + (" (已处理)" if is_clicked else "")
+            # 使用飞书 V2 button 本身的 disabled 属性来置灰
+            elements.append({
+                "tag": "button",
+                "text": {"tag": "plain_text", "content": button_label},
+                "type": "primary" if is_clicked else "default",
+                "disabled": True
+            })
 
     elements.append({"tag": "markdown", "content": f"**用户选择结果**\n{decision.strip() or '未提供'}"})
 
     if (note or "").strip():
         elements.append({"tag": "markdown", "content": f"**补充说明**\n{note.strip()}"})
 
-    # 使用 markdown 替代不被支持的 note 标签（Card V2 禁止 note）
-    elements.append({"tag": "markdown", "content": "**操作区状态**：已处理，原按钮不再可点击"})
     return elements
 
 
@@ -1086,6 +1089,8 @@ async def _handle_pipeline_feedback_action(user_id: str, chat_id: str, value: di
             prompt_content,
             user_id,
             feedback,
+            all_options=value.get("all_options", []),
+            clicked_text=value.get("clicked_text", ""),
         )
         await feishu.update_card_elements(card_msg_id, elements)
 
@@ -1125,7 +1130,12 @@ async def _handle_pipeline_approval_action(user_id: str, chat_id: str, value: di
         return
 
     if card_msg_id:
-        resolution_label = "批准继续" if resolution == "approved" else "拒绝继续"
+        if resolution == "approved":
+            resolution_label = "批准继续"
+        elif resolution == "comment_only":
+            resolution_label = "仅发送说明"
+        else:
+            resolution_label = "拒绝继续"
         elements = _build_result_card_elements(
             f"✅ 已处理审批：{resolution_label}",
             task_id,
@@ -1135,6 +1145,8 @@ async def _handle_pipeline_approval_action(user_id: str, chat_id: str, value: di
             user_id,
             resolution_label,
             note,
+            all_options=value.get("all_options", []),
+            clicked_text=value.get("clicked_text", ""),
         )
         await feishu.update_card_elements(card_msg_id, elements)
 

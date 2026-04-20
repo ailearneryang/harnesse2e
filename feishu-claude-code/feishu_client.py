@@ -320,9 +320,11 @@ class FeishuClient:
         """
         base = json.loads(_card_json(content))
         
+        form_elements = []
+        
         # 添加文本输入框组件 (表单)
         if use_input:
-            base["body"]["elements"].append({
+            form_elements.append({
                 "tag": "input",
                 "name": "supplemental_input",
                 "placeholder": {"tag": "plain_text", "content": "补充说明（选填）"},
@@ -331,14 +333,27 @@ class FeishuClient:
             
         btn_elements = []
         for i, btn in enumerate(buttons):
-            btn_elements.append(build_card_button_element(btn, f"btn_{i}"))
+            b = build_card_button_element(btn, f"btn_{i}")
+            if use_input:
+                b["action_type"] = "form_submit"
+            btn_elements.append(b)
+
         if flow and btn_elements:
             # 横排: column_set + flex_mode flow
             columns = [{"tag": "column", "width": "auto", "elements": [b]} for b in btn_elements]
-            base["body"]["elements"].append({"tag": "column_set", "flex_mode": "flow", "columns": columns})
+            form_elements.append({"tag": "column_set", "flex_mode": "flow", "columns": columns})
         else:
             # 竖排: 每个按钮独占一行
-            base["body"]["elements"].extend(btn_elements)
+            form_elements.extend(btn_elements)
+
+        if use_input:
+            base["body"]["elements"].append({
+                "tag": "form",
+                "name": "feedback_form",
+                "elements": form_elements
+            })
+        else:
+            base["body"]["elements"].extend(form_elements)
         card_content = json.dumps(base, ensure_ascii=False)
 
         async def _update():

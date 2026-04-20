@@ -150,8 +150,13 @@ async def run_backend(
                 try:
                     data = json.loads(line)
                 except json.JSONDecodeError:
+                    import re
+                    clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
+                    # Filter out CLI formatting noise and search status garbage
+                    if re.match(r'^[│└┌├┤┼┴┬─●]\s*', clean_line) or clean_line.endswith("line...") or "no matches found" in clean_line.lower():
+                        continue
                     full_text = f"{full_text}\n{line}".strip() if full_text else line
-                    await _fire_callback(on_text_chunk, line)
+                    await _fire_callback(on_text_chunk, line + "\n")
                     continue
 
                 event_type = data.get("type")

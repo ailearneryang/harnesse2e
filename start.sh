@@ -4,7 +4,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV="$DIR/.venv"
 FEISHU_DIR="$DIR/feishu-claude-code"
-FEISHU_VENV="$FEISHU_DIR/.venv"
+# FEISHU_VENV="$FEISHU_DIR/.venv"
 FEISHU_PID_FILE="$DIR/.feishu-bot.pid"
 PORT="${1:-8080}"
 
@@ -27,18 +27,18 @@ if [ ! -d "$VENV" ]; then
     python3 -m venv "$VENV"
 fi
 
-if [ ! -d "$FEISHU_VENV" ]; then
-    echo "Creating Feishu virtualenv..."
-    python3 -m venv "$FEISHU_VENV"
-fi
+# if [ ! -d "$FEISHU_VENV" ]; then
+#     echo "Creating Feishu virtualenv..."
+#     python3 -m venv "$FEISHU_VENV"
+# fi
 
 # 安装依赖
 if [ -f "$DIR/requirements/runtime.txt" ]; then
     "$VENV/bin/pip" install -q -r "$DIR/requirements/runtime.txt"
 fi
-if [ -f "$FEISHU_DIR/requirements.txt" ]; then
-    "$FEISHU_VENV/bin/pip" install -q -r "$FEISHU_DIR/requirements.txt"
-fi
+# if [ -f "$FEISHU_DIR/requirements.txt" ]; then
+#     "$FEISHU_VENV/bin/pip" install -q -r "$FEISHU_DIR/requirements.txt"
+# fi
 
 cleanup() {
     if [ -n "$FEISHU_PID" ] && kill -0 "$FEISHU_PID" 2>/dev/null; then
@@ -78,7 +78,7 @@ if [ "$FEISHU_ENABLED" = "True" ]; then
     echo "Starting Feishu bot from $FEISHU_DIR"
     (
         cd "$FEISHU_DIR"
-        exec "$FEISHU_VENV/bin/python3" main.py
+        exec "$VENV/bin/python3" main.py
     ) &
     FEISHU_PID=$!
     printf '%s\n' "$FEISHU_PID" > "$FEISHU_PID_FILE"

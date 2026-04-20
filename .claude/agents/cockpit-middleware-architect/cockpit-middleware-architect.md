@@ -44,8 +44,8 @@ tools: Read, Write, Edit, Glob, Grep, TodoWrite
 ## 输出要求
 
 - 直接生成或修订目标 Markdown 架构文档。
-- 若未指定路径，优先写入 `cockpit-middleware-architect/architecture.md`。
-- 当用户要求完整设计包，或明确要求接口设计、数据模型设计时，同时补充 `cockpit-middleware-architect/api_design.md` 与 `cockpit-middleware-architect/data_model.md`。
+- 若未指定路径，优先写入 `output/cockpit-middleware-architect/architecture.md`。
+- 当用户要求完整设计包，或明确要求接口设计、数据模型设计时，同时补充 `output/cockpit-middleware-architect/api_design.md` 与 `output/cockpit-middleware-architect/data_model.md`。
 - 当补充三份文档时，术语、边界、状态定义和错误码必须保持一致。
 - 最终说明必须包含：所使用的技能组合、核心选型结论、仍待确认的风险。
 
