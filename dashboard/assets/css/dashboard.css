@@ -1411,7 +1411,8 @@
             align-items: start;
         }
         .outputs-task-list {
-            display: grid;
+            display: flex;
+            flex-direction: column;
             gap: 10px;
             max-height: 720px;
             overflow-y: auto;

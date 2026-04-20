@@ -207,14 +207,12 @@ class CopilotCLIAdapter:
             try:
                 message_type, payload = output_queue.get(timeout=0.5)
             except queue.Empty:
-                if process.poll() is not None:
+                if process.poll() is not None and not reader_thread.is_alive():
                     break
                 continue
 
             if message_type == "eof":
-                if process.poll() is not None:
-                    break
-                continue
+                break
 
             if message_type == "error":
                 stream_error = payload or "unknown stream error"
@@ -222,9 +220,7 @@ class CopilotCLIAdapter:
                 break
 
             raw_line = payload or ""
-            if raw_line == "":
-                if process.poll() is not None:
-                    break
+            if not raw_line:
                 continue
 
             last_output_monotonic = time.monotonic()
@@ -398,6 +394,16 @@ class CopilotCLIAdapter:
                 "text": text_value,
             }
         except json.JSONDecodeError:
+            import re
+            clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
+            if re.match(r'^[│└┌├┤┼┴┬─●]\s*', clean_line) or clean_line.endswith("line...") or "no matches found" in clean_line.lower():
+                return {
+                    "type": "stdout_ignored",
+                    "agent_id": agent_id,
+                    "stage": stage,
+                    "message": line,
+                    "text": line,
+                }
             return {
                 "type": "stdout",
                 "agent_id": agent_id,

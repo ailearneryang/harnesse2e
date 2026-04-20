@@ -125,6 +125,7 @@ def notify_user_for_feedback(title: str, content: str, stage: str, task_id: str,
     # 构建动态选项或兜底按钮
     buttons = []
     if options and isinstance(options, list) and len(options) > 0:
+        all_opts = [str(opt) for opt in options]
         for opt in options:
             buttons.append({
                 "text": str(opt),
@@ -135,16 +136,36 @@ def notify_user_for_feedback(title: str, content: str, stage: str, task_id: str,
                     "prompt_title": title,
                     "prompt_content": content,
                     "feedback": str(opt),
+                    "clicked_text": str(opt),
+                    "all_options": all_opts,
                     "prioritize": True,
                     "cid": recipient,
                 }
             })
     else:
+        all_opts_default = ["✅ 没问题，直接放行", "🔧 尝试使用 debug 模式修复", "🛑 终止并等待人工处理"]
         buttons = [
-            {"text": "✅ 没问题，直接放行", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "授权通过，无额外修改意见", "prioritize": True, "cid": recipient}},
-            {"text": "🔧 尝试使用 debug 模式修复", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "请查阅日志并尝试自动修复", "prioritize": True, "cid": recipient}},
-            {"text": "🛑 终止并等待人工处理", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "人工决定暂不继续自动执行，请停止并等待进一步处理", "prioritize": False, "cid": recipient}}
+            {"text": "✅ 没问题，直接放行", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "授权通过，无额外修改意见", "clicked_text": "✅ 没问题，直接放行", "all_options": all_opts_default, "prioritize": True, "cid": recipient}},
+            {"text": "🔧 尝试使用 debug 模式修复", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "请查阅日志并尝试自动修复", "clicked_text": "🔧 尝试使用 debug 模式修复", "all_options": all_opts_default, "prioritize": True, "cid": recipient}},
+            {"text": "🛑 终止并等待人工处理", "value": {"action": "pipeline_feedback", "task_id": task_id, "stage": stage, "prompt_title": title, "prompt_content": content, "feedback": "人工决定暂不继续自动执行，请停止并等待进一步处理", "clicked_text": "🛑 终止并等待人工处理", "all_options": all_opts_default, "prioritize": False, "cid": recipient}}
         ]
+
+    # 添加独立的发送文本说明按钮
+    buttons.append({
+        "text": "📤 仅发送说明",
+        "value": {
+            "action": "pipeline_feedback",
+            "task_id": task_id,
+            "stage": stage,
+            "prompt_title": title,
+            "prompt_content": content,
+            "feedback": "仅提供附件或补充说明，请继续执行",
+            "clicked_text": "📤 仅发送说明",
+            "all_options": all_opts if options and isinstance(options, list) and len(options) > 0 else all_opts_default,
+            "prioritize": True,
+            "cid": recipient,
+        }
+    })
 
     async def _send():
         try:
@@ -173,8 +194,9 @@ def notify_approval_required(title: str, content: str, stage: str, task_id: str,
            f"💡 *操作指南*：请选择批准或拒绝，您也可以填写补充说明。")
 
     buttons = [
-        {"text": "✅ 批准继续", "value": {"action": "pipeline_approval", "task_id": task_id, "approval_id": approval_id, "stage": stage, "prompt_title": title, "prompt_content": content, "resolution": "approved", "cid": recipient}},
-        {"text": "🛑 拒绝继续", "value": {"action": "pipeline_approval", "task_id": task_id, "approval_id": approval_id, "stage": stage, "prompt_title": title, "prompt_content": content, "resolution": "rejected", "cid": recipient}},
+        {"text": "✅ 批准继续", "value": {"action": "pipeline_approval", "task_id": task_id, "approval_id": approval_id, "stage": stage, "prompt_title": title, "prompt_content": content, "resolution": "approved", "clicked_text": "✅ 批准继续", "all_options": ["✅ 批准继续", "🛑 拒绝继续"], "cid": recipient}},
+        {"text": "🛑 拒绝继续", "value": {"action": "pipeline_approval", "task_id": task_id, "approval_id": approval_id, "stage": stage, "prompt_title": title, "prompt_content": content, "resolution": "rejected", "clicked_text": "🛑 拒绝继续", "all_options": ["✅ 批准继续", "🛑 拒绝继续"], "cid": recipient}},
+        {"text": "📤 仅发送说明", "value": {"action": "pipeline_approval", "task_id": task_id, "approval_id": approval_id, "stage": stage, "prompt_title": title, "prompt_content": content, "resolution": "comment_only", "clicked_text": "📤 仅发送说明", "all_options": ["✅ 批准继续", "🛑 拒绝继续"], "cid": recipient}},
     ]
 
     async def _send():
