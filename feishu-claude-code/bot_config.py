@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 # Ensure we load the .env file that sits next to this module so
 # repo-local settings (like DEFAULT_MODEL / CLI_BACKEND) are applied.
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(PROJECT_DIR, ".env"))
+load_dotenv(os.path.join(PROJECT_DIR, ".env"), override=True)
 LEGACY_SESSIONS_DIR = os.path.expanduser("~/.feishu-claude")
 
 

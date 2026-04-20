@@ -15,6 +15,7 @@ os.environ.setdefault("CLI_BACKEND", "claude")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bot_config import DEFAULT_MODEL, PERMISSION_MODE
+import session_store as session_store_module
 from session_store import SessionStore
 
 
@@ -136,3 +137,19 @@ async def test_list_sessions_with_chat_id(temp_store):
     sessions = await temp_store.list_sessions(user_id, chat_id)
     assert len(sessions) == 1
     assert sessions[0]["session_id"] == "test_session_123"
+
+
+@pytest.mark.asyncio
+async def test_copilot_session_model_normalizes_legacy_invalid_value(temp_store, monkeypatch):
+    user_id = "user_123"
+    chat_id = "group_456"
+
+    monkeypatch.setattr(session_store_module, "CLI_BACKEND", "copilot")
+    monkeypatch.setattr(session_store_module, "DEFAULT_MODEL", "gpt-5.4")
+
+    raw = await temp_store.get_current_raw(user_id, chat_id)
+    raw["model"] = "gpt-5-min"
+    temp_store._save()
+
+    session = await temp_store.get_current(user_id, chat_id)
+    assert session.model == "gpt-5.4"

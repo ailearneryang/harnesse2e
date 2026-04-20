@@ -22,9 +22,89 @@ let pipelineFetched = false;
 let renderThrottleTimer = null;
 let pendingAddStage = null;
 
+function getPipelinePageSelectedTemplate() {
+    if (!pipelineTemplates.length) return null;
+    return pipelineTemplates.find(template => template.id === pipelinePageSelectedTemplateId)
+        || pipelineTemplates.find(template => template.is_default)
+        || pipelineTemplates[0]
+        || null;
+}
+
+function getRequestPagePreferredTemplateId() {
+    const requestSelect = document.getElementById('req-template');
+    const requestTemplateId = requestSelect?.value || selectedTemplateId || '';
+    return requestTemplateId || getDefaultPipelineTemplateId();
+}
+
+function ensurePipelinePageTemplateSelection() {
+    const defaultTemplateId = getDefaultPipelineTemplateId();
+    if (!defaultTemplateId) return null;
+
+    if (pipelinePagePendingEntrySource === 'request') {
+        pipelinePageSelectedTemplateId = getRequestPagePreferredTemplateId() || defaultTemplateId;
+        pipelinePageVisited = true;
+        pipelinePagePendingEntrySource = null;
+        return pipelinePageSelectedTemplateId;
+    }
+
+    if (pipelinePageVisited) {
+        if (!pipelineTemplates.some(template => template.id === pipelinePageSelectedTemplateId)) {
+            pipelinePageSelectedTemplateId = defaultTemplateId;
+        }
+        return pipelinePageSelectedTemplateId;
+    }
+
+    pipelinePageSelectedTemplateId = pipelinePagePendingEntrySource === 'request'
+        ? (getRequestPagePreferredTemplateId() || defaultTemplateId)
+        : defaultTemplateId;
+    pipelinePageVisited = true;
+    pipelinePagePendingEntrySource = null;
+    return pipelinePageSelectedTemplateId;
+}
+
+function updatePipelinePageTemplateSelector() {
+    const select = document.getElementById('pipe-template-select');
+    const meta = document.getElementById('pipe-template-current-meta');
+    const selectedTemplate = getPipelinePageSelectedTemplate();
+
+    if (select) {
+        if (!pipelineTemplates.length) {
+            select.innerHTML = '<option value="">暂无可用 Pipeline</option>';
+            select.disabled = true;
+        } else {
+            ensurePipelinePageTemplateSelection();
+            select.disabled = false;
+            select.innerHTML = pipelineTemplates.map(template =>
+                `<option value="${esc(template.id)}" ${template.id === pipelinePageSelectedTemplateId ? 'selected' : ''}>${esc(template.name)}${template.is_default ? ' · 默认' : ''} (${template.stage_count}阶段)</option>`
+            ).join('');
+        }
+    }
+
+    if (meta) {
+        if (!selectedTemplate) {
+            meta.textContent = '未加载模板';
+            meta.className = 'pipe-template-current-meta';
+        } else {
+            meta.textContent = selectedTemplate.is_default ? '默认 Pipeline' : '非默认 Pipeline';
+            meta.className = `pipe-template-current-meta ${selectedTemplate.is_default ? 'default' : 'non-default'}`;
+        }
+    }
+}
+
+function getPipelineEditorSourceStages() {
+    const selectedTemplate = getPipelinePageSelectedTemplate();
+    if (selectedTemplate?.stages?.length) {
+        return selectedTemplate.stages;
+    }
+    return SAVED_PIPELINE_STAGES?.length ? SAVED_PIPELINE_STAGES : STAGES.map(id => ({ id }));
+}
+
 function initPipelineEditor() {
+    ensurePipelinePageTemplateSelection();
     if (!editorLoaded) {
-        const sourceStages = SAVED_PIPELINE_STAGES?.length ? SAVED_PIPELINE_STAGES : STAGES.map(id => ({ id }));
+        const sourceStages = getPipelineEditorSourceStages();
+        const selectedTemplate = getPipelinePageSelectedTemplate();
+        const shouldApplySuggestedFallbacks = !selectedTemplate?.stages?.length && !SAVED_PIPELINE_STAGES?.length;
         editorStages = sourceStages.map(item => {
             const id = toStageId(item);
             const stage = ALL_STAGES.find(s => s.id === id);
@@ -37,19 +117,89 @@ function initPipelineEditor() {
                 ? { enabled: !!saved.enabled, targetStageId: saved.targetStageId || '', maxRetries: saved.maxRetries || 3 }
                 : { enabled: false, targetStageId: '', maxRetries: 3 };
         });
-        if (!SAVED_PIPELINE_STAGES?.length && fallbackRules.testing) {
+        if (shouldApplySuggestedFallbacks && fallbackRules.testing) {
             fallbackRules.testing = { enabled: true, targetStageId: 'development', maxRetries: 3 };
         }
-        if (!SAVED_PIPELINE_STAGES?.length && fallbackRules.code_review) {
+        if (shouldApplySuggestedFallbacks && fallbackRules.code_review) {
             fallbackRules.code_review = { enabled: true, targetStageId: 'development', maxRetries: 2 };
         }
         editorLoaded = true;
     }
-    const tag = document.getElementById('pipe-mode-tag');
-    const btn = document.getElementById('pipe-restore-btn');
-    if (tag) tag.textContent = pipelineIsCustom ? '自定义配置' : '系统默认';
-    if (btn) btn.style.display = pipelineIsCustom ? '' : 'none';
+    updatePipelinePageTemplateSelector();
+    syncPipelineEditorToolbar();
     renderPipelineEditor();
+}
+
+function normalizeFallbackRule(rule = {}) {
+    return {
+        enabled: !!rule.enabled && !!rule.targetStageId,
+        targetStageId: rule.targetStageId || '',
+        maxRetries: Math.max(1, Math.min(10, parseInt(rule.maxRetries, 10) || 3)),
+    };
+}
+
+function buildPipelineStagesPayload() {
+    return editorStages.map(stage => ({
+        id: stage.id,
+        name: stage.name,
+        agent: stage.agent,
+        fallback: normalizeFallbackRule(fallbackRules[stage.id]),
+    }));
+}
+
+function buildPipelineStageSignature(stages = []) {
+    return JSON.stringify(
+        stages.map(stage => ({
+            id: stage?.id || '',
+            agent: stage?.agent || '',
+            fallback: normalizeFallbackRule(stage?.fallback),
+        }))
+    );
+}
+
+function findMatchingPipelineTemplate(stages) {
+    const signature = buildPipelineStageSignature(stages);
+    return pipelineTemplates.find(template => buildPipelineStageSignature(template.stages || []) === signature) || null;
+}
+
+function buildDefaultTemplateName() {
+    const now = new Date();
+    const pad = value => String(value).padStart(2, '0');
+    return `默认流程 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function syncPipelineEditorToolbar() {
+    const tag = document.getElementById('pipe-mode-tag');
+    const restoreBtn = document.getElementById('pipe-restore-btn');
+    const defaultBtn = document.getElementById('pipe-set-default-btn');
+    const selectedTemplate = getPipelinePageSelectedTemplate();
+    const currentStages = buildPipelineStagesPayload();
+    const currentTemplateSignature = buildPipelineStageSignature(selectedTemplate?.stages || []);
+    const editedSignature = buildPipelineStageSignature(currentStages);
+    const isCurrentTemplateDirty = !!selectedTemplate && currentTemplateSignature !== editedSignature;
+    const isDefaultTemplate = !!selectedTemplate?.is_default;
+
+    if (tag) {
+        const templateText = selectedTemplate
+            ? `当前查看: ${selectedTemplate.name}`
+            : '当前查看: 运行配置';
+        const defaultText = isDefaultTemplate
+            ? (isCurrentTemplateDirty ? ' · 当前默认模板有未保存修改' : ' · 当前模板已是默认')
+            : '';
+        tag.textContent = `${pipelineIsCustom ? '当前运行: 自定义配置' : '当前运行: 系统默认'} · ${templateText}${defaultText}`;
+    }
+    if (restoreBtn) restoreBtn.style.display = pipelineIsCustom ? '' : 'none';
+    if (defaultBtn) {
+        defaultBtn.disabled = !selectedTemplate || (isDefaultTemplate && !isCurrentTemplateDirty);
+        defaultBtn.textContent = isDefaultTemplate
+            ? (isCurrentTemplateDirty ? '保存默认 Pipeline' : '已是默认 Pipeline')
+            : '设为默认 Pipeline';
+        defaultBtn.title = !selectedTemplate
+            ? '请先选择一个 Pipeline 模板'
+            : isDefaultTemplate
+                ? (isCurrentTemplateDirty ? `保存并更新默认模板：${selectedTemplate.name}` : `当前模板已是默认：${selectedTemplate.name}`)
+                : `保存当前模板并设为默认：${selectedTemplate.name}`;
+    }
 }
 
 function renderPipelineEditor() {
@@ -134,6 +284,21 @@ function renderPipelineEditor() {
     }
 
     renderEditorPreview();
+    updatePipelinePageTemplateSelector();
+    syncPipelineEditorToolbar();
+}
+
+function onPipelinePageTemplateSelect(templateId) {
+    if (!pipelineTemplates.length) return;
+    const nextTemplateId = templateId || getDefaultPipelineTemplateId();
+    if (!nextTemplateId || nextTemplateId === pipelinePageSelectedTemplateId) {
+        updatePipelinePageTemplateSelector();
+        return;
+    }
+    pipelinePageSelectedTemplateId = nextTemplateId;
+    selectedStageId = null;
+    editorLoaded = false;
+    initPipelineEditor();
 }
 
 function renderEditorPreview() {
@@ -458,7 +623,9 @@ function pipeRemove(idx) {
 }
 
 function resetPipelineEditor() {
-    const sourceStages = SAVED_PIPELINE_STAGES?.length ? SAVED_PIPELINE_STAGES : STAGES.map(id => ({ id }));
+    const sourceStages = getPipelineEditorSourceStages();
+    const selectedTemplate = getPipelinePageSelectedTemplate();
+    const shouldApplySuggestedFallbacks = !selectedTemplate?.stages?.length && !SAVED_PIPELINE_STAGES?.length;
     editorStages = sourceStages.map(item => {
         const id = toStageId(item);
         const stage = ALL_STAGES.find(s => s.id === id);
@@ -471,10 +638,10 @@ function resetPipelineEditor() {
             ? { enabled: !!saved.enabled, targetStageId: saved.targetStageId || '', maxRetries: saved.maxRetries || 3 }
             : { enabled: false, targetStageId: '', maxRetries: 3 };
     });
-    if (!SAVED_PIPELINE_STAGES?.length && fallbackRules.testing) {
+    if (shouldApplySuggestedFallbacks && fallbackRules.testing) {
         fallbackRules.testing = { enabled: true, targetStageId: 'development', maxRetries: 3 };
     }
-    if (!SAVED_PIPELINE_STAGES?.length && fallbackRules.code_review) {
+    if (shouldApplySuggestedFallbacks && fallbackRules.code_review) {
         fallbackRules.code_review = { enabled: true, targetStageId: 'development', maxRetries: 2 };
     }
     selectedStageId = null;
@@ -486,12 +653,7 @@ async function saveAsTemplate() {
     if (!name || !name.trim()) return;
 
     const description = prompt('请输入模板描述（可选）：', '');
-
-    const stages = editorStages.map(s => ({
-        id: s.id,
-        name: s.name,
-        agent: s.agent,
-    }));
+    const stages = buildPipelineStagesPayload();
 
     try {
         const r = await fetch('/api/pipeline-templates', {
@@ -514,19 +676,19 @@ async function saveAsTemplate() {
     }
 }
 
-async function savePipeline() {
-    const stages = editorStages.map(s => ({
-        id: s.id,
-        name: s.name,
-        agent: s.agent,
-        fallback: fallbackRules[s.id] || { enabled: false, targetStageId: '', maxRetries: 3 },
-    }));
+async function persistPipelineConfiguration(options = {}) {
+    const { silent = false } = options;
+    const stages = buildPipelineStagesPayload();
     const r = await fetch('/api/pipeline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stages }),
     });
-    const data = await r.json();
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+        throw new Error(data.error || '保存 Pipeline 配置失败');
+    }
+
     pipelineIsCustom = data.is_custom ?? true;
     pipelineFetched = true;
     SAVED_PIPELINE_STAGES = stages;
@@ -535,7 +697,66 @@ async function savePipeline() {
 
     await fetchRuntime();
     renderPipelineEditor();
-    showToast('Pipeline 配置已保存并生效');
+    if (!silent) {
+        showToast('Pipeline 配置已保存并生效');
+    }
+
+    return { stages, data };
+}
+
+async function setEditorPipelineAsDefault() {
+    try {
+        if (!pipelineTemplates.length) {
+            await fetchPipelineTemplates();
+        }
+
+        const selectedTemplate = getPipelinePageSelectedTemplate();
+        if (!selectedTemplate?.id) {
+            throw new Error('当前没有可保存的 Pipeline 模板');
+        }
+
+        const stages = buildPipelineStagesPayload();
+
+        await persistPipelineConfiguration({ silent: true });
+
+        const updateResponse = await fetch(`/api/pipeline-templates/${selectedTemplate.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                stages,
+            }),
+        });
+        const updateData = await updateResponse.json().catch(() => ({}));
+        if (!updateResponse.ok) {
+            throw new Error(updateData.error || '保存当前模板失败');
+        }
+
+        if (!selectedTemplate.is_default) {
+            const setDefaultResponse = await fetch(`/api/pipeline-templates/${selectedTemplate.id}/set-default`, { method: 'POST' });
+            const setDefaultData = await setDefaultResponse.json().catch(() => ({}));
+            if (!setDefaultResponse.ok) {
+                throw new Error(setDefaultData.error || '设置默认模板失败');
+            }
+        }
+
+        await fetchPipelineTemplates();
+        pipelinePageSelectedTemplateId = selectedTemplate.id;
+        editorLoaded = false;
+        initPipelineEditor();
+        updatePipelinePageTemplateSelector();
+        syncPipelineEditorToolbar();
+        showToast(selectedTemplate.is_default ? '当前默认 Pipeline 已更新' : '当前模板已保存并设为默认 Pipeline');
+    } catch (e) {
+        showToast(e.message || '设置默认 Pipeline 失败', true);
+    }
+}
+
+async function savePipeline() {
+    try {
+        await persistPipelineConfiguration();
+    } catch (e) {
+        showToast(e.message || '保存 Pipeline 配置失败', true);
+    }
 }
 
 function showToast(message, isError = false) {

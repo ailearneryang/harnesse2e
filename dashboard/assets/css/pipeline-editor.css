@@ -549,6 +549,53 @@
             color: #fff;
         }
 
+        .pipe-template-toolbar {
+            display: grid;
+            grid-template-columns: auto minmax(280px, 420px) auto;
+            align-items: center;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .pipe-template-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .pipe-template-select {
+            width: auto;
+            min-width: 280px;
+            max-width: min(520px, 100%);
+            flex: 0 1 420px;
+        }
+        .pipe-template-current-meta {
+            display: inline-flex;
+            align-items: center;
+            min-height: 34px;
+            padding: 0 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--bg-base);
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .pipe-template-current-meta.default {
+            border-color: rgba(16, 185, 129, 0.35);
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--green);
+        }
+        .pipe-template-current-meta.non-default {
+            border-color: rgba(245, 158, 11, 0.35);
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--amber);
+        }
+        .pipe-page-actions .btn.sm {
+            padding: 7px 14px;
+            font-size: 12px;
+        }
+
         /* ── Tabs (Enhanced) ── */
         .tabs { display: flex; gap: 4px; margin-bottom: 18px; background: var(--bg-base); padding: 4px; border-radius: var(--radius-md); }
         .tab {
@@ -651,6 +698,18 @@
             .pipeline-current-banner {
                 flex-direction: column;
                 align-items: flex-start;
+            }
+            .pipe-template-toolbar {
+                grid-template-columns: 1fr;
+                align-items: stretch;
+            }
+            .pipe-template-label,
+            .pipe-template-current-meta {
+                width: fit-content;
+            }
+            .pipe-template-select {
+                min-width: 0;
+                max-width: 100%;
             }
             .pipeline-current-meta {
                 justify-content: flex-start;

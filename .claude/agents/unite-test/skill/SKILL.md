@@ -1,13 +1,11 @@
 ---
 name: skill
-description: "qa-engineer 的默认 skill。USE FOR: 测试用例设计、执行验证、测试报告输出、缺陷分级。"
+description: "unite-test 的默认 skill。USE FOR: 测试用例设计、执行验证、测试报告输出、缺陷分级。"
 ---
 
-# QA Engineer Default Skill
+# Unite Test Default Skill
 
-此 Skill 作为 `qa-engineer` 兼容别名的默认补充工作流。
-
-新配置应优先绑定 `unite-test`；此 skill 保留仅用于兼容旧任务与旧模板。
+此 Skill 作为 unite-test 的默认补充工作流。
 
 - 覆盖正常流程、异常流程和边界条件
 - 优先保证需求到用例的可追踪性

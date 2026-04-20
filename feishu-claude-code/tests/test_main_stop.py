@@ -73,6 +73,7 @@ def _install_fake_lark():
         "P2ImMessageReceiveV1",
         "CreateMessageRequest",
         "CreateMessageRequestBody",
+        "GetMessageRequest",
         "PatchMessageRequest",
         "PatchMessageRequestBody",
         "ReplyMessageRequest",
@@ -152,7 +153,15 @@ class MainStopTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(
             main,
             "_post_harness_json",
-            mock.AsyncMock(return_value={"current_stage": "testing"}),
+            mock.AsyncMock(return_value={
+                "current_stage": "testing",
+                "context": {
+                    "testing": {
+                        "human_prompt_title": "Manual action required",
+                        "human_prompt_content": "待确认项如下：\n- A：补齐接口定义\n- B：确认验收标准",
+                    }
+                },
+            }),
         ) as post_mock, mock.patch.object(main, "feishu") as mock_feishu:
             mock_feishu.update_card_elements = mock.AsyncMock()
 
@@ -180,8 +189,9 @@ class MainStopTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("已提交人工反馈并恢复流水线", update_args[1][0]["content"])
         joined_content = "\n".join(element.get("content", "") for element in update_args[1] if isinstance(element, dict) and "content" in element)
         self.assertIn("**待确认项**", joined_content)
-        self.assertIn("当前确认项", joined_content)
-        self.assertIn("请确认是否继续推进", joined_content)
+        self.assertIn("Manual action required", joined_content)
+        self.assertIn("- A：补齐接口定义", joined_content)
+        self.assertIn("- B：确认验收标准", joined_content)
         self.assertIn("**用户选择结果**", joined_content)
         self.assertIn("请继续", joined_content)
         self.assertIn("**处理人**: `user-1`", joined_content)

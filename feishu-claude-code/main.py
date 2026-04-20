@@ -10,7 +10,7 @@ import json
 import re
 import shutil
 import sys
-import os
+import os 
 import urllib.request
 import threading
 import time
@@ -1080,6 +1080,7 @@ async def _handle_pipeline_feedback_action(user_id: str, chat_id: str, value: di
         return
 
     if card_msg_id:
+        prompt_title, prompt_content = _resolve_stage_prompt_from_task(result, stage, prompt_title, prompt_content, prefix="human_prompt")
         elements = _build_result_card_elements(
             "✅ 已提交人工反馈并恢复流水线",
             task_id,

@@ -9,7 +9,7 @@ os.environ.setdefault("FEISHU_APP_SECRET", "test_app_secret")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import session_store as session_store_module
-from commands import handle_command
+from commands import handle_command, parse_command
 from session_store import SessionStore
 
 
@@ -118,3 +118,13 @@ async def test_ls_supports_relative_subdir(isolated_store, tmp_path):
     assert "请求路径：`backend`" in reply
     assert f"绝对路径：`{nested}`" in reply
     assert "`app.py`" in reply
+
+
+def test_parse_command_routes_explicit_harness_prefixes():
+    assert parse_command("Harness 新需求：帮我生成车机app") == ("harness", "帮我生成车机app")
+    assert parse_command("新需求: 帮我生成车机app") == ("harness", "帮我生成车机app")
+    assert parse_command("提需求 做一个车机 App Store") == ("harness", "做一个车机 App Store")
+
+
+def test_parse_command_keeps_plain_text_as_chat():
+    assert parse_command("帮我生成车机app") is None

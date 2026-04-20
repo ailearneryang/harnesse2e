@@ -1,39 +1,83 @@
 description: 包含从需求分析到构建验证的完整 pipeline，适用于正式需求
 id: default
 is_builtin: true
-is_default: true
+is_default: false
 name: 完整流程
 stages:
 - agent: planner
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: intake
   name: Request Intake
 - agent: planner
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: planning
   name: Sprint Planning
 - agent: software-requirement-orchestrator
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: software-requirement-orchestrator
   name: Software Requirement Orchestrator
 - agent: cockpit-middleware-architect
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: cockpit-middleware-architect
   name: Cockpit Middleware Architect
 - agent: developer
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: development
   name: Implementation
 - agent: code-reviewer
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: code_review
   name: Code Review
 - agent: security-reviewer
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: security_review
   name: Security Review
 - agent: safety-reviewer
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: safety_review
   name: Safety Review
-- agent: qa-engineer
+- agent: unite-test
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: testing
-  name: QA Testing
+  name: Unit Testing
 - agent: delivery-manager
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: delivery
   name: Gerrit Delivery
 - agent: build-verifier
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: build_verification
-  name: Build Verification
+  name: Build Verify

@@ -13,6 +13,6 @@ stages:
 - agent: code-reviewer
   id: code_review
   name: Code Review
-- agent: qa-engineer
+- agent: unite-test
   id: testing
-  name: QA Testing
+  name: Unit Testing
