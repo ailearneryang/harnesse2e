@@ -6,9 +6,23 @@ stages:
     enabled: false
     targetStageId: ''
     maxRetries: 3
+- id: planning
+  name: Sprint Planning
+  agent: planner
+  fallback:
+    enabled: false
+    targetStageId: ''
+    maxRetries: 3
 - id: software-requirement-orchestrator
   name: Software Requirement Orchestrator
   agent: software-requirement-orchestrator
+  fallback:
+    enabled: false
+    targetStageId: ''
+    maxRetries: 3
+- id: cockpit-middleware-architect
+  name: Cockpit Middleware Architect
+  agent: cockpit-middleware-architect
   fallback:
     enabled: false
     targetStageId: ''

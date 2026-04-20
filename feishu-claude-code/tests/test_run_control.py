@@ -61,7 +61,7 @@ class RunControlTests(unittest.IsolatedAsyncioTestCase):
         registry.attach_process("user-1", proc)
 
         self.assertIs(run.proc, proc)
-        self.assertTrue(proc.terminate_called)
+        self.assertTrue(proc.kill_called)
 
 
 if __name__ == "__main__":

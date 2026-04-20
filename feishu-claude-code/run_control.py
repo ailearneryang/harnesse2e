@@ -30,10 +30,15 @@ class ActiveRunRegistry:
             return None
         active_run.proc = proc
         if active_run.stop_requested and getattr(proc, "returncode", None) is None:
+            import os
+            import signal
             try:
-                proc.kill()
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
             except Exception:
-                pass
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
         return active_run
 
     def clear_run(self, user_id: str, active_run: Optional[ActiveRun] = None):
@@ -63,11 +68,25 @@ async def stop_run(
     active_run.stop_requested = True
     proc = active_run.proc
     if proc is not None and getattr(proc, "returncode", None) is None:
-        proc.terminate()
+        import os
+        import signal
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except Exception:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
         try:
             await asyncio.wait_for(proc.wait(), timeout=grace_seconds)
         except asyncio.TimeoutError:
-            proc.kill()
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
             await proc.wait()
 
     if on_stopped is not None and not active_run.stop_announced:

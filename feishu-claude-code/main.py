@@ -345,9 +345,9 @@ async def _run_and_display(
             push_failures += 1
             print(f"[warn] push 失败 ({push_failures}/3): {push_err}", flush=True)
 
-    def _build_display() -> str:
+    def _build_display(is_final: bool = False) -> str:
         parts = []
-        if tool_history:
+        if tool_history and not is_final:
             parts.append("\n".join(tool_history[-5:]))
         if accumulated:
             if parts:
@@ -356,7 +356,7 @@ async def _run_and_display(
             if len(d) > _MAX_STREAM_DISPLAY:
                 d = "...\n\n" + d[-_MAX_STREAM_DISPLAY:]
             parts.append(d)
-        return "\n".join(parts) if parts else "⏳ 思考中..."
+        return "\n".join(parts) if parts else ("⏳ 思考中..." if not is_final else "（无输出）")
 
     async def on_tool_use(name: str, inp: dict):
         nonlocal accumulated, last_push_time, plan_exited
@@ -443,7 +443,7 @@ async def _run_and_display(
 
     # 最终更新卡片，检测选项时附加按钮
     # AskUserQuestion 的内容在 accumulated 里，full_text 可能不含，需要兜底
-    final = full_text or accumulated or "（无输出）"
+    final = full_text or _build_display(is_final=True)
     if used_fresh_session_fallback:
         final = (
             "⚠️ 检测到工作目录已变化，旧会话无法继续。"
@@ -1003,6 +1003,18 @@ def _format_actor_label(actor_id: str) -> str:
     if actor.startswith("ou_") or actor.startswith("oc_"):
         return f"<at id=\"{actor}\"></at>"
     return actor
+
+
+def _resolve_stage_prompt_from_task(task_payload: dict, stage: str, fallback_title: str, fallback_content: str, prefix: str = "human_prompt") -> tuple[str, str]:
+    task = task_payload if isinstance(task_payload, dict) else {}
+    effective_stage = (stage or task.get("current_stage") or "").strip()
+    stage_context = {}
+    if effective_stage:
+        stage_context = ((task.get("context") or {}).get(effective_stage) or {})
+
+    prompt_title = (stage_context.get(f"{prefix}_title") or fallback_title or "").strip()
+    prompt_content = (stage_context.get(f"{prefix}_content") or fallback_content or "").strip()
+    return prompt_title, prompt_content
 
 
 def _build_result_card_elements(title: str, task_id: str, stage: str, prompt_title: str, prompt_content: str, actor_id: str, decision: str, note: str = "", all_options: list = None, clicked_text: str = "") -> list[dict]:
