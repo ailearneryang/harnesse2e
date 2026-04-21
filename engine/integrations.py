@@ -240,6 +240,9 @@ class CopilotCLIAdapter:
                     process.kill()
                     break
 
+            if event.get("type") == "stdout_ignored":
+                continue
+
             text_value = (event.get("text") or "").strip()
             if text_value and text_value not in ("system", "assistant", "user", "result"):
                 output_lines.append(text_value)
@@ -395,21 +398,21 @@ class CopilotCLIAdapter:
             }
         except json.JSONDecodeError:
             import re
-            clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
-            if re.match(r'^[│└┌├┤┼┴┬─●]\s*', clean_line) or clean_line.endswith("line...") or "no matches found" in clean_line.lower():
+            clean_line = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', line.split('\r')[-1]).strip()
+            if not clean_line or re.match(r'^[│└┌├┤┼┴┬─●■✗✔✘◎]\s*', clean_line) or clean_line.endswith("line...") or "lines read" in clean_line.lower() or "lines found" in clean_line.lower() or "lines..." in clean_line.lower() or "no matches found" in clean_line.lower() or clean_line.startswith("Edit output/") or clean_line.startswith("Read ") or clean_line.startswith("Search ") or clean_line.startswith("Extract ") or clean_line.startswith("Check ") or clean_line.startswith("set -euo pipefail") or "/var/folders/" in clean_line or "cd /" in clean_line:
                 return {
                     "type": "stdout_ignored",
                     "agent_id": agent_id,
                     "stage": stage,
-                    "message": line,
-                    "text": line,
+                    "message": clean_line or line,
+                    "text": clean_line or line,
                 }
             return {
                 "type": "stdout",
                 "agent_id": agent_id,
                 "stage": stage,
-                "message": line,
-                "text": line,
+                "message": clean_line,
+                "text": clean_line,
             }
 
     def _simulate(

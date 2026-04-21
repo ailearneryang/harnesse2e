@@ -1,18 +1,34 @@
 description: 只进行需求分析和架构设计，不进行开发实现
 id: design-only
 is_builtin: true
-is_default: false
+is_default: true
 name: 仅设计
 stages:
 - agent: planner
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: intake
   name: Request Intake
 - agent: planner
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: planning
   name: Sprint Planning
 - agent: software-requirement-orchestrator
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: software-requirement-orchestrator
   name: Software Requirement Orchestrator
 - agent: cockpit-middleware-architect
+  fallback:
+    enabled: false
+    maxRetries: 3
+    targetStageId: ''
   id: cockpit-middleware-architect
   name: Cockpit Middleware Architect

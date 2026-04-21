@@ -2250,16 +2250,6 @@ class PipelineRunner:
             agent["completed_tasks"] += 1
 
     def _build_prompt(self, task: Dict, stage: str, context: Dict, retry_info: Optional[Dict] = None) -> str:
-        # Inject memory context (historical experience)
-        memory_section = []
-        try:
-            agent_id = self._task_stage_agent_id(task, stage)
-            memory_ctx = self.memory_injector.build_memory_context(stage, task["request_text"], agent_id)
-            if memory_ctx:
-                memory_section = [self.memory_injector.format_for_prompt(memory_ctx), ""]
-        except Exception:
-            pass  # Memory injection is optional
-
         stage_instructions = {
             "intake": "Produce a concise intake summary and identify risky areas.",
             "planning": "Break the request into a sprint contract with clear subtasks, dependencies, and definition of done.",
@@ -2276,7 +2266,7 @@ class PipelineRunner:
             task,
             stage,
             context,
-            memory_context="\n".join(memory_section).strip(),
+            memory_context="",
             retry_info=retry_info,
         )
         return "\n".join(

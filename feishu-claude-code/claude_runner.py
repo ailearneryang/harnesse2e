@@ -113,6 +113,7 @@ async def run_backend(
             cwd=resolved_cwd,
             env=env,
             limit=10 * 1024 * 1024,
+            start_new_session=True,
         )
 
         await _fire_callback(on_process_start, proc)
@@ -151,12 +152,16 @@ async def run_backend(
                     data = json.loads(line)
                 except json.JSONDecodeError:
                     import re
-                    clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
-                    # Filter out CLI formatting noise and search status garbage
-                    if re.match(r'^[│└┌├┤┼┴┬─●]\s*', clean_line) or clean_line.endswith("line...") or "no matches found" in clean_line.lower():
+                    # Strip standard ANSI escape sequences and select the last carriage return chunk.
+                    clean_line = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', line.split('\r')[-1]).strip()
+                    if not clean_line:
                         continue
-                    full_text = f"{full_text}\n{line}".strip() if full_text else line
-                    await _fire_callback(on_text_chunk, line + "\n")
+                    # Filter out CLI formatting noise and search status garbage
+                    if re.match(r'^[│└┌├┤┼┴┬─●■✗✔✘◎]\s*', clean_line) or clean_line.endswith("line...") or "lines read" in clean_line.lower() or "lines found" in clean_line.lower() or "lines..." in clean_line.lower() or "no matches found" in clean_line.lower() or clean_line.startswith("Edit output/") or clean_line.startswith("Read ") or clean_line.startswith("Search ") or clean_line.startswith("Extract ") or clean_line.startswith("Check ") or clean_line.startswith("set -euo pipefail") or "/var/folders/" in clean_line or "cd /" in clean_line:
+                        continue
+                    # Append the cleaned version so we don't send garbage ANSI codes to Feishu even if it passes the filter
+                    full_text = f"{full_text}\n{clean_line}".strip() if full_text else clean_line
+                    await _fire_callback(on_text_chunk, clean_line + "\n")
                     continue
 
                 event_type = data.get("type")
